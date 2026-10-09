@@ -35,5 +35,5 @@ ENV NODE_EXTRA_CA_CERTS=/app/certs/timeweb-root.crt
 
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
+# Проверку состояния задаёт Timeweb (Настройки → Путь проверки состояния), своей в образе нет — как в Kamui
 CMD ["./entrypoint.sh"]
