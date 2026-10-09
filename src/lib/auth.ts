@@ -37,6 +37,11 @@ export const auth = betterAuth({
   appName: SITE.name,
   baseURL: process.env.BETTER_AUTH_URL || SITE.url,
   secret: process.env.BETTER_AUTH_SECRET,
+  // Дополнительные адреса сайта, с которых разрешён вход (например, технический домен Timeweb), через запятую
+  trustedOrigins: (process.env.TRUSTED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim().replace(/\/$/, ""))
+    .filter(Boolean),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user: s.user, session: s.session, account: s.account, verification: s.verification },
