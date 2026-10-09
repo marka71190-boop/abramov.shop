@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
-import { saveSettings } from "@/lib/settings";
+import { getSettings, saveSettings } from "@/lib/settings";
 import { requireAdmin } from "@/lib/viewer";
 
 export interface ActionState {
@@ -228,7 +228,9 @@ export async function updateSettings(_: ActionState, form: FormData): Promise<Ac
   if (!p.success) return { error: p.error.issues[0]?.message };
   const d = p.data;
   if (d.blackThreshold <= d.goldThreshold) return { error: "Порог Black должен быть больше порога Gold" };
+  const cur = await getSettings();
   await saveSettings({
+    ...cur,
     maintenance: d.maintenance === "on",
     maintenanceMessage: d.maintenanceMessage,
     supportTelegram: d.supportTelegram,

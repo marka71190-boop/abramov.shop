@@ -7,3 +7,8 @@ export async function audit(actorId: string, action: string, entity: string, ent
   const { ip } = await getRequestMeta();
   await db.insert(s.auditLog).values({ actorId, action, entity, entityId: entityId ?? null, details: details ?? null, ip });
 }
+
+/** Запись без данных запроса — для фоновых задач и уведомлений ЮKassa/СДЭК. */
+export async function auditSystem(actorId: string | null, action: string, entity: string, entityId?: string | null, details?: unknown) {
+  await db.insert(s.auditLog).values({ actorId, action, entity, entityId: entityId ?? null, details: details ?? null, ip: null });
+}

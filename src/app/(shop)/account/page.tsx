@@ -25,6 +25,17 @@ const STATUS: Record<string, { text: string; color: string }> = {
   REFUNDED: { text: "Возврат", color: "var(--c-danger)" },
 };
 
+const BONUS_REASON: Record<string, string> = {
+  ORDER_ACCRUAL: "Бонусы за заказ",
+  ORDER_SPEND: "Оплата заказа",
+  REFERRAL: "Приглашённый друг",
+  BIRTHDAY: "С днём рождения",
+  WELCOME: "Приветственные бонусы",
+  MANUAL: "Начисление от магазина",
+  EXPIRED: "Сгорели",
+  REFUND: "Возврат",
+};
+
 export default async function AccountPage() {
   let user = await requireUser("/account");
   const settings = await getSettings();
@@ -42,11 +53,12 @@ export default async function AccountPage() {
     }
   }
 
-  const [orders, pd, mk, referrals] = await Promise.all([
+  const [orders, pd, mk, referrals, bonusLog] = await Promise.all([
     db.query.order.findMany({ where: eq(s.order.userId, user.id), orderBy: desc(s.order.createdAt), limit: 10, with: { items: true } }),
     getActiveConsent(user.id, "PERSONAL_DATA"),
     getActiveConsent(user.id, "MARKETING"),
     db.$count(s.user, eq(s.user.referredById, user.id)),
+    db.query.bonusTransaction.findMany({ where: eq(s.bonusTransaction.userId, user.id), orderBy: desc(s.bonusTransaction.createdAt), limit: 8 }),
   ]);
 
   // Без действующего согласия на обработку ПДн кабинетом пользоваться нельзя
@@ -113,6 +125,11 @@ export default async function AccountPage() {
                 <CopyButton text={user.referralCode} />
               </div>
             )}
+            {user.referralCode && (
+              <div className="muted small" style={{ wordBreak: "break-all" }}>
+                Или ссылкой: abramov.shop/?ref={user.referralCode}
+              </div>
+            )}
             <div className="muted small">Приглашено друзей: {referrals}</div>
           </div>
         </div>
@@ -128,7 +145,7 @@ export default async function AccountPage() {
               const st = STATUS[o.status];
               const count = o.items.reduce((a, i) => a + i.quantity, 0);
               return (
-                <div key={o.id} className="row-line">
+                <Link key={o.id} href={`/order/${o.number}`} className="row-line row-line--link">
                   <div style={{ flex: "1 1 180px" }}>
                     <div style={{ fontWeight: 600 }}>{o.number}</div>
                     <div className="muted small">
@@ -145,11 +162,32 @@ export default async function AccountPage() {
                   <div className="display" style={{ fontSize: 22, fontWeight: 400 }}>
                     {rub(o.total)}
                   </div>
-                </div>
+                </Link>
               );
             })
           )}
         </section>
+
+        {bonusLog.length > 0 && (
+          <section className="panel">
+            <h2>История бонусов</h2>
+            {bonusLog.map((b) => (
+              <div key={b.id} className="row-line">
+                <div>
+                  <div>{b.comment ?? BONUS_REASON[b.reason]}</div>
+                  <div className="muted small">
+                    {fmtDate(b.createdAt)}
+                    {b.expiresAt && b.amount > 0 ? ` · действуют до ${fmtDate(b.expiresAt)}` : ""}
+                  </div>
+                </div>
+                <div className="display" style={{ fontSize: 22, fontWeight: 400, color: b.amount > 0 ? "var(--c-gold)" : "var(--c-muted)" }}>
+                  {b.amount > 0 ? "+" : "−"}
+                  {num(Math.abs(b.amount))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         <section id="settings" className="panel">
           <h2>Профиль, уведомления и согласия</h2>

@@ -10,6 +10,7 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -367,8 +368,16 @@ export const order = pgTable(
     postalCode: text("postal_code"),
     address: text("address"),
     cdekPvzCode: text("cdek_pvz_code"),
+    cdekCityCode: integer("cdek_city_code"),
+    deliveryTariff: integer("delivery_tariff"),
+    deliveryDays: text("delivery_days"), // «2–4» — срок по расчёту СДЭК
     cdekOrderUuid: text("cdek_order_uuid"),
+    cdekStatus: text("cdek_status"), // последний статус из СДЭК
     trackNumber: text("track_number"),
+
+    bonusCredited: boolean("bonus_credited").default(false).notNull(), // бонусы за заказ уже начислены
+    cancelReason: text("cancel_reason"),
+    expiresAt: ts("expires_at"), // до какого времени ждём оплату
 
     paidAt: ts("paid_at"),
     shippedAt: ts("shipped_at"),
@@ -404,6 +413,8 @@ export const payment = pgTable("payment", {
   externalId: text("external_id").notNull().unique(),
   status: paymentStatusEnum("status").default("PENDING").notNull(),
   amount: integer("amount").notNull(),
+  confirmationUrl: text("confirmation_url"), // страница оплаты ЮKassa
+  refundedAmount: integer("refunded_amount").default(0).notNull(),
   raw: jsonb("raw"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -516,6 +527,26 @@ export const stockSubscription = pgTable("stock_subscription", {
 });
 
 // ============================================================
+// Фото товаров. Хранятся в базе: на Timeweb файлы контейнера
+// стираются при каждом обновлении сайта, а база — нет.
+// ============================================================
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+export const media = pgTable("media", {
+  id: id(),
+  mime: text("mime").notNull(),
+  data: bytea("data").notNull(),
+  size: integer("size").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  createdById: text("created_by_id"),
+  createdAt: createdAt(),
+});
+
+// ============================================================
 // Настройки сайта (меняются из админки) и журнал действий админов
 // ============================================================
 
@@ -559,12 +590,27 @@ export const consentRelations = relations(consent, ({ one }) => ({
 
 export const orderRelations = relations(order, ({ one, many }) => ({
   user: one(user, { fields: [order.userId], references: [user.id] }),
+  promo: one(promoCode, { fields: [order.promoCodeId], references: [promoCode.id] }),
   items: many(orderItem),
   payments: many(payment),
 }));
 
 export const orderItemRelations = relations(orderItem, ({ one }) => ({
   order: one(order, { fields: [orderItem.orderId], references: [order.id] }),
+  product: one(product, { fields: [orderItem.productId], references: [product.id] }),
+}));
+
+export const paymentRelations = relations(payment, ({ one }) => ({
+  order: one(order, { fields: [payment.orderId], references: [order.id] }),
+}));
+
+export const promoCodeRelations = relations(promoCode, ({ many }) => ({
+  usages: many(promoUsage),
+}));
+
+export const promoUsageRelations = relations(promoUsage, ({ one }) => ({
+  promo: one(promoCode, { fields: [promoUsage.promoId], references: [promoCode.id] }),
+  order: one(order, { fields: [promoUsage.orderId], references: [order.id] }),
 }));
 
 export const productRelations = relations(product, ({ one, many }) => ({

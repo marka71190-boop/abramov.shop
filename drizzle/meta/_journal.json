@@ -15,6 +15,13 @@
       "when": 1791542374675,
       "tag": "0001_vk_consent_source",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791582092419,
+      "tag": "0002_orders_media",
+      "breakpoints": true
     }
   ]
 }

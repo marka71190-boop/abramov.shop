@@ -1,15 +1,17 @@
-import Link from "next/link";
+import { CartView } from "@/components/cart/CartView";
+import { getSettings } from "@/lib/settings";
+import { getViewer } from "@/lib/viewer";
 
 export const metadata = { title: "Корзина", robots: { index: false } };
 
-export default function CartPage() {
+export default async function CartPage() {
+  const [viewer, settings] = await Promise.all([getViewer(), getSettings()]);
   return (
-    <section className="container doc">
-      <h1>Корзина</h1>
-      <p className="muted">Корзина и оформление заказа с оплатой ЮKassa и доставкой СДЭК подключаются.</p>
-      <Link href="/#catalog" className="btn btn--gold" style={{ marginTop: 16 }}>
-        В каталог
-      </Link>
+    <section className="container page-pad">
+      <h1 className="h2" style={{ marginBottom: 28 }}>
+        Корзина
+      </h1>
+      <CartView signedIn={!!viewer} maxPerItem={settings.checkout.maxQtyPerItem} />
     </section>
   );
 }

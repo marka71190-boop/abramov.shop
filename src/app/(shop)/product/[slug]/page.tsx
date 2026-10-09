@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AddToCart } from "@/components/cart/AddToCart";
 import { KeepBeta } from "@/components/RichText";
 import { notFound } from "next/navigation";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { getProductBySlug } from "@/lib/catalog";
 import { num, rub } from "@/lib/format";
+import { getSettings } from "@/lib/settings";
 import { getViewer, isAdmin } from "@/lib/viewer";
 import { canView, isPublic } from "@/lib/visibility";
 
@@ -25,6 +27,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   if (p.category && !isPublic(p.category) && !admin && preview !== p.previewToken) notFound();
 
   const stock = p.variants.reduce((a, v) => a + v.stock, 0);
+  const settings = await getSettings();
   const cover = p.images[0];
 
   return (
@@ -65,9 +68,10 @@ export default async function ProductPage({ params, searchParams }: Props) {
               {rub(p.price)}
               {p.oldPrice ? <span className="old-price">{rub(p.oldPrice)}</span> : null}
             </div>
-            <button className="btn btn--gold btn--block" disabled title="Корзина подключается">
-              {stock > 0 ? "В корзину — скоро" : "Нет в наличии"}
-            </button>
+            <AddToCart
+              variants={p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock }))}
+              maxPerItem={settings.checkout.maxQtyPerItem}
+            />
           </div>
         </div>
         {p.images.length > 1 && (

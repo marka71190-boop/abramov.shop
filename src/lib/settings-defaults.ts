@@ -18,6 +18,23 @@ export interface SiteSettings {
     birthdayBonus: number;
     expiryDays: number; // 0 — бонусы не сгорают
   };
+  delivery: {
+    pvzEnabled: boolean; // до пункта выдачи СДЭК
+    courierEnabled: boolean; // курьером СДЭК до двери
+    fromCityCode: number; // код города отправки в СДЭК (Краснодар — 435)
+    shipmentPoint: string; // ПВЗ, где сдаём посылки (KSD47)
+    tariffPvz: number; // 136 — посылка склад-склад
+    tariffCourier: number; // 137 — посылка склад-дверь
+    markup: number; // ₽ к цене СДЭК (упаковка)
+    freeFrom: number; // ₽, с какой суммы доставка бесплатная; 0 — никогда
+    flatPvz: number; // ₽, если СДЭК ещё не подключён
+    flatCourier: number;
+  };
+  checkout: {
+    paymentMinutes: number; // сколько ждём оплату, потом заказ отменяется и товар возвращается в продажу
+    maxQtyPerItem: number;
+    notice: string; // объявление на странице оформления
+  };
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
@@ -37,6 +54,23 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     birthdayBonus: 500,
     expiryDays: 365,
   },
+  delivery: {
+    pvzEnabled: true,
+    courierEnabled: true,
+    fromCityCode: 435,
+    shipmentPoint: "KSD47",
+    tariffPvz: 136,
+    tariffCourier: 137,
+    markup: 0,
+    freeFrom: 0,
+    flatPvz: 350,
+    flatCourier: 600,
+  },
+  checkout: {
+    paymentMinutes: 60,
+    maxQtyPerItem: 10,
+    notice: "",
+  },
 };
 
 /** Аккуратно накладывает сохранённые настройки на значения по умолчанию. */
@@ -48,6 +82,8 @@ export function mergeSettings(saved: unknown): SiteSettings {
   return {
     ...d,
     ...s,
+    delivery: { ...d.delivery, ...(s.delivery ?? {}) },
+    checkout: { ...d.checkout, ...(s.checkout ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

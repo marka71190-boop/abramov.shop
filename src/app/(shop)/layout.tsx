@@ -1,5 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { BanModal } from "@/components/BanModal";
+import { CartProvider, RefCatcher } from "@/components/cart/CartProvider";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Logo } from "@/components/Logo";
@@ -42,7 +43,8 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const ban = admin ? null : getActiveBan(viewer);
 
   return (
-    <>
+    <CartProvider>
+      <RefCatcher />
       {settings.maintenance && admin && (
         <div className="notice">
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>
@@ -54,6 +56,6 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} />
       </div>
       {ban && <BanModal reason={ban.reason} until={ban.until} ticket={ban.ticket} telegram={settings.supportTelegram} />}
-    </>
+    </CartProvider>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CartBadge } from "@/components/cart/CartProvider";
 import { IconBag, IconUser } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
 
@@ -24,6 +25,7 @@ export function Header({ signedIn, admin }: { signedIn: boolean; admin: boolean 
           </Link>
           <Link href="/cart" className="icon-btn" aria-label="Корзина">
             <IconBag />
+            <CartBadge />
           </Link>
         </div>
       </div>

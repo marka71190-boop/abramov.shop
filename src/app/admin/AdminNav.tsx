@@ -4,10 +4,12 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/admin", label: "Обзор", exact: true },
+  { href: "/admin/orders", label: "Заказы" },
   { href: "/admin/customers", label: "Клиенты" },
   { href: "/admin/consents", label: "Журнал согласий" },
   { href: "/admin/pages", label: "Страницы" },
   { href: "/admin/catalog", label: "Каталог" },
+  { href: "/admin/promo", label: "Промокоды" },
   { href: "/admin/settings", label: "Настройки", owner: true },
   { href: "/admin/audit", label: "Журнал действий" },
 ];
