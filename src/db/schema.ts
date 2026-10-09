@@ -142,6 +142,7 @@ export const consentKindEnum = pgEnum("consent_kind", [
 export const consentSourceEnum = pgEnum("consent_source", [
   "REGISTRATION", // форма регистрации по почте
   "GOOGLE", // кнопка «Продолжить с Google»
+  "VK", // кнопка «Продолжить с VK ID»
   "CHECKOUT", // оформление заказа
   "ACCOUNT", // включил в личном кабинете
   "RECONSENT", // повторное согласие (новая редакция документа или старый аккаунт)

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."consent_source" ADD VALUE 'VK' BEFORE 'CHECKOUT';

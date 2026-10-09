@@ -1,5 +1,6 @@
 "use client";
-import { useOptimistic, useTransition } from "react";
+import { useActionState, useOptimistic, useTransition } from "react";
+import { setRealEmail } from "./actions";
 
 export function Toggle({ label, on, action }: { label: string; on: boolean; action: (v: boolean) => Promise<void> }) {
   const [optimistic, setOptimistic] = useOptimistic(on);
@@ -37,5 +38,24 @@ export function CopyButton({ text }: { text: string }) {
     >
       Копировать
     </button>
+  );
+}
+
+export function RealEmailForm() {
+  const [state, action, pending] = useActionState(setRealEmail, {});
+  return (
+    <form action={action} className="panel stack" style={{ borderColor: "var(--c-gold)" }}>
+      <div>
+        <strong>Укажите почту</strong>
+        <div className="muted small">Вы вошли через VK ID без почты. На неё придут кассовые чеки и статусы заказов.</div>
+      </div>
+      <div className="row">
+        <input className="input" type="email" name="email" required placeholder="you@example.com" style={{ flex: "1 1 240px", width: "auto" }} />
+        <button className="btn btn--gold" disabled={pending}>
+          Сохранить
+        </button>
+      </div>
+      {state.error && <div className="form-error">{state.error}</div>}
+    </form>
   );
 }

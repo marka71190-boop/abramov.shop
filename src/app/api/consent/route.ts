@@ -16,7 +16,7 @@ import { metaFromHeaders } from "@/lib/request";
 const Body = z.object({
   personalData: z.literal(true, { message: "Нужно согласие на обработку персональных данных" }),
   marketing: z.boolean().default(false),
-  source: z.enum(["REGISTRATION", "GOOGLE"]),
+  source: z.enum(["REGISTRATION", "GOOGLE", "VK"]),
   name: z.string().trim().max(100).optional(),
   phone: z.string().trim().max(30).optional(),
   email: z.string().trim().max(200).optional(),

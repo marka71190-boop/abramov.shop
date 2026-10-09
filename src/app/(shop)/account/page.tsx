@@ -10,7 +10,8 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { CopyButton, Toggle } from "./Toggles";
+import { CopyButton, RealEmailForm, Toggle } from "./Toggles";
+import { isPlaceholderEmail } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Личный кабинет", robots: { index: false } };
 
@@ -70,6 +71,8 @@ export default async function AccountPage() {
         <h1 className="h2" style={{ fontSize: "clamp(34px, 4vw, 52px)" }}>
           Здравствуйте, {firstName}
         </h1>
+
+        {isPlaceholderEmail(user.email) && <RealEmailForm />}
 
         <div id="bonus" className="grid-2">
           <div className="bonus-card">
@@ -154,7 +157,7 @@ export default async function AccountPage() {
             <div>
               <div>{user.name}</div>
               <div className="muted small">
-                {user.email}
+                {isPlaceholderEmail(user.email) ? "почта не указана" : user.email}
                 {user.phone ? ` · ${prettyPhone(user.phone)}` : ""}
               </div>
             </div>

@@ -6,9 +6,32 @@ import { nextCookies } from "better-auth/next-js";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/consent";
-import { SITE } from "@/lib/site";
+import { normalizePhone } from "@/lib/format";
+import { placeholderEmail, SITE } from "@/lib/site";
 
 const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+const vkEnabled = Boolean(process.env.VK_CLIENT_ID && process.env.VK_CLIENT_SECRET);
+const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase() || null;
+
+const socialProviders: Parameters<typeof betterAuth>[0]["socialProviders"] = {};
+if (googleEnabled) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID as string,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    prompt: "select_account",
+  };
+}
+if (vkEnabled) {
+  socialProviders.vk = {
+    clientId: process.env.VK_CLIENT_ID as string,
+    clientSecret: process.env.VK_CLIENT_SECRET as string,
+    // У части пользователей VK нет почты: тогда ставим служебный адрес, а в кабинете просим указать настоящий
+    mapProfileToUser: (profile) => ({
+      email: profile.user.email || placeholderEmail("vk", profile.user.user_id),
+      phone: normalizePhone(String(profile.user.phone ?? "")) ?? undefined,
+    }),
+  };
+}
 
 export const auth = betterAuth({
   appName: SITE.name,
@@ -24,18 +47,14 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     autoSignIn: true,
   },
-  socialProviders: googleEnabled
-    ? {
-        google: {
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-          prompt: "select_account",
-        },
-      }
-    : {},
+  socialProviders,
+  user: {
+    // Телефон приходит из VK ID; из форм его напрямую не принимаем (input: false)
+    additionalFields: { phone: { type: "string", required: false, input: false } },
+  },
   account: {
-    // Если человек сначала зарегистрировался по почте, а потом зашёл через Google с той же почтой — это один аккаунт
-    accountLinking: { enabled: true, trustedProviders: ["google"] },
+    // Зарегистрировался по почте, а потом зашёл через Google или VK с той же почтой — это один аккаунт
+    accountLinking: { enabled: true, trustedProviders: ["google", "vk"] },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 дней
@@ -48,11 +67,11 @@ export const auth = betterAuth({
         /*
          * Защита от «захвата» аккаунта: злоумышленник мог заранее зарегистрироваться
          * по чужой почте с паролем (почту мы пока не подтверждаем). Когда настоящий
-         * владелец почты входит через Google, Google подтверждает почту — и мы удаляем
-         * пароль, заданный без подтверждения. Дальше вход — через Google.
+         * владелец почты входит через Google или VK, сервис подтверждает почту — и мы удаляем
+         * пароль, заданный без подтверждения. Дальше вход — через Google или VK.
          */
         after: async (acc) => {
-          if (acc.providerId !== "google") return;
+          if (acc.providerId !== "google" && acc.providerId !== "vk") return;
           await db
             .delete(s.account)
             .where(and(eq(s.account.userId, acc.userId), eq(s.account.providerId, "credential")));
@@ -81,8 +100,10 @@ export const auth = betterAuth({
           const token = ctx?.getCookie(CONSENT_COOKIE);
           if (!token) return;
           const linked = await linkPendingConsents(token, created.id, created.email);
-          const phone = linked.find((c) => c.phone)?.phone;
-          if (phone) await db.update(s.user).set({ phone }).where(eq(s.user.id, created.id));
+          const phone = (created.phone as string | null | undefined) || linked.find((c) => c.phone)?.phone;
+          // Владелец магазина (OWNER_EMAIL) сразу получает доступ к админке
+          const role = ownerEmail && created.email.toLowerCase() === ownerEmail ? ("OWNER" as const) : undefined;
+          if (phone || role) await db.update(s.user).set({ ...(phone ? { phone } : {}), ...(role ? { role } : {}) }).where(eq(s.user.id, created.id));
         },
       },
     },
@@ -90,5 +111,5 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
 });
 
-
 export const isGoogleEnabled = googleEnabled;
+export const isVkEnabled = vkEnabled;

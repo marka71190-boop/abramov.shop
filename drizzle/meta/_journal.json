@@ -8,6 +8,13 @@
       "when": 1791538976580,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791542374675,
+      "tag": "0001_vk_consent_source",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@ export const CONSENT_COOKIE = "as_consent";
 export const CONSENT_TTL_MIN = 30;
 
 export type ConsentKind = "PERSONAL_DATA" | "MARKETING";
-export type ConsentSource = "REGISTRATION" | "GOOGLE" | "CHECKOUT" | "ACCOUNT" | "RECONSENT";
+export type ConsentSource = "REGISTRATION" | "GOOGLE" | "VK" | "CHECKOUT" | "ACCOUNT" | "RECONSENT";
 
 export async function getCurrentDocument(kind: ConsentKind) {
   const doc = await db.query.consentDocument.findFirst({
@@ -68,7 +68,7 @@ export async function findPendingConsent(token: string) {
 
 /**
  * Привязывает отметки, сделанные до регистрации, к созданному аккаунту.
- * Привязываем только отметки без почты (Google) или с той же почтой, что у аккаунта.
+ * Привязываем только отметки без почты (Google, VK) или с той же почтой, что у аккаунта.
  */
 export async function linkPendingConsents(token: string, userId: string, email: string) {
   const since = new Date(Date.now() - CONSENT_TTL_MIN * 60_000);

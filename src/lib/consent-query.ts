@@ -65,6 +65,7 @@ export const CONSENT_KIND_LABEL = { PERSONAL_DATA: "Обработка ПДн", 
 export const CONSENT_SOURCE_LABEL = {
   REGISTRATION: "Регистрация",
   GOOGLE: "Вход через Google",
+  VK: "Вход через VK ID",
   CHECKOUT: "Оформление заказа",
   ACCOUNT: "Личный кабинет",
   RECONSENT: "Повторное согласие",

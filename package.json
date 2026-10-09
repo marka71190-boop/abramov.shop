@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.ts",
+    "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.mjs",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:local": "node scripts/dev-db.mjs"
@@ -31,6 +31,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "0.31.11",
+    "esbuild": "^0.25.12",
     "tsx": "^4",
     "typescript": "^5"
   },

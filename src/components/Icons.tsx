@@ -71,3 +71,14 @@ export const IconGoogle = ({ size = 20, className }: P) => (
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
   </svg>
 );
+
+/** Значок VK ID для кнопки входа (белая надпись на фирменном синем — как требует гайд VK ID). */
+export const IconVk = ({ size = 22, className }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className={className}>
+    <rect width="24" height="24" rx="7" fill="#fff" />
+    <path
+      fill="#0077FF"
+      d="M12.8 17.3c-5.5 0-8.6-3.8-8.8-10h2.8c.1 4.6 2.1 6.5 3.7 6.9V7.3h2.6v3.9c1.6-.2 3.3-2 3.8-3.9h2.6c-.4 2.4-2.2 4.2-3.5 4.9 1.3.6 3.3 2.2 4.1 5.1h-2.9c-.6-1.9-2.1-3.4-4.1-3.6v3.6h-.3z"
+    />
+  </svg>
+);

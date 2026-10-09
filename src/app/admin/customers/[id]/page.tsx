@@ -8,7 +8,7 @@ import { unbanUser } from "../../actions";
 import { BanForm, BonusForm, RoleForm } from "./forms";
 
 const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки" } as const;
-const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное" } as const;
+const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", VK: "VK ID", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное" } as const;
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -43,7 +43,7 @@ export default async function CustomerPage({ params }: Props) {
             <span className="muted">Телефон:</span> {prettyPhone(u.phone) || "—"}
           </div>
           <div>
-            <span className="muted">Вход:</span> {accounts.map((a) => (a.providerId === "credential" ? "почта и пароль" : a.providerId)).join(", ")}
+            <span className="muted">Вход:</span> {accounts.map((a) => (a.providerId === "credential" ? "почта и пароль" : a.providerId === "vk" ? "VK ID" : a.providerId === "google" ? "Google" : a.providerId)).join(", ")}
           </div>
           <div>
             <span className="muted">Регистрация:</span> {fmtDateTime(u.createdAt)}

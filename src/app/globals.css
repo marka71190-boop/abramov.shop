@@ -205,6 +205,19 @@ h3 {
   background: #fff;
   color: #0a0a0a;
 }
+.btn--vk {
+  background: #0077ff;
+  color: #fff;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 15px;
+}
+.btn--vk:hover:not(:disabled) {
+  background: #0069e0;
+  color: #fff;
+}
 .btn--dark {
   background: #0a0a0a;
   color: var(--c-text);
