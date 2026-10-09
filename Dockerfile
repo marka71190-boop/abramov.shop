@@ -27,6 +27,12 @@ COPY --from=build /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=build /app/build/seed.mjs ./scripts/seed.mjs
 COPY --from=build /app/docker/entrypoint.sh ./entrypoint.sh
 
+# Корневой сертификат Timeweb: база подключается по домену с защищённым соединением (sslmode=verify-full)
+RUN mkdir -p /app/certs \
+ && (wget -qO /app/certs/timeweb-root.crt https://st.timeweb.com/cloud-static/ca.crt \
+     || echo "ВНИМАНИЕ: сертификат Timeweb не скачался — подключение к базе по домену с TLS не заработает")
+ENV NODE_EXTRA_CA_CERTS=/app/certs/timeweb-root.crt
+
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
