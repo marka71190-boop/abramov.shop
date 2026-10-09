@@ -27,7 +27,7 @@ import {
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15_000 });
 const db = drizzle(pool, { schema: s });
 const VERSION = "2026-10-09";
 const sha = (t: string) => createHash("sha256").update(t, "utf8").digest("hex");

@@ -11,6 +11,7 @@ const pool =
   new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 10,
+    connectionTimeoutMillis: 10_000, // не ждать бесконечно, если база недоступна
   });
 
 if (process.env.NODE_ENV !== "production") globalForDb.pgPool = pool;
