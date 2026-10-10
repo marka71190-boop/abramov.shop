@@ -96,15 +96,25 @@ export async function createPayment(p: {
   customer: ReceiptCustomer;
   receipt: ReceiptLine[];
 }): Promise<YkPayment> {
-  const body: Record<string, unknown> = {
+  const body = (withReceipt: boolean): Record<string, unknown> => ({
     amount: money(p.amount),
     capture: true,
     confirmation: { type: "redirect", return_url: p.returnUrl },
     description: `Заказ ${p.number} в Abramov Shop`.slice(0, 128),
-    metadata: { orderId: p.orderId, number: p.number },
-  };
-  if (sendReceipt()) body.receipt = buildReceipt(p.customer, p.receipt);
-  const payment = await request<YkPayment>("/payments", { method: "POST", body, idempotenceKey: `order-${p.orderId}` });
+    // Не «orderId»: магазин ЮKassa общий с Kamui, и её обработчик уведомлений не должен принимать наши платежи за свои
+    metadata: { shop: "abramov.shop", asOrderId: p.orderId, number: p.number },
+    ...(withReceipt ? { receipt: buildReceipt(p.customer, p.receipt) } : {}),
+  });
+  const first = sendReceipt();
+  let payment: YkPayment;
+  try {
+    payment = await request<YkPayment>("/payments", { method: "POST", body: body(first), idempotenceKey: `order-${p.orderId}` });
+  } catch (e) {
+    // Магазин требует чек (или, наоборот, чеки не подключены) — пробуем второй вариант
+    if (!(e instanceof Error) || !/receipt|чек/i.test(e.message)) throw e;
+    console.warn(`[yookassa] ${e.message} — повторяю ${first ? "без чека" : "с чеком"}. Поправьте YOOKASSA_SEND_RECEIPT=${!first}`);
+    payment = await request<YkPayment>("/payments", { method: "POST", body: body(!first), idempotenceKey: `order-${p.orderId}-r` });
+  }
   if (!payment.confirmation?.confirmation_url) throw new Error("ЮKassa не вернула ссылку на оплату");
   return payment;
 }

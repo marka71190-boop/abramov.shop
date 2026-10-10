@@ -63,7 +63,7 @@ npm run dev                     # http://localhost:3000
 2. **Приложение:** «App Platform» → «Создать» → GitHub → репозиторий `abramov.shop`, ветка `main`, фреймворк **Dockerfile**.
 3. **Проверка состояния:** путь `/api/health`.
 4. **Переменные:** все из `.env.example` (`DATABASE_URL`, `BETTER_AUTH_SECRET`, ключи Google и VK, `OWNER_EMAIL`, ключи ЮKassa и СДЭК).
-   В ЮKassa → Интеграция → HTTP-уведомления укажите `https://abramov.shop/api/payments/yookassa` (события `payment.succeeded`, `payment.canceled`).
+   Оплату сайт проверяет сам (раз в минуту и при возврате покупателя), поэтому уведомления ЮKassa не обязательны. Магазин ЮKassa общий с Kamui — адрес HTTP-уведомлений в нём не меняйте. Если заведёте отдельный магазин, укажите `https://abramov.shop/api/payments/yookassa`.
 5. **Домен** abramov.shop → в настройках приложения; SSL выпустится автоматически.
 
 ### Вход через VK ID

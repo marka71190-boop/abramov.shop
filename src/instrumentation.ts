@@ -1,5 +1,6 @@
 /**
  * Фоновые задачи сайта. Запускаются один раз при старте сервера:
+ *   • каждую минуту — спрашиваем ЮKassa об оплате ожидающих заказов;
  *   • каждые 5 минут — отменяем неоплаченные вовремя заказы (товар возвращается в продажу);
  *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК.
  */
@@ -9,12 +10,13 @@ export async function register() {
   if (g.__asJobs) return;
   g.__asJobs = true;
 
-  const { expireUnpaidOrders, syncShipments } = await import("@/lib/orders");
+  const { expireUnpaidOrders, pollPendingPayments, syncShipments } = await import("@/lib/orders");
   const safe = (name: string, fn: () => Promise<void>) => () =>
     fn().catch((e) => console.error(`[jobs] ${name}:`, e instanceof Error ? e.message : e));
 
   // Первый запуск — через минуту: пусть база успеет обновиться после выкладки
   setTimeout(safe("expire", expireUnpaidOrders), 60_000);
   setInterval(safe("expire", expireUnpaidOrders), 5 * 60_000);
+  setInterval(safe("payments", pollPendingPayments), 60_000);
   setInterval(safe("cdek", syncShipments), 30 * 60_000);
 }

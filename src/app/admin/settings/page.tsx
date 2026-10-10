@@ -23,7 +23,7 @@ export default async function SettingsPage() {
             <div>ЮKassa</div>
             <div className="muted small">
               {yk
-                ? `Уведомления: укажите в ЮKassa → Интеграция → HTTP-уведомления адрес ${origin}/api/payments/yookassa (события payment.succeeded, payment.canceled)`
+                ? `Оплату сайт проверяет сам раз в минуту и при возврате покупателя. Уведомления ЮKassa не обязательны — магазин общий с Kamui, адрес уведомлений оставьте как есть (для отдельного магазина: ${origin}/api/payments/yookassa)`
                 : "Добавьте в Timeweb переменные YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY и пересоберите сайт"}
             </div>
           </div>

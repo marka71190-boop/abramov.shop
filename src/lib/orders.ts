@@ -548,6 +548,27 @@ export async function expireUnpaidOrders() {
   }
 }
 
+/**
+ * Проверяет неоплаченные заказы прямо в ЮKassa. Магазин ЮKassa общий с Kamui, а адрес
+ * для уведомлений у магазина один (он ведёт на Kamui), поэтому оплату узнаём сами — раз в минуту.
+ */
+export async function pollPendingPayments() {
+  if (!yookassaEnabled()) return;
+  const rows = await db
+    .select({ orderId: s.payment.orderId })
+    .from(s.payment)
+    .innerJoin(s.order, eq(s.order.id, s.payment.orderId))
+    .where(
+      and(
+        eq(s.order.status, "AWAITING_PAYMENT"),
+        inArray(s.payment.status, ["PENDING", "WAITING_FOR_CAPTURE"]),
+        gte(s.payment.createdAt, new Date(Date.now() - 24 * 3600_000)),
+      ),
+    )
+    .limit(100);
+  for (const r of rows) await syncPayment(r.orderId);
+}
+
 export async function syncShipments() {
   if (!cdekEnabled()) return;
   const list = await db
