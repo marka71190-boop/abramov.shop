@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  // www.abramov.shop → abramov.shop (один адрес для поисковиков, входа и оплаты)
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.abramov.shop" }],
+        destination: "https://abramov.shop/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
