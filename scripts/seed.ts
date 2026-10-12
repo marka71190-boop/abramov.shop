@@ -13,7 +13,7 @@
  * На сервере (Docker) запускается сам при каждом старте — вручную ничего делать не нужно.
  */
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as s from "../src/db/schema";
@@ -62,8 +62,15 @@ async function main() {
   await ensureDoc("MARKETING", CONSENT_MARKETING_TITLE, CONSENT_MARKETING_BODY);
 
   await ensurePage({ slug: "delivery", title: DRAFT_PAGES[1].title, body: DRAFT_PAGES[1].body, visibility: "PUBLISHED", sortOrder: 1 });
-  await ensurePage({ slug: "returns", title: DRAFT_PAGES[2].title, body: DRAFT_PAGES[2].body, visibility: "DRAFT", sortOrder: 2 });
-  await ensurePage({ slug: "offer", title: DRAFT_PAGES[0].title, body: DRAFT_PAGES[0].body, visibility: "DRAFT", sortOrder: 3 });
+  await ensurePage({ slug: "returns", title: DRAFT_PAGES[2].title, body: DRAFT_PAGES[2].body, visibility: "PUBLISHED", sortOrder: 2 });
+  await ensurePage({ slug: "offer", title: DRAFT_PAGES[0].title, body: DRAFT_PAGES[0].body, visibility: "PUBLISHED", sortOrder: 3 });
+  // Оферта и возврат: заменяем стартовые черновики готовыми текстами (правки из админки не трогаем)
+  for (const p of [DRAFT_PAGES[0], DRAFT_PAGES[2]]) {
+    await db
+      .update(s.page)
+      .set({ title: p.title, body: p.body, visibility: "PUBLISHED", showInFooter: true })
+      .where(and(eq(s.page.slug, p.slug), like(s.page.body, "## Черновик%")));
+  }
   await ensurePage({ slug: "privacy", title: "Политика конфиденциальности", body: PRIVACY_BODY, visibility: "PUBLISHED", sortOrder: 4 });
   // Текст согласия берётся из текущей редакции в журнале согласий, страница — только «обложка»
   await ensurePage({ slug: "consent", title: CONSENT_PD_TITLE, body: "", visibility: "PUBLISHED", sortOrder: 5 });
