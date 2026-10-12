@@ -26,27 +26,39 @@ export const webhookSecret = () =>
     .digest("hex")
     .slice(0, 48);
 
-async function call<T>(method: string, body: Record<string, unknown>): Promise<T> {
+async function call<T>(method: string, body: Record<string, unknown>, timeoutMs = 10_000): Promise<T> {
   const res = await fetch(`${API()}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: T; description?: string };
   if (!data.ok) throw new Error(`Telegram ${method}: ${data.description ?? res.status}`);
   return data.result as T;
 }
 
+/** Состояние связи с Telegram — для админки. */
+export const tgStatus = { lastOk: 0, lastError: "" as string, lastErrorAt: 0 };
+const noteError = (e: unknown) => {
+  tgStatus.lastError = e instanceof Error ? e.message : String(e);
+  tgStatus.lastErrorAt = Date.now();
+};
+
 let me: { username: string } | null = null;
+let meFailedAt = 0;
 export async function botUsername(): Promise<string | null> {
   if (!telegramEnabled()) return null;
   if (me) return me.username;
+  if (Date.now() - meFailedAt < 60_000) return null; // не ждём таймаут на каждой странице
   try {
-    me = await call<{ username: string }>("getMe", {});
+    me = await call<{ username: string }>("getMe", {}, 5000);
+    tgStatus.lastOk = Date.now();
     return me.username;
   } catch (e) {
+    meFailedAt = Date.now();
+    noteError(e);
     console.error("[telegram] getMe:", e instanceof Error ? e.message : e);
     return null;
   }
@@ -64,24 +76,57 @@ export async function send(chatId: string | number, html: string, buttons?: { te
   });
 }
 
-/** Регистрирует вебхук. Вызывается при старте сайта. */
-export async function setupWebhook() {
+/**
+ * Получение сообщений боту — «длинным опросом» (getUpdates).
+ * Сайту не нужно, чтобы Telegram мог достучаться до сервера: все запросы исходящие.
+ * С российских серверов api.telegram.org часто недоступен — тогда задайте TELEGRAM_API_URL
+ * (релей за границей, см. relay/README.md).
+ */
+export async function startPolling() {
   if (!telegramEnabled()) return;
-  const base = (process.env.BETTER_AUTH_URL || SITE.url).replace(/\/$/, "");
-  await call("setWebhook", {
-    url: `${base}/api/telegram/webhook`,
-    secret_token: webhookSecret(),
-    allowed_updates: ["message"],
-    drop_pending_updates: false,
-  });
-  await call("setMyCommands", {
-    commands: [
-      { command: "orders", description: "Мои заказы" },
-      { command: "bonus", description: "Мои бонусы" },
-      { command: "help", description: "Помощь" },
-    ],
-  }).catch(() => {});
-  console.log(`[telegram] Бот @${await botUsername()} подключён, вебхук: ${base}/api/telegram/webhook`);
+  const g = globalThis as unknown as { __tgPolling?: boolean };
+  if (g.__tgPolling) return;
+  g.__tgPolling = true;
+
+  let offset = 0;
+  let delay = 5_000;
+  let ready = false;
+  let lastLog = 0;
+  for (;;) {
+    try {
+      if (!ready) {
+        await call("deleteWebhook", { drop_pending_updates: false });
+        await call("setMyCommands", {
+          commands: [
+            { command: "orders", description: "Мои заказы" },
+            { command: "bonus", description: "Мои бонусы" },
+            { command: "help", description: "Помощь" },
+          ],
+        }).catch(() => {});
+        ready = true;
+        console.log(`[telegram] Бот @${await botUsername()} на связи${process.env.TELEGRAM_API_URL ? " (через релей)" : ""}`);
+      }
+      const updates = await call<{ update_id: number }[]>("getUpdates", { offset, timeout: 25, allowed_updates: ["message"] }, 40_000);
+      tgStatus.lastOk = Date.now();
+      delay = 5_000;
+      for (const u of updates) {
+        offset = u.update_id + 1;
+        await handleUpdate(u as TgUpdate).catch((e) => console.error("[telegram] сообщение:", e instanceof Error ? e.message : e));
+      }
+    } catch (e) {
+      noteError(e);
+      // Пишем в лог не чаще раза в 10 минут, чтобы не засорять «Логи приложения»
+      if (Date.now() - lastLog > 600_000) {
+        lastLog = Date.now();
+        console.error(
+          `[telegram] Нет связи с Telegram: ${tgStatus.lastError}.` +
+            (process.env.TELEGRAM_API_URL ? " Проверьте релей TELEGRAM_API_URL." : " С российских серверов api.telegram.org часто закрыт — нужен релей, см. relay/README.md."),
+        );
+      }
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 120_000);
+    }
+  }
 }
 
 // ============================================================
@@ -201,6 +246,11 @@ type OrderEvent = "paid" | "shipped" | "delivered" | "cancelled" | "refunded";
 /** Сообщение клиенту и (для оплаты) админам. Ошибки Telegram не ломают работу магазина. */
 export async function notifyOrder(orderId: string, event: OrderEvent, extra?: { note?: string }) {
   if (!telegramEnabled()) return;
+  // В фоне: если Telegram медленный или недоступен, оплата и кнопки в админке не ждут
+  void sendOrderNotice(orderId, event, extra);
+}
+
+async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { note?: string }) {
   try {
     const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true, user: true } });
     if (!o) return;

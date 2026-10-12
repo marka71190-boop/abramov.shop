@@ -2,7 +2,7 @@ import { and, inArray, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as sc } from "@/db";
 import { cdekEnabled } from "@/lib/cdek";
-import { botUsername, telegramEnabled } from "@/lib/telegram";
+import { botUsername, telegramEnabled, tgStatus } from "@/lib/telegram";
 import { TelegramTest } from "./TelegramTest";
 import { getOrigin } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
@@ -60,7 +60,12 @@ export default async function SettingsPage() {
           <div>
             <div>Telegram-бот{bot ? ` @${bot}` : ""}</div>
             <div className="muted small">
-              {tg ? (
+              {tg && !bot ? (
+                <>
+                  Сервер не может связаться с Telegram{tgStatus.lastError ? ` (${tgStatus.lastError})` : ""}. С российских серверов это частая история — нужен релей:
+                  инструкция в репозитории, файл relay/README.md{process.env.TELEGRAM_API_URL ? ". Релей задан — проверьте адрес TELEGRAM_API_URL" : ""}.
+                </>
+              ) : tg ? (
                 <>
                   Клиенты подключают бота в личном кабинете. Админов с подключённым Telegram: {tgAdmins} — им приходят новые заказы.{" "}
                   <Link href="/account#settings">Подключить свой</Link>
@@ -72,7 +77,7 @@ export default async function SettingsPage() {
           </div>
           <div className="row" style={{ gap: 12 }}>
             {tg && <TelegramTest />}
-            <span className={`pill ${tg && bot ? "pill--ok" : "pill--bad"}`}>{tg ? (bot ? "подключён" : "ошибка токена") : "не подключён"}</span>
+            <span className={`pill ${tg && bot ? "pill--ok" : "pill--bad"}`}>{tg ? (bot ? "подключён" : "нет связи") : "не подключён"}</span>
           </div>
         </div>
       </div>

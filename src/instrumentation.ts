@@ -14,9 +14,9 @@ export async function register() {
   const safe = (name: string, fn: () => Promise<void>) => () =>
     fn().catch((e) => console.error(`[jobs] ${name}:`, e instanceof Error ? e.message : e));
 
-  // Telegram-бот: регистрируем адрес для сообщений (через 20 секунд — когда сайт уже отвечает)
+  // Telegram-бот: получаем сообщения длинным опросом (через 20 секунд — когда сайт уже отвечает)
   if (process.env.TELEGRAM_BOT_TOKEN) {
-    setTimeout(() => import("@/lib/telegram").then((t) => t.setupWebhook()).catch((e) => console.error("[telegram] setup:", e?.message ?? e)), 20_000);
+    setTimeout(() => import("@/lib/telegram").then((t) => t.startPolling()).catch((e) => console.error("[telegram] polling:", e?.message ?? e)), 20_000);
   }
 
   // Первый запуск — через минуту: пусть база успеет обновиться после выкладки

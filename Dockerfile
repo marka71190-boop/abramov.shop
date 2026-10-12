@@ -33,6 +33,9 @@ RUN mkdir -p /app/certs \
      || echo "ВНИМАНИЕ: сертификат Timeweb не скачался — подключение к базе по домену с TLS не заработает")
 ENV NODE_EXTRA_CA_CERTS=/app/certs/timeweb-root.crt
 
+# Папка кэша Next.js должна быть доступна на запись пользователю node
+RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
+
 USER node
 EXPOSE 3000
 # Проверку состояния задаёт Timeweb (Настройки → Путь проверки состояния), своей в образе нет — как в Kamui
