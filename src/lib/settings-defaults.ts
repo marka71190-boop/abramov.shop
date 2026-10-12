@@ -17,6 +17,7 @@ export interface SiteSettings {
     referralBonus: number;
     birthdayBonus: number;
     birthdayDays: number; // сколько дней действуют бонусы ко дню рождения
+    reviewBonus: number; // за одобренный отзыв о купленном товаре
     expiryDays: number; // 0 — бонусы не сгорают
   };
   delivery: {
@@ -54,6 +55,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     referralBonus: 300,
     birthdayBonus: 500,
     birthdayDays: 14,
+    reviewBonus: 50,
     expiryDays: 365,
   },
   delivery: {

@@ -220,6 +220,7 @@ const SettingsInput = z.object({
   referralBonus: z.coerce.number().int().min(0),
   birthdayBonus: z.coerce.number().int().min(0),
   birthdayDays: z.coerce.number().int().min(1).max(365),
+  reviewBonus: z.coerce.number().int().min(0),
   expiryDays: z.coerce.number().int().min(0),
 });
 
@@ -247,6 +248,7 @@ export async function updateSettings(_: ActionState, form: FormData): Promise<Ac
       referralBonus: d.referralBonus,
       birthdayBonus: d.birthdayBonus,
       birthdayDays: d.birthdayDays,
+      reviewBonus: d.reviewBonus,
       expiryDays: d.expiryDays,
     },
   });

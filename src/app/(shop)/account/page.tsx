@@ -12,6 +12,9 @@ import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
 import { BirthdayForm, CopyButton, RealEmailForm, TelegramConnect, Toggle } from "./Toggles";
 import { expiringSoon } from "@/lib/bonuses";
+import { ProductCard } from "@/components/product/ProductCard";
+import { getPublicProductsByIds } from "@/lib/catalog";
+import { ratingsFor } from "@/lib/reviews";
 import { telegramEnabled } from "@/lib/telegram";
 import { isPlaceholderEmail } from "@/lib/site";
 
@@ -36,6 +39,7 @@ const BONUS_REASON: Record<string, string> = {
   MANUAL: "Начисление от магазина",
   EXPIRED: "Сгорели",
   REFUND: "Возврат",
+  REVIEW: "За отзыв",
 };
 
 export default async function AccountPage() {
@@ -68,6 +72,9 @@ export default async function AccountPage() {
 
   const telegram = telegramEnabled();
   const burning = await expiringSoon(user.id, user.bonusBalance, 30);
+  const favRows = await db.query.favorite.findMany({ where: eq(s.favorite.userId, user.id), orderBy: desc(s.favorite.createdAt), limit: 24 });
+  const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
+  const favRatings = await ratingsFor(favorites.map((f) => f.id));
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
 
@@ -79,6 +86,7 @@ export default async function AccountPage() {
         </Link>
         <Link href="#orders">Заказы</Link>
         <Link href="#bonus">Бонусы</Link>
+        <Link href="#favorites">Избранное</Link>
         <Link href="#settings">Настройки</Link>
         <SignOutButton>Выйти</SignOutButton>
       </nav>
@@ -176,6 +184,17 @@ export default async function AccountPage() {
             })
           )}
         </section>
+
+        {favorites.length > 0 && (
+          <section id="favorites" className="panel">
+            <h2>Избранное</h2>
+            <div className="products" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+              {favorites.map((p) => (
+                <ProductCard key={p.id} p={p} rating={favRatings.get(p.id)} favorite />
+              ))}
+            </div>
+          </section>
+        )}
 
         {bonusLog.length > 0 && (
           <section className="panel">

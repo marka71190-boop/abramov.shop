@@ -260,6 +260,7 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
     const u = o.user;
 
     if (u?.telegramChatId && u.notifyTelegram) {
+      const reviewBonus = event === "delivered" ? (await (await import("@/lib/settings")).getSettings()).loyalty.reviewBonus : 0;
       const msg: Record<OrderEvent, string> = {
         paid: `✅ Заказ <b>${o.number}</b> оплачен — ${rub(o.total)}.\nСоберём и пришлём трек-номер СДЭК.`,
         shipped:
@@ -267,7 +268,9 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
           (o.trackNumber ? `\nТрек: <a href="${trackUrl(o.trackNumber)}">${o.trackNumber}</a>` : "") +
           (o.deliveryDays ? `\nСрок в пути: ${o.deliveryDays} дн.` : ""),
         delivered:
-          `🎉 Заказ <b>${o.number}</b> получен. Спасибо!` + (o.bonusAccrued ? `\nНачислено <b>${num(o.bonusAccrued / 100)}</b> бонусов.` : ""),
+          `🎉 Заказ <b>${o.number}</b> получен. Спасибо!` +
+          (o.bonusAccrued ? `\nНачислено <b>${num(o.bonusAccrued / 100)}</b> бонусов.` : "") +
+          (reviewBonus > 0 ? `\n\nОставьте отзыв о покупке — подарим ещё ${num(reviewBonus)} бонусов.` : ""),
         cancelled: `Заказ <b>${o.number}</b> отменён${o.cancelReason ? `: ${esc(o.cancelReason.toLowerCase())}` : ""}. Товар вернулся в продажу.`,
         refunded: `Деньги за заказ <b>${o.number}</b> возвращены — ${rub(o.total)}. Обычно они приходят на карту за 1–3 дня.`,
       };
@@ -333,4 +336,28 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
   } catch (e) {
     console.error("[mail] заказ:", e instanceof Error ? e.message : e);
   }
+}
+
+/** Сообщение всем админам и менеджерам с привязанным Telegram. */
+export async function notifyAdmins(html: string, button?: { text: string; url: string }) {
+  if (!telegramEnabled()) return;
+  try {
+    const admins = await db
+      .select({ chatId: s.user.telegramChatId })
+      .from(s.user)
+      .where(and(inArray(s.user.role, ["OWNER", "MANAGER"]), isNotNull(s.user.telegramChatId)));
+    for (const a of admins) if (a.chatId) await send(a.chatId, html, button ? [button] : undefined).catch(() => {});
+  } catch (e) {
+    console.error("[telegram] notifyAdmins:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Личное сообщение клиенту, если он привязал Telegram и не выключил уведомления. */
+export async function notifyUser(userId: string, html: string, button?: { text: string; url: string }) {
+  if (!telegramEnabled()) return false;
+  const u = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { telegramChatId: true, notifyTelegram: true } });
+  if (!u?.telegramChatId || !u.notifyTelegram) return false;
+  return send(u.telegramChatId, html, button ? [button] : undefined)
+    .then(() => true)
+    .catch(() => false);
 }

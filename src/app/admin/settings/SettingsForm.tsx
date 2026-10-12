@@ -78,6 +78,10 @@ export function SettingsForm({ s }: { s: SiteSettings }) {
             <input className="input" type="number" name="birthdayDays" min={1} defaultValue={s.loyalty.birthdayDays} />
           </label>
           <label className="field">
+            За отзыв о купленном товаре (после одобрения)
+            <input className="input" type="number" name="reviewBonus" min={0} defaultValue={s.loyalty.reviewBonus} />
+          </label>
+          <label className="field">
             Бонусы сгорают через, дней (0 — не сгорают)
             <input className="input" type="number" name="expiryDays" defaultValue={s.loyalty.expiryDays} />
           </label>

@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { db, schema as s } from "@/db";
 import { getPublicProductsByCategory } from "@/lib/catalog";
-import { rub } from "@/lib/format";
+import { ProductCard } from "@/components/product/ProductCard";
+import { favoriteIds, ratingsFor } from "@/lib/reviews";
 import { getViewer, isAdmin } from "@/lib/viewer";
 import { canView, isPublic } from "@/lib/visibility";
 
@@ -13,10 +13,12 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ previe
 export default async function CategoryPage({ params, searchParams }: Props) {
   const [{ slug }, { preview }] = await Promise.all([params, searchParams]);
   const cat = await db.query.category.findFirst({ where: eq(s.category.slug, slug) });
-  const admin = isAdmin(await getViewer());
+  const viewer = await getViewer();
+  const admin = isAdmin(viewer);
   if (!cat || !canView(cat, { admin, preview })) notFound();
 
   const products = await getPublicProductsByCategory(cat.id);
+  const [ratings, favs] = await Promise.all([ratingsFor(products.map((p) => p.id)), viewer ? favoriteIds(viewer.id) : new Set<string>()]);
 
   return (
     <>
@@ -31,17 +33,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         ) : (
           <div className="products">
             {products.map((p) => (
-              <Link key={p.id} href={`/product/${p.slug}`} className="pcard">
-                {p.image ? <img className="pcard__img" src={p.image.url} alt={p.image.alt} /> : <div className="pcard__img" />}
-                <div className="pcard__body">
-                  <div className="pcard__name">{p.name}</div>
-                  <div className="pcard__price">
-                    {rub(p.price)}
-                    {p.oldPrice ? <span className="old-price">{rub(p.oldPrice)}</span> : null}
-                  </div>
-                  {p.stock <= 0 && <div className="muted small">Нет в наличии</div>}
-                </div>
-              </Link>
+              <ProductCard key={p.id} p={p} rating={ratings.get(p.id)} favorite={favs.has(p.id)} />
             ))}
           </div>
         )}

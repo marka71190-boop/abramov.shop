@@ -29,6 +29,13 @@
       "when": 1791842796173,
       "tag": "0003_bonus_birthday",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791847052916,
+      "tag": "0004_reviews_favorites",
+      "breakpoints": true
     }
   ]
 }

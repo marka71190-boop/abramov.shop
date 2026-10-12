@@ -120,7 +120,16 @@ export default async function OrderPage({ params, searchParams }: Props) {
                   {i.quantity} × {rub(i.price)}
                 </div>
               </div>
-              <div>{rub(i.price * i.quantity)}</div>
+              <div style={{ textAlign: "right" }}>
+                {rub(i.price * i.quantity)}
+                {o.status === "DELIVERED" && i.product && o.userId === user.id && (
+                  <div>
+                    <Link href={`/product/${i.product.slug}#reviews`} className="small">
+                      Оставить отзыв
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           <div className="summary__row" style={{ marginTop: 16 }}>

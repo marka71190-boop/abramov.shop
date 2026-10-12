@@ -223,6 +223,8 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
   };
 
   let productId = d.id;
+  const { notifyBackInStock, productStock } = await import("@/lib/stock-alerts");
+  const stockBefore = d.id ? await productStock(d.id) : 0;
   try {
     await db.transaction(async (tx) => {
       if (productId) await tx.update(s.product).set(values).where(eq(s.product.id, productId));
@@ -261,9 +263,12 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     throw e;
   }
   await audit(me.id, d.id ? "product.update" : "product.create", "product", productId, { slug: d.slug, visibility: d.visibility });
+  // Был ноль, стал остаток — сообщаем тем, кто ждал
+  let notified = 0;
+  if (d.id && stockBefore === 0 && d.visibility === "PUBLISHED" && (await productStock(d.id)) > 0) notified = await notifyBackInStock(d.id);
   revalidatePath("/", "layout");
   if (!d.id) redirect(`/admin/catalog/product/${productId}?saved=1`);
-  return { ok: "Сохранено" };
+  return { ok: notified ? `Сохранено. О поступлении сообщили ${notified} покупателям` : "Сохранено" };
 }
 
 export async function deleteProduct(id: string) {
@@ -416,4 +421,53 @@ export async function adminSetBirthday(_: ActionState, form: FormData): Promise<
   await audit(me.id, "user.birthday", "user", userId, { birthday: v || null });
   revalidatePath(`/admin/customers/${userId}`);
   return { ok: "Сохранено" };
+}
+
+// ============================================================
+// Отзывы
+// ============================================================
+
+export async function moderateReview(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const id = String(form.get("id") || "");
+  const op = String(form.get("op") || "");
+  const reply = String(form.get("reply") || "").trim().slice(0, 2000);
+  const r = await db.query.review.findFirst({ where: eq(s.review.id, id), with: { product: { columns: { name: true, slug: true } } } });
+  if (!r) return { error: "Отзыв не найден" };
+
+  if (op === "delete") {
+    await db.delete(s.review).where(eq(s.review.id, id));
+    await audit(me.id, "review.delete", "review", id);
+    revalidatePath("/admin/reviews");
+    revalidatePath(`/product/${r.product.slug}`);
+    return { ok: "Удалён" };
+  }
+  const status = op === "approve" ? "APPROVED" : op === "reject" ? "REJECTED" : r.status;
+  await db
+    .update(s.review)
+    .set({ status, adminReply: reply || null, moderatedAt: new Date(), moderatedById: me.id })
+    .where(eq(s.review.id, id));
+
+  let bonusNote = "";
+  if (status === "APPROVED" && !r.bonusCredited) {
+    const settings = await getSettings();
+    const bonus = settings.loyalty.reviewBonus;
+    // Флаг ставим атомарно — повторное одобрение бонус не начислит
+    const [claimed] = await db
+      .update(s.review)
+      .set({ bonusCredited: true })
+      .where(and(eq(s.review.id, id), eq(s.review.bonusCredited, false)))
+      .returning({ id: s.review.id });
+    if (claimed && bonus > 0) {
+      const { creditBonus } = await import("@/lib/bonuses");
+      await creditBonus(r.userId, bonus, "REVIEW", `За отзыв о «${r.product.name}»`);
+      const { notifyUser, esc } = await import("@/lib/telegram");
+      void notifyUser(r.userId, `⭐ Спасибо за отзыв о «${esc(r.product.name)}»! Начислили <b>${bonus}</b> бонусов.`);
+      bonusNote = `, начислено ${bonus} бонусов`;
+    }
+  }
+  await audit(me.id, `review.${op}`, "review", id, { reply: reply || undefined });
+  revalidatePath("/admin/reviews");
+  revalidatePath(`/product/${r.product.slug}`);
+  return { ok: (status === "APPROVED" ? "Опубликован" : status === "REJECTED" ? "Отклонён" : "Сохранено") + bonusNote };
 }

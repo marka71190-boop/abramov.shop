@@ -2029,3 +2029,126 @@ h3 {
 .variants-table td {
   vertical-align: middle;
 }
+
+/* ---------- Рейтинг, избранное, отзывы ---------- */
+.stars {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+.stars__bg {
+  color: var(--c-panel-3);
+}
+.stars__fg {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  color: var(--c-gold);
+}
+.pcard-wrap {
+  position: relative;
+  display: flex;
+}
+.pcard-wrap .pcard {
+  flex: 1;
+}
+.fav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 10, 10, 0.7);
+  color: var(--c-text);
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+}
+.fav:hover {
+  color: var(--c-gold);
+}
+.fav[aria-pressed="true"] {
+  color: var(--c-gold);
+}
+.fav:active {
+  transform: scale(0.9);
+}
+.fav-btn {
+  align-self: flex-start;
+  min-height: 44px;
+  font-size: 14px;
+}
+.fav-btn[aria-pressed="true"] {
+  color: var(--c-gold);
+  border-color: var(--c-gold);
+}
+.reviews {
+  margin-top: clamp(48px, 7vw, 96px);
+}
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.review {
+  padding: 22px 24px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+}
+.review__reply {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--c-gold);
+  background: var(--c-gold-soft);
+}
+.review-thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: block;
+  background: var(--c-panel-2);
+}
+.review-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.review-thumb button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+.review-form {
+  margin-bottom: 16px;
+}
+.star-input {
+  display: flex;
+  gap: 4px;
+}
+.star-input button {
+  font-size: 34px;
+  line-height: 1;
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  color: var(--c-panel-3);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.star-input button[data-on] {
+  color: var(--c-gold);
+}
+.star-input button:hover {
+  transform: scale(1.12);
+}

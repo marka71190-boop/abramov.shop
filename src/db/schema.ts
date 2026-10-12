@@ -19,6 +19,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  uniqueIndex,
   timestamp,
 } from "drizzle-orm/pg-core";
 
@@ -450,6 +451,7 @@ export const bonusReasonEnum = pgEnum("bonus_reason", [
   "MANUAL",
   "EXPIRED",
   "REFUND",
+  "REVIEW",
 ]);
 
 export const bonusTransaction = pgTable(
@@ -503,31 +505,44 @@ export const favorite = pgTable(
 
 export const reviewStatusEnum = pgEnum("review_status", ["PENDING", "APPROVED", "REJECTED"]);
 
-export const review = pgTable("review", {
-  id: id(),
-  productId: text("product_id")
-    .notNull()
-    .references(() => product.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  rating: integer("rating").notNull(),
-  text: text("text").notNull(),
-  photos: text("photos").array().default([]).notNull(),
-  status: reviewStatusEnum("status").default("PENDING").notNull(),
-  createdAt: createdAt(),
-});
+export const review = pgTable(
+  "review",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    orderId: text("order_id").references(() => order.id, { onDelete: "set null" }), // подтверждённая покупка
+    rating: integer("rating").notNull(),
+    text: text("text").notNull(),
+    photos: text("photos").array().default([]).notNull(),
+    status: reviewStatusEnum("status").default("PENDING").notNull(),
+    adminReply: text("admin_reply"),
+    moderatedAt: ts("moderated_at"),
+    moderatedById: text("moderated_by_id"),
+    bonusCredited: boolean("bonus_credited").default(false).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("review_user_product_idx").on(t.productId, t.userId), index("review_status_idx").on(t.status)],
+);
 
-export const stockSubscription = pgTable("stock_subscription", {
-  id: id(),
-  productId: text("product_id")
-    .notNull()
-    .references(() => product.id, { onDelete: "cascade" }),
-  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-  email: text("email"),
-  createdAt: createdAt(),
-  notifiedAt: ts("notified_at"),
-});
+export const stockSubscription = pgTable(
+  "stock_subscription",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    email: text("email"),
+    createdAt: createdAt(),
+    notifiedAt: ts("notified_at"),
+  },
+  (t) => [uniqueIndex("stock_sub_user_product_idx").on(t.productId, t.userId)],
+);
 
 // ============================================================
 // Фото товаров. Хранятся в базе: на Timeweb файлы контейнера
@@ -628,6 +643,20 @@ export const productImageRelations = relations(productImage, ({ one }) => ({
 
 export const productVariantRelations = relations(productVariant, ({ one }) => ({
   product: one(product, { fields: [productVariant.productId], references: [product.id] }),
+}));
+
+export const reviewRelations = relations(review, ({ one }) => ({
+  user: one(user, { fields: [review.userId], references: [user.id] }),
+  product: one(product, { fields: [review.productId], references: [product.id] }),
+}));
+
+export const favoriteRelations = relations(favorite, ({ one }) => ({
+  product: one(product, { fields: [favorite.productId], references: [product.id] }),
+}));
+
+export const stockSubscriptionRelations = relations(stockSubscription, ({ one }) => ({
+  user: one(user, { fields: [stockSubscription.userId], references: [user.id] }),
+  product: one(product, { fields: [stockSubscription.productId], references: [product.id] }),
 }));
 
 export const bonusTransactionRelations = relations(bonusTransaction, ({ one }) => ({

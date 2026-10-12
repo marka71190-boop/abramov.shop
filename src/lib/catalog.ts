@@ -57,3 +57,11 @@ export async function getProductBySlug(slug: string) {
   });
   return p ?? null;
 }
+
+/** Открытые товары по списку id (для избранного), в том же порядке. */
+export async function getPublicProductsByIds(ids: string[]) {
+  if (!ids.length) return [];
+  const rows = await db.select().from(s.product).where(and(publicWhere(s.product), inArray(s.product.id, ids)));
+  const list = await decorate(rows);
+  return ids.map((id) => list.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
+}
