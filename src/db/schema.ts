@@ -55,6 +55,9 @@ export const user = pgTable(
 
     phone: text("phone"),
     birthday: date("birthday"),
+    birthdaySetAt: ts("birthday_set_at"), // когда указал — подарок только если указал заранее
+    birthdayBonusYear: integer("birthday_bonus_year"), // год, за который подарок уже выдан
+    bonusReminderAt: ts("bonus_reminder_at"), // последнее напоминание о сгорающих бонусах
     role: roleEnum("role").default("CUSTOMER").notNull(),
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.

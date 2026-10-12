@@ -16,6 +16,7 @@ export interface SiteSettings {
     welcomeBonus: number;
     referralBonus: number;
     birthdayBonus: number;
+    birthdayDays: number; // сколько дней действуют бонусы ко дню рождения
     expiryDays: number; // 0 — бонусы не сгорают
   };
   delivery: {
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     welcomeBonus: 0,
     referralBonus: 300,
     birthdayBonus: 500,
+    birthdayDays: 14,
     expiryDays: 365,
   },
   delivery: {

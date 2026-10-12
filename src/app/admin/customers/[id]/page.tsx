@@ -6,7 +6,7 @@ import { fmtDate, fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
 import { ORDER_STATUS, TONE_PILL } from "@/lib/order-status";
 import { getActiveBan, requireAdmin } from "@/lib/viewer";
 import { unbanUser } from "../../actions";
-import { BanForm, BonusForm, RoleForm } from "./forms";
+import { BanForm, BirthdayAdminForm, BonusForm, RoleForm } from "./forms";
 
 const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки" } as const;
 const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", VK: "VK ID", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное" } as const;
@@ -56,6 +56,7 @@ export default async function CustomerPage({ params }: Props) {
           <div>
             <span className="muted">Реферальный код:</span> {u.referralCode ?? "—"}
           </div>
+          <BirthdayAdminForm userId={u.id} value={u.birthday} />
           {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} />}
         </div>
 

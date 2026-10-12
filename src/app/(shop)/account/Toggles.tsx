@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
-import { setRealEmail, telegramLink, unlinkTelegram } from "./actions";
+import { setBirthday, setRealEmail, telegramLink, unlinkTelegram } from "./actions";
 
 export function Toggle({ label, on, action }: { label: string; on: boolean; action: (v: boolean) => Promise<void> }) {
   const [optimistic, setOptimistic] = useOptimistic(on);
@@ -109,5 +109,18 @@ export function TelegramConnect({ linked }: { linked: boolean }) {
       </button>
       {hint && <span className="muted small">{hint}</span>}
     </div>
+  );
+}
+
+export function BirthdayForm() {
+  const [state, action, pending] = useActionState(setBirthday, {});
+  return (
+    <form action={action} className="row" style={{ alignItems: "center" }}>
+      <input className="input" type="date" name="birthday" required style={{ width: "auto", minHeight: 40 }} aria-label="Дата рождения" />
+      <button className="btn btn--line btn--sm" disabled={pending}>
+        {pending ? "…" : "Сохранить"}
+      </button>
+      {state.error && <span className="small" style={{ color: "var(--c-danger)" }}>{state.error}</span>}
+    </form>
   );
 }

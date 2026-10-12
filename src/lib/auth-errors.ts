@@ -8,6 +8,8 @@ const MESSAGES: Record<string, string> = {
   PASSWORD_TOO_LONG: "Слишком длинный пароль",
   CONSENT_REQUIRED: "Отметьте согласие на обработку персональных данных",
   TOO_MANY_REQUESTS: "Слишком много попыток. Подождите минуту.",
+  INVALID_TOKEN: "Ссылка устарела или уже использована. Запросите новую.",
+  RESET_PASSWORD_DISABLED: "Восстановление пароля временно недоступно. Напишите в поддержку.",
 };
 
 export function authErrorMessage(err: { code?: string; message?: string; status?: number } | null | undefined) {

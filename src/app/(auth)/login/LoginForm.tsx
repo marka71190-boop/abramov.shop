@@ -64,7 +64,12 @@ export function LoginForm({ next, google, vk }: { next: string; google: boolean;
         <input className="input" name="email" type="email" required autoComplete="email" />
       </label>
       <label className="field">
-        Пароль
+        <span className="row" style={{ justifyContent: "space-between" }}>
+          Пароль
+          <Link href="/forgot-password" className="small">
+            Забыли пароль?
+          </Link>
+        </span>
         <input className="input" name="password" type="password" required autoComplete="current-password" />
       </label>
       <button type="submit" className="btn btn--gold" disabled={busy} style={{ marginTop: 4 }}>

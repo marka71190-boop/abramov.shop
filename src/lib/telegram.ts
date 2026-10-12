@@ -245,6 +245,7 @@ type OrderEvent = "paid" | "shipped" | "delivered" | "cancelled" | "refunded";
 
 /** Сообщение клиенту и (для оплаты) админам. Ошибки Telegram не ломают работу магазина. */
 export async function notifyOrder(orderId: string, event: OrderEvent, extra?: { note?: string }) {
+  void emailOrderNotice(orderId, event);
   if (!telegramEnabled()) return;
   // В фоне: если Telegram медленный или недоступен, оплата и кнопки в админке не ждут
   void sendOrderNotice(orderId, event, extra);
@@ -293,5 +294,43 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
     }
   } catch (e) {
     console.error("[telegram] notifyOrder:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Письмо покупателю: оплата, отправка с трек-номером, возврат. */
+async function emailOrderNotice(orderId: string, event: OrderEvent) {
+  if (event !== "paid" && event !== "shipped" && event !== "refunded") return;
+  try {
+    const { mailEnabled, sendMail } = await import("@/lib/mail");
+    if (!mailEnabled()) return;
+    const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true } });
+    if (!o) return;
+    const url = `${SITE.url}/order/${o.number}`;
+    const items = o.items.map((i) => `${esc(i.name)} × ${i.quantity} — ${rub(i.price * i.quantity)}`).join("<br>");
+    if (event === "paid") {
+      await sendMail(
+        o.email,
+        `Заказ ${o.number} оплачен`,
+        `Спасибо! Заказ ${o.number} оплачен`,
+        `${items}<br><br>Итого: <b>${rub(o.total)}</b><br>Доставка СДЭК: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>Мы соберём заказ и пришлём трек-номер.` +
+          (o.bonusAccrued ? `<br>После получения начислим ${num(o.bonusAccrued / 100)} бонусов.` : ""),
+        { text: "Открыть заказ", url },
+      );
+    } else if (event === "shipped") {
+      await sendMail(
+        o.email,
+        `Заказ ${o.number} отправлен`,
+        `Заказ ${o.number} передан в СДЭК`,
+        (o.trackNumber ? `Трек-номер: <b>${o.trackNumber}</b>` : "Трек-номер появится на странице заказа.") + (o.deliveryDays ? `<br>Срок в пути: ${o.deliveryDays} дн.` : ""),
+        o.trackNumber ? { text: "Отследить посылку", url: trackUrl(o.trackNumber) } : { text: "Открыть заказ", url },
+      );
+    } else {
+      await sendMail(o.email, `Возврат по заказу ${o.number}`, "Деньги возвращены", `Вернули ${rub(o.total)} за заказ ${o.number}. Обычно деньги приходят на карту за 1–3 дня.`, {
+        text: "Открыть заказ",
+        url,
+      });
+    }
+  } catch (e) {
+    console.error("[mail] заказ:", e instanceof Error ? e.message : e);
   }
 }

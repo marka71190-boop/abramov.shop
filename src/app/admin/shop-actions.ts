@@ -392,3 +392,28 @@ export async function telegramTest(): Promise<ActionState> {
     return { error: e instanceof Error ? e.message : "Не отправилось" };
   }
 }
+
+export async function mailTest(): Promise<ActionState> {
+  const me = await requireAdmin();
+  const { mailEnabled, sendMail, verifyMail } = await import("@/lib/mail");
+  if (!mailEnabled()) return { error: "Добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в переменные Timeweb" };
+  try {
+    await verifyMail();
+    await sendMail(me.email, "Проверка почты Abramov Shop", "Почта работает", "Так будут выглядеть письма покупателям: восстановление пароля, оплата и трек-номер.");
+    return { ok: `Письмо отправлено на ${me.email}` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Не отправилось" };
+  }
+}
+
+/** Поддержка меняет дату рождения клиента (клиент сам указывает её один раз). */
+export async function adminSetBirthday(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const userId = String(form.get("userId") || "");
+  const v = String(form.get("birthday") || "");
+  if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: "Проверьте дату" };
+  await db.update(s.user).set({ birthday: v || null, birthdaySetAt: v ? new Date() : null }).where(eq(s.user.id, userId));
+  await audit(me.id, "user.birthday", "user", userId, { birthday: v || null });
+  revalidatePath(`/admin/customers/${userId}`);
+  return { ok: "Сохранено" };
+}

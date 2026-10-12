@@ -2,6 +2,7 @@ import { and, inArray, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as sc } from "@/db";
 import { cdekEnabled } from "@/lib/cdek";
+import { mailEnabled } from "@/lib/mail";
 import { botUsername, telegramEnabled, tgStatus } from "@/lib/telegram";
 import { TelegramTest } from "./TelegramTest";
 import { getOrigin } from "@/lib/request";
@@ -78,6 +79,20 @@ export default async function SettingsPage() {
           <div className="row" style={{ gap: 12 }}>
             {tg && <TelegramTest />}
             <span className={`pill ${tg && bot ? "pill--ok" : "pill--bad"}`}>{tg ? (bot ? "подключён" : "нет связи") : "не подключён"}</span>
+          </div>
+        </div>
+        <div className="row-line">
+          <div>
+            <div>Почта</div>
+            <div className="muted small">
+              {mailEnabled()
+                ? `Письма уходят с ${process.env.SMTP_FROM || process.env.SMTP_USER}: восстановление пароля, оплата, трек-номер, возврат`
+                : "Без почты ссылка для восстановления пароля приходит только в Telegram. Добавьте SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS"}
+            </div>
+          </div>
+          <div className="row" style={{ gap: 12 }}>
+            {mailEnabled() && <TelegramTest kind="mail" />}
+            <span className={`pill ${mailEnabled() ? "pill--ok" : "pill--bad"}`}>{mailEnabled() ? "подключена" : "не подключена"}</span>
           </div>
         </div>
       </div>

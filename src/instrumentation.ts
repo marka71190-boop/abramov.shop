@@ -2,7 +2,8 @@
  * Фоновые задачи сайта. Запускаются один раз при старте сервера:
  *   • каждую минуту — спрашиваем ЮKassa об оплате ожидающих заказов;
  *   • каждые 5 минут — отменяем неоплаченные вовремя заказы (товар возвращается в продажу);
- *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК.
+ *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК;
+ *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.DISABLE_JOBS === "true") return;
@@ -24,4 +25,14 @@ export async function register() {
   setInterval(safe("expire", expireUnpaidOrders), 5 * 60_000);
   setInterval(safe("payments", pollPendingPayments), 60_000);
   setInterval(safe("cdek", syncShipments), 30 * 60_000);
+
+  // Бонусы: сгорание, день рождения, напоминания — раз в час (всё повторно безопасно)
+  const bonuses = await import("@/lib/bonuses");
+  const hourly = async () => {
+    await bonuses.expireBonuses();
+    await bonuses.birthdayBonuses();
+    await bonuses.remindExpiring();
+  };
+  setTimeout(safe("bonuses", hourly), 3 * 60_000);
+  setInterval(safe("bonuses", hourly), 60 * 60_000);
 }

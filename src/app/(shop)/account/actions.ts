@@ -54,3 +54,16 @@ export async function setRealEmail(_: { error?: string; ok?: string }, form: For
   revalidatePath("/account");
   return { ok: "Почта сохранена" };
 }
+
+/** День рождения — указывается один раз; изменить можно через поддержку. */
+export async function setBirthday(_: { error?: string; ok?: string }, form: FormData): Promise<{ error?: string; ok?: string }> {
+  const u = await requireActiveUser();
+  if (u.birthday) return { error: "Дата уже указана. Чтобы изменить, напишите в поддержку" };
+  const v = String(form.get("birthday") || "");
+  const d = new Date(`${v}T12:00:00Z`);
+  const age = (Date.now() - +d) / (365.25 * 86400_000);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(+d) || age < 14 || age > 110) return { error: "Проверьте дату рождения" };
+  await db.update(s.user).set({ birthday: v, birthdaySetAt: new Date() }).where(and(eq(s.user.id, u.id), sql`${s.user.birthday} is null`));
+  revalidatePath("/account");
+  return { ok: "Сохранено" };
+}

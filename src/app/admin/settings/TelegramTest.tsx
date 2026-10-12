@@ -1,9 +1,9 @@
 "use client";
 import { useActionState } from "react";
-import { telegramTest } from "../shop-actions";
+import { mailTest, telegramTest } from "../shop-actions";
 
-export function TelegramTest() {
-  const [state, action, pending] = useActionState(telegramTest, {});
+export function TelegramTest({ kind = "telegram" }: { kind?: "telegram" | "mail" }) {
+  const [state, action, pending] = useActionState(kind === "mail" ? mailTest : telegramTest, {});
   return (
     <form action={action} className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
       <button className="btn btn--line btn--sm" disabled={pending}>

@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useState, useTransition } from "react";
 import { adjustBonus, banUser, setRole, type ActionState } from "../../actions";
+import { adminSetBirthday } from "../../shop-actions";
 
 function Result({ state }: { state: ActionState }) {
   if (state.error) return <div className="form-error">{state.error}</div>;
@@ -101,5 +102,21 @@ export function RoleForm({ userId, role }: { userId: string; role: "CUSTOMER" | 
       </select>
       {error && <span className="form-error">{error}</span>}
     </label>
+  );
+}
+
+export function BirthdayAdminForm({ userId, value }: { userId: string; value: string | null }) {
+  const [state, action, pending] = useActionState(adminSetBirthday, {});
+  return (
+    <form action={action} className="row" style={{ alignItems: "center" }}>
+      <input type="hidden" name="userId" value={userId} />
+      <span className="muted">День рождения:</span>
+      <input className="input" type="date" name="birthday" defaultValue={value ?? ""} style={{ width: "auto", minHeight: 36 }} />
+      <button className="btn btn--line btn--sm" disabled={pending}>
+        Сохранить
+      </button>
+      {state.error && <span className="small" style={{ color: "var(--c-danger)" }}>{state.error}</span>}
+      {state.ok && <span className="small" style={{ color: "var(--c-success)" }}>{state.ok}</span>}
+    </form>
   );
 }

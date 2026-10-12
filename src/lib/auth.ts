@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/consent";
 import { normalizePhone } from "@/lib/format";
-import { placeholderEmail, SITE } from "@/lib/site";
+import { isPlaceholderEmail, placeholderEmail, SITE } from "@/lib/site";
 
 const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const vkEnabled = Boolean(process.env.VK_CLIENT_ID && process.env.VK_CLIENT_SECRET);
@@ -51,6 +51,34 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     maxPasswordLength: 128,
     autoSignIn: true,
+    resetPasswordTokenExpiresIn: 60 * 60, // ссылка действует час
+    revokeSessionsOnPasswordReset: true, // после смены пароля выходим на всех устройствах
+    /** Ссылку отправляем на почту (если настроена) и в Telegram (если привязан). */
+    sendResetPassword: async ({ user, token }) => {
+      const base = (process.env.BETTER_AUTH_URL || SITE.url).replace(/\/$/, "");
+      const url = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+      const [{ sendMail }, tg, full] = await Promise.all([
+        import("@/lib/mail"),
+        import("@/lib/telegram"),
+        db.query.user.findFirst({ where: eq(s.user.id, user.id), columns: { telegramChatId: true, name: true } }),
+      ]);
+      if (!isPlaceholderEmail(user.email)) {
+        await sendMail(
+          user.email,
+          "Восстановление пароля — Abramov Shop",
+          "Новый пароль",
+          "Кто-то (надеемся, вы) запросил смену пароля на abramov.shop. Ссылка действует 1 час.<br>Если это были не вы — просто проигнорируйте письмо.",
+          { text: "Задать новый пароль", url },
+        ).catch((e) => console.error("[mail] reset:", e instanceof Error ? e.message : e));
+      }
+      if (full?.telegramChatId && tg.telegramEnabled()) {
+        await tg
+          .send(full.telegramChatId, "🔑 Запрошена смена пароля на сайте. Ссылка действует 1 час. Если это были не вы — ничего не делайте.", [
+            { text: "Задать новый пароль", url },
+          ])
+          .catch((e) => console.error("[telegram] reset:", e instanceof Error ? e.message : e));
+      }
+    },
   },
   socialProviders,
   user: {
@@ -109,6 +137,13 @@ export const auth = betterAuth({
           // Владелец магазина (OWNER_EMAIL) сразу получает доступ к админке
           const role = ownerEmail && created.email.toLowerCase() === ownerEmail ? ("OWNER" as const) : undefined;
           if (phone || role) await db.update(s.user).set({ ...(phone ? { phone } : {}), ...(role ? { role } : {}) }).where(eq(s.user.id, created.id));
+          // Приветственные бонусы (если включены в админке)
+          const { getSettings } = await import("@/lib/settings");
+          const welcome = (await getSettings()).loyalty.welcomeBonus;
+          if (welcome > 0) {
+            const { creditBonus } = await import("@/lib/bonuses");
+            await creditBonus(created.id, welcome, "WELCOME", "Приветственные бонусы").catch((e) => console.error("[bonus] welcome:", e));
+          }
         },
       },
     },

@@ -74,6 +74,10 @@ export function SettingsForm({ s }: { s: SiteSettings }) {
             <input className="input" type="number" name="birthdayBonus" defaultValue={s.loyalty.birthdayBonus} />
           </label>
           <label className="field">
+            Бонусы ко дню рождения действуют, дней
+            <input className="input" type="number" name="birthdayDays" min={1} defaultValue={s.loyalty.birthdayDays} />
+          </label>
+          <label className="field">
             Бонусы сгорают через, дней (0 — не сгорают)
             <input className="input" type="number" name="expiryDays" defaultValue={s.loyalty.expiryDays} />
           </label>

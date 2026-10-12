@@ -10,7 +10,8 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { CopyButton, RealEmailForm, TelegramConnect, Toggle } from "./Toggles";
+import { BirthdayForm, CopyButton, RealEmailForm, TelegramConnect, Toggle } from "./Toggles";
+import { expiringSoon } from "@/lib/bonuses";
 import { telegramEnabled } from "@/lib/telegram";
 import { isPlaceholderEmail } from "@/lib/site";
 
@@ -66,6 +67,7 @@ export default async function AccountPage() {
   if (!pd) redirect("/consent");
 
   const telegram = telegramEnabled();
+  const burning = await expiringSoon(user.id, user.bonusBalance, 30);
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
 
@@ -100,6 +102,11 @@ export default async function AccountPage() {
             <div>
               <div className="bonus-card__balance">{num(user.bonusBalance)}</div>
               <div className="muted small">бонусов на счёте, 1 бонус = 1 ₽</div>
+              {burning && (
+                <div className="small" style={{ color: "var(--c-danger)", marginTop: 6 }}>
+                  {num(burning.amount)} сгорят {fmtDate(burning.date)}
+                </div>
+              )}
             </div>
             {progress.next ? (
               <div className="meter">
@@ -214,6 +221,19 @@ export default async function AccountPage() {
                 {user.telegramChatId && <Toggle label="Уведомления в Telegram" on={user.notifyTelegram} action={setTelegramNotify} />}
                 <TelegramConnect linked={!!user.telegramChatId} />
               </div>
+            </div>
+          )}
+          {settings.loyalty.birthdayBonus > 0 && (
+            <div className="row-line">
+              <div>
+                <div>День рождения</div>
+                <div className="muted small">
+                  {user.birthday
+                    ? `${fmtDate(user.birthday)} — в этот день подарим ${num(settings.loyalty.birthdayBonus)} бонусов`
+                    : `Укажите заранее — в день рождения подарим ${num(settings.loyalty.birthdayBonus)} бонусов. Дату можно указать один раз`}
+                </div>
+              </div>
+              {!user.birthday && <BirthdayForm />}
             </div>
           )}
           <div className="row-line">

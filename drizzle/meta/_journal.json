@@ -22,6 +22,13 @@
       "when": 1791582092419,
       "tag": "0002_orders_media",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791842796173,
+      "tag": "0003_bonus_birthday",
+      "breakpoints": true
     }
   ]
 }
