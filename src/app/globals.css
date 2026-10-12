@@ -2152,3 +2152,56 @@ h3 {
 .star-input button:hover {
   transform: scale(1.12);
 }
+
+/* ---------- Графики аналитики ---------- */
+.chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.chart__grid {
+  stroke: var(--c-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.chart__base {
+  stroke: var(--c-line-2);
+  stroke-width: 1;
+}
+.chart__axis {
+  fill: var(--c-muted);
+  font-size: 11px;
+}
+.chart__mark {
+  fill: var(--c-gold);
+}
+.chart__bar:hover .chart__mark {
+  fill: var(--c-gold-hi);
+}
+.chart__tip {
+  pointer-events: none;
+}
+.chart__tip rect {
+  fill: var(--c-panel-3);
+  stroke: var(--c-line-2);
+}
+.chart__tip text {
+  fill: var(--c-text);
+  font-size: 12px;
+}
+.chart__table {
+  margin-top: 8px;
+}
+.chart__table summary {
+  cursor: pointer;
+}
+.chart__table .table {
+  margin-top: 8px;
+  max-width: 360px;
+}
+.kpi__sub {
+  font-size: 13px;
+  color: var(--c-muted);
+  margin-top: 4px;
+}
