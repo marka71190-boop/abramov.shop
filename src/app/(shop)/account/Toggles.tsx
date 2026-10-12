@@ -1,6 +1,7 @@
 "use client";
-import { useActionState, useOptimistic, useTransition } from "react";
-import { setRealEmail } from "./actions";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
+import { setRealEmail, telegramLink, unlinkTelegram } from "./actions";
 
 export function Toggle({ label, on, action }: { label: string; on: boolean; action: (v: boolean) => Promise<void> }) {
   const [optimistic, setOptimistic] = useOptimistic(on);
@@ -57,5 +58,56 @@ export function RealEmailForm() {
       </div>
       {state.error && <div className="form-error">{state.error}</div>}
     </form>
+  );
+}
+
+export function TelegramConnect({ linked }: { linked: boolean }) {
+  const [pending, start] = useTransition();
+  const [hint, setHint] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!hint || linked) return;
+    // Ждём, пока клиент нажмёт «Старт» в боте, и обновляем страницу
+    const t = setInterval(() => router.refresh(), 3000);
+    const stop = setTimeout(() => clearInterval(t), 120_000);
+    return () => {
+      clearInterval(t);
+      clearTimeout(stop);
+    };
+  }, [hint, linked, router]);
+
+  if (linked) {
+    return (
+      <button type="button" className="linklike small" disabled={pending} onClick={() => start(() => unlinkTelegram())}>
+        Отвязать
+      </button>
+    );
+  }
+  return (
+    <div className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
+      <button
+        type="button"
+        className="btn btn--line btn--sm"
+        disabled={pending}
+        onClick={() => {
+          const w = window.open("", "_blank");
+          start(async () => {
+            const url = await telegramLink();
+            if (!url) {
+              w?.close();
+              setHint("Бот временно недоступен, попробуйте позже");
+              return;
+            }
+            if (w) w.location.href = url;
+            else window.location.href = url;
+            setHint("Нажмите «Старт» в боте — страница обновится сама");
+          });
+        }}
+      >
+        Подключить Telegram
+      </button>
+      {hint && <span className="muted small">{hint}</span>}
+    </div>
   );
 }

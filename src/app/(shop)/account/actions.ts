@@ -5,6 +5,7 @@ import { db, schema as s } from "@/db";
 import { getActiveConsent, recordConsent, revokeConsent } from "@/lib/consent";
 import { getRequestMeta } from "@/lib/request";
 import { isPlaceholderEmail } from "@/lib/site";
+import { createLinkUrl } from "@/lib/telegram";
 import { requireActiveUser } from "@/lib/viewer";
 
 /** Переключатель «Новости и акции»: включение пишет согласие в журнал, выключение — отзыв. */
@@ -23,6 +24,18 @@ export async function setMarketing(enabled: boolean) {
 export async function setTelegramNotify(enabled: boolean) {
   const u = await requireActiveUser();
   await db.update(s.user).set({ notifyTelegram: enabled }).where(eq(s.user.id, u.id));
+  revalidatePath("/account");
+}
+
+/** Одноразовая ссылка на бота для привязки Telegram. */
+export async function telegramLink(): Promise<string | null> {
+  const u = await requireActiveUser();
+  return createLinkUrl(u.id);
+}
+
+export async function unlinkTelegram() {
+  const u = await requireActiveUser();
+  await db.update(s.user).set({ telegramChatId: null }).where(eq(s.user.id, u.id));
   revalidatePath("/account");
 }
 

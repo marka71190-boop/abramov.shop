@@ -10,7 +10,8 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { CopyButton, RealEmailForm, Toggle } from "./Toggles";
+import { CopyButton, RealEmailForm, TelegramConnect, Toggle } from "./Toggles";
+import { telegramEnabled } from "@/lib/telegram";
 import { isPlaceholderEmail } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Личный кабинет", robots: { index: false } };
@@ -64,6 +65,7 @@ export default async function AccountPage() {
   // Без действующего согласия на обработку ПДн кабинетом пользоваться нельзя
   if (!pd) redirect("/consent");
 
+  const telegram = telegramEnabled();
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
 
@@ -200,13 +202,20 @@ export default async function AccountPage() {
               </div>
             </div>
           </div>
-          <div className="row-line">
-            <div>
-              <div>Статус заказа в Telegram</div>
-              <div className="muted small">Бот пришлёт трек-номер и сообщит, когда посылка приедет</div>
+          {telegram && (
+            <div className="row-line">
+              <div>
+                <div>Telegram {user.telegramChatId ? <span className="pill pill--ok" style={{ marginLeft: 6 }}>подключён</span> : null}</div>
+                <div className="muted small">
+                  {user.telegramChatId ? "Бот пришлёт оплату, трек-номер СДЭК и начисление бонусов" : "Подключите — бот пришлёт трек-номер и сообщит, когда посылка приедет"}
+                </div>
+              </div>
+              <div className="row" style={{ gap: 16 }}>
+                {user.telegramChatId && <Toggle label="Уведомления в Telegram" on={user.notifyTelegram} action={setTelegramNotify} />}
+                <TelegramConnect linked={!!user.telegramChatId} />
+              </div>
             </div>
-            <Toggle label="Уведомления в Telegram" on={user.notifyTelegram} action={setTelegramNotify} />
-          </div>
+          )}
           <div className="row-line">
             <div>
               <div>Новости и акции</div>

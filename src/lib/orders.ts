@@ -12,6 +12,7 @@ import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
 import { cdekEnabled, CDEK_IN_TRANSIT, createShipment, getShipment, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
+import { notifyOrder } from "@/lib/telegram";
 import { computeQuote, type Quote, type QuoteInput } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import type { UserRow } from "@/lib/viewer";
@@ -253,14 +254,14 @@ async function release(tx: Tx, o: OrderRow, restock: boolean) {
 }
 
 export async function markPaid(orderId: string, source: string) {
-  await db.transaction(async (tx) => {
+  const changed = await db.transaction(async (tx) => {
     const o = await lockOrder(tx, orderId);
-    if (!o) return;
+    if (!o) return false;
     if (o.status === "AWAITING_PAYMENT") {
       await tx.update(s.order).set({ status: "PAID", paidAt: new Date() }).where(eq(s.order.id, o.id));
-      return;
+      return true;
     }
-    if (o.status !== "CANCELLED") return; // уже оплачен
+    if (o.status !== "CANCELLED") return false; // уже оплачен
 
     // Деньги пришли после автоотмены: снова резервируем то, что получится, и предупреждаем админов
     const problems: string[] = [];
@@ -289,7 +290,9 @@ export async function markPaid(orderId: string, source: string) {
       .set({ status: "PAID", paidAt: new Date(), cancelReason: problems.length ? `Оплата пришла после отмены: ${problems.join(", ")}` : null })
       .where(eq(s.order.id, o.id));
     await tx.insert(s.auditLog).values({ actorId: null, action: "order.late_payment", entity: "order", entityId: o.id, details: { source, problems } });
+    return true;
   });
+  if (changed) await notifyOrder(orderId, "paid");
 }
 
 /** Применяет актуальный статус платежа из ЮKassa (уведомление, возврат с оплаты, фоновая проверка). */
@@ -336,7 +339,7 @@ export async function getPayUrl(orderId: string) {
 // ============================================================
 
 export async function cancelOrder(orderId: string, reason: string, actorId: string | null, opts: { onlyIfAwaiting?: boolean } = {}) {
-  return db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
     const o = await lockOrder(tx, orderId);
     if (!o) return false;
     if (opts.onlyIfAwaiting && o.status !== "AWAITING_PAYMENT") return false;
@@ -347,6 +350,9 @@ export async function cancelOrder(orderId: string, reason: string, actorId: stri
     await tx.insert(s.auditLog).values({ actorId, action: "order.cancel", entity: "order", entityId: o.id, details: { reason } });
     return true;
   });
+  // Покупатель отменил сам — сообщение ему не нужно
+  if (done && reason !== "Отменён покупателем") await notifyOrder(orderId, "cancelled");
+  return done;
 }
 
 export async function refundOrder(orderId: string, actorId: string, opts: { restock: boolean; reason: string }) {
@@ -372,9 +378,9 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
     throw new OrderError("Не найден успешный платёж по заказу");
   }
 
-  await db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
     const cur = await lockOrder(tx, o.id);
-    if (!cur || cur.status === "REFUNDED") return;
+    if (!cur || cur.status === "REFUNDED") return false;
     if (pay) {
       await tx
         .update(s.payment)
@@ -403,14 +409,18 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
     }
     await tx.update(s.order).set({ status: "REFUNDED", cancelReason: opts.reason }).where(eq(s.order.id, cur.id));
     await tx.insert(s.auditLog).values({ actorId, action: "order.refund", entity: "order", entityId: cur.id, details: { amount: refunded, ...opts } });
+    return true;
   });
+  if (done) await notifyOrder(o.id, "refunded");
 }
 
 export async function markDelivered(orderId: string, actorId: string | null) {
   const settings = await getSettings();
+  let delivered = false;
   await db.transaction(async (tx) => {
     const o = await lockOrder(tx, orderId);
     if (!o || o.status === "DELIVERED" || o.status === "CANCELLED" || o.status === "REFUNDED") return;
+    delivered = true;
     if (o.status === "AWAITING_PAYMENT") throw new OrderError("Заказ ещё не оплачен");
     await tx.update(s.order).set({ status: "DELIVERED", deliveredAt: new Date(), bonusCredited: true }).where(eq(s.order.id, o.id));
     await tx.insert(s.auditLog).values({ actorId, action: "order.delivered", entity: "order", entityId: o.id, details: null });
@@ -443,6 +453,7 @@ export async function markDelivered(orderId: string, actorId: string | null) {
       }
     }
   });
+  if (delivered) await notifyOrder(orderId, "delivered");
 }
 
 export async function setStatus(orderId: string, status: "PAID" | "ASSEMBLING" | "SHIPPED", actorId: string, track?: string | null) {
@@ -458,6 +469,7 @@ export async function setStatus(orderId: string, status: "PAID" | "ASSEMBLING" |
     })
     .where(eq(s.order.id, orderId));
   await auditSystem(actorId, "order.status", "order", orderId, { status, track });
+  if (status === "SHIPPED" && o.status !== "SHIPPED") await notifyOrder(orderId, "shipped");
 }
 
 // ============================================================
@@ -525,6 +537,7 @@ export async function syncCdek(orderId: string) {
   }
   if (Object.keys(patch).length) await db.update(s.order).set(patch).where(eq(s.order.id, o.id));
   if (info.status === "DELIVERED") await markDelivered(o.id, null);
+  else if (patch.status === "SHIPPED") await notifyOrder(o.id, "shipped");
 }
 
 // ============================================================

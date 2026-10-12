@@ -1,4 +1,9 @@
+import { and, inArray, isNotNull } from "drizzle-orm";
+import Link from "next/link";
+import { db, schema as sc } from "@/db";
 import { cdekEnabled } from "@/lib/cdek";
+import { botUsername, telegramEnabled } from "@/lib/telegram";
+import { TelegramTest } from "./TelegramTest";
 import { getOrigin } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
@@ -11,6 +16,11 @@ export default async function SettingsPage() {
   await requireAdmin("OWNER");
   const [settings, origin] = await Promise.all([getSettings(), getOrigin(SITE.url)]);
   const yk = yookassaEnabled();
+  const tg = telegramEnabled();
+  const [bot, tgAdmins] = await Promise.all([
+    botUsername(),
+    db.$count(sc.user, and(inArray(sc.user.role, ["OWNER", "MANAGER"]), isNotNull(sc.user.telegramChatId))),
+  ]);
   const cdek = cdekEnabled();
   return (
     <>
@@ -45,6 +55,25 @@ export default async function SettingsPage() {
           <span className={`pill ${cdek ? (process.env.CDEK_TEST_MODE === "true" ? "pill--warn" : "pill--ok") : "pill--bad"}`}>
             {cdek ? (process.env.CDEK_TEST_MODE === "true" ? "учебный" : "подключён") : "не подключён"}
           </span>
+        </div>
+        <div className="row-line">
+          <div>
+            <div>Telegram-бот{bot ? ` @${bot}` : ""}</div>
+            <div className="muted small">
+              {tg ? (
+                <>
+                  Клиенты подключают бота в личном кабинете. Админов с подключённым Telegram: {tgAdmins} — им приходят новые заказы.{" "}
+                  <Link href="/account#settings">Подключить свой</Link>
+                </>
+              ) : (
+                "Создайте бота у @BotFather и добавьте в Timeweb переменную TELEGRAM_BOT_TOKEN"
+              )}
+            </div>
+          </div>
+          <div className="row" style={{ gap: 12 }}>
+            {tg && <TelegramTest />}
+            <span className={`pill ${tg && bot ? "pill--ok" : "pill--bad"}`}>{tg ? (bot ? "подключён" : "ошибка токена") : "не подключён"}</span>
+          </div>
         </div>
       </div>
 

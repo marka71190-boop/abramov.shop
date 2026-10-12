@@ -375,3 +375,20 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
   revalidatePath("/", "layout");
   return { ok: "Сохранено" };
 }
+
+// ============================================================
+// Telegram
+// ============================================================
+
+export async function telegramTest(): Promise<ActionState> {
+  const me = await requireAdmin();
+  const { send, telegramEnabled } = await import("@/lib/telegram");
+  if (!telegramEnabled()) return { error: "Добавьте TELEGRAM_BOT_TOKEN в переменные Timeweb" };
+  if (!me.telegramChatId) return { error: "Сначала подключите Telegram в личном кабинете" };
+  try {
+    await send(me.telegramChatId, "✅ Проверка: уведомления о новых заказах будут приходить сюда.");
+    return { ok: "Сообщение отправлено — проверьте Telegram" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Не отправилось" };
+  }
+}
