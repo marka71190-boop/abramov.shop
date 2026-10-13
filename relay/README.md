@@ -34,3 +34,10 @@ tg.ваш-домен {
 ```
 
 На сайте: `TELEGRAM_API_URL=https://tg.ваш-домен`.
+
+## Мониторинг сайта (тот же воркер)
+
+1. Вставьте в воркер свежий код из `cloudflare-worker.js` → **Deploy**.
+2. **Settings → Variables and Secrets**: добавьте `BOT_TOKEN` (токен бота) и `ALERT_CHAT_ID` (ваш Telegram ID из админки → Настройки).
+3. Необязательно: **Storage & Databases → KV → Create** (имя `abramov-monitor`), затем в воркере **Settings → Bindings → Add → KV namespace**, имя переменной `STATE`. Без KV тревога повторяется каждые 5 минут, с KV — раз в 30 минут и приходит сообщение «снова работает».
+4. **Settings → Trigger events → Add → Cron Triggers** → `*/5 * * * *`.

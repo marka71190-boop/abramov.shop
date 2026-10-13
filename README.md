@@ -96,3 +96,11 @@ npm run dev                     # http://localhost:3000
 | Цвета и стили | `src/app/globals.css` (переменные в начале файла) |
 | Логотип и его анимация | `src/components/Logo.tsx`, раздел «Логотип» в `globals.css` |
 | Структура базы | `src/db/schema.ts` → `npm run db:generate` → `npm run db:migrate` |
+
+## Резервные копии и мониторинг
+
+- **Автоматические копии:** Timeweb → «Базы данных» → PostgreSQL → «Бэкапы» → ежедневно, хранить 7+ копий.
+- **Копия на компьютер:** админка → «Резервные копии» → «Скачать копию» (файл `.json.gz`).
+- **Восстановление из файла:** создать структуру `npm run db:migrate`, затем
+  `DATABASE_URL=… node scripts/restore.mjs копия.json.gz` (если в базе уже есть данные — добавить `--force`, они будут заменены).
+- **Мониторинг:** воркер Cloudflare из `relay/` каждые 5 минут проверяет `/api/health` и пишет в Telegram, если сайт или база не отвечают (см. `relay/README.md`).

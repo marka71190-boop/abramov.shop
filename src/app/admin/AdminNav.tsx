@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/admin/promo", label: "Промокоды" },
   { href: "/admin/reviews", label: "Отзывы" },
   { href: "/admin/settings", label: "Настройки", owner: true },
+  { href: "/admin/backup", label: "Резервные копии", owner: true },
   { href: "/admin/audit", label: "Журнал действий" },
 ];
 

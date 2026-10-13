@@ -14,7 +14,7 @@ import { SettingsForm } from "./SettingsForm";
 import { ShopSettingsForm } from "./ShopSettingsForm";
 
 export default async function SettingsPage() {
-  await requireAdmin("OWNER");
+  const me = await requireAdmin("OWNER");
   const [settings, origin] = await Promise.all([getSettings(), getOrigin(SITE.url)]);
   const yk = yookassaEnabled();
   const tg = telegramEnabled();
@@ -69,7 +69,13 @@ export default async function SettingsPage() {
               ) : tg ? (
                 <>
                   Клиенты подключают бота в личном кабинете. Админов с подключённым Telegram: {tgAdmins} — им приходят новые заказы.{" "}
-                  <Link href="/account#settings">Подключить свой</Link>
+                  {me.telegramChatId ? (
+                    <>
+                      Ваш Telegram ID для мониторинга: <code>{me.telegramChatId}</code>
+                    </>
+                  ) : (
+                    <Link href="/account#settings">Подключить свой</Link>
+                  )}
                 </>
               ) : (
                 "Создайте бота у @BotFather и добавьте в Timeweb переменную TELEGRAM_BOT_TOKEN"

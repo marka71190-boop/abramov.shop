@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "db:restore": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/restore.mjs",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:local": "node scripts/dev-db.mjs"
