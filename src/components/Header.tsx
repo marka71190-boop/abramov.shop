@@ -2,8 +2,17 @@ import Link from "next/link";
 import { CartBadge } from "@/components/cart/CartProvider";
 import { IconBag, IconUser } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
+import { HeaderSearch } from "@/components/search/HeaderSearch";
 
-export function Header({ signedIn, admin }: { signedIn: boolean; admin: boolean }) {
+export function Header({
+  signedIn,
+  admin,
+  categories,
+}: {
+  signedIn: boolean;
+  admin: boolean;
+  categories: { slug: string; name: string }[];
+}) {
   return (
     <header className="header">
       <div className="container header__inner">
@@ -12,7 +21,7 @@ export function Header({ signedIn, admin }: { signedIn: boolean; admin: boolean 
           <span className="brand__shop">SHOP</span>
         </Link>
         <nav className="nav" aria-label="Основное меню">
-          <Link href="/#catalog">Каталог</Link>
+          <Link href="/catalog">Каталог</Link>
           <Link href="/#drop">Коллекции</Link>
           <Link href="/#bonus">Бонусы</Link>
           <Link href="/p/delivery">Доставка</Link>
@@ -20,6 +29,7 @@ export function Header({ signedIn, admin }: { signedIn: boolean; admin: boolean 
           {admin && <Link href="/admin">Админка</Link>}
         </nav>
         <div className="header__actions">
+          <HeaderSearch categories={categories} />
           <Link href={signedIn ? "/account" : "/login"} className="icon-btn" aria-label={signedIn ? "Личный кабинет" : "Войти"}>
             <IconUser />
           </Link>

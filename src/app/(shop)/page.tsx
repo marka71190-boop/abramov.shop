@@ -2,12 +2,64 @@ import Link from "next/link";
 import { KeepBeta } from "@/components/RichText";
 import { IconArrow, IconArrowUpRight, IconCard, IconStar, IconTelegram, IconTruck } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
+import { ProductCard } from "@/components/product/ProductCard";
+import { Stars } from "@/components/product/Stars";
 import { getFeaturedLimited, getPublicCategories } from "@/lib/catalog";
+import { getHits, getLatestReviews, getNewArrivals } from "@/lib/catalog-search";
 import { num, rub } from "@/lib/format";
+import { favoriteIds, ratingsFor, shortName } from "@/lib/reviews";
 import { getSettings } from "@/lib/settings";
+import { getViewer } from "@/lib/viewer";
+
+type Card = Awaited<ReturnType<typeof getNewArrivals>>[number];
+
+function Rail({
+  id,
+  title,
+  items,
+  ratings,
+  favs,
+}: {
+  id: string;
+  title: string;
+  items: Card[];
+  ratings: Awaited<ReturnType<typeof ratingsFor>>;
+  favs: Set<string>;
+}) {
+  return (
+    <section id={id} className="container section section--tight">
+      <div className="section-head">
+        <h2 className="h2">{title}</h2>
+        <Link href="/catalog" className="link-caps">
+          Весь каталог <IconArrow size={16} />
+        </Link>
+      </div>
+      <div className="products products--rail">
+        {items.map((p) => (
+          <ProductCard key={p.id} p={p} rating={ratings.get(p.id)} favorite={favs.has(p.id)} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default async function HomePage() {
-  const [categories, drop, settings] = await Promise.all([getPublicCategories(), getFeaturedLimited(), getSettings()]);
+  const [categories, drop, settings, hits, fresh, reviews, viewer] = await Promise.all([
+    getPublicCategories(),
+    getFeaturedLimited(),
+    getSettings(),
+    getHits(),
+    getNewArrivals(),
+    getLatestReviews(),
+    getViewer(),
+  ]);
+  // Новинки не повторяют хиты
+  const hitIds = new Set(hits.map((p) => p.id));
+  const newOnes = fresh.filter((p) => !hitIds.has(p.id)).slice(0, 8);
+  const [ratings, favs] = await Promise.all([
+    ratingsFor([...hits, ...newOnes].map((p) => p.id)),
+    viewer ? favoriteIds(viewer.id) : Promise.resolve(new Set<string>()),
+  ]);
   const { tiers, referralBonus, birthdayBonus } = settings.loyalty;
 
   return (
@@ -70,6 +122,9 @@ export default async function HomePage() {
         <section id="catalog" className="container section">
           <div className="section-head">
             <h2 className="h2">Каталог</h2>
+            <Link href="/catalog" className="link-caps">
+              Все товары <IconArrow size={16} />
+            </Link>
           </div>
           <div className="cats">
             {categories.map((c, i) => (
@@ -87,6 +142,9 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {hits.length > 0 && <Rail id="hits" title="Хиты продаж" items={hits} ratings={ratings} favs={favs} />}
+      {newOnes.length >= 2 && <Rail id="new" title="Новинки" items={newOnes} ratings={ratings} favs={favs} />}
 
       {drop && (
         <section id="drop" className="container section">
@@ -110,7 +168,12 @@ export default async function HomePage() {
                     </strong>
                   </div>
                   <div className="meter__bar">
-                    <div className="meter__fill" style={{ width: `${Math.min(100, (drop.stock / drop.limitedTotal) * 100)}%` }} />
+                    <div
+                      className="meter__fill"
+                      style={{
+                        width: `${Math.min(100, (drop.stock / drop.limitedTotal) * 100)}%`,
+                      }}
+                    />
                   </div>
                 </div>
               ) : null}
@@ -119,6 +182,29 @@ export default async function HomePage() {
                 Подробнее и купить
               </Link>
             </div>
+          </div>
+        </section>
+      )}
+
+      {reviews.length >= 2 && (
+        <section id="reviews" className="container section section--tight">
+          <div className="section-head">
+            <h2 className="h2">Отзывы покупателей</h2>
+            <p>Оставить отзыв можно после получения заказа — за него начисляем бонусы.</p>
+          </div>
+          <div className="hreviews">
+            {reviews.map((r) => (
+              <figure key={r.id} className="hreview">
+                <Stars value={r.rating} size={16} />
+                <blockquote>{r.text.length > 280 ? `${r.text.slice(0, 277).trimEnd()}…` : r.text}</blockquote>
+                <figcaption className="small">
+                  <span>{shortName(r.userName)}</span>
+                  <Link href={`/product/${r.productSlug}`} className="muted">
+                    {r.productName}
+                  </Link>
+                </figcaption>
+              </figure>
+            ))}
           </div>
         </section>
       )}

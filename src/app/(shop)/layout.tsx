@@ -8,6 +8,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Logo } from "@/components/Logo";
 import { db, schema as s } from "@/db";
+import { getPublicCategories } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
 import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 import { publicWhere } from "@/lib/visibility";
@@ -37,11 +38,14 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const footerPages = await db
-    .select({ slug: s.page.slug, title: s.page.title })
-    .from(s.page)
-    .where(and(publicWhere(s.page), eq(s.page.showInFooter, true)))
-    .orderBy(asc(s.page.sortOrder));
+  const [footerPages, categories] = await Promise.all([
+    db
+      .select({ slug: s.page.slug, title: s.page.title })
+      .from(s.page)
+      .where(and(publicWhere(s.page), eq(s.page.showInFooter, true)))
+      .orderBy(asc(s.page.sortOrder)),
+    getPublicCategories(),
+  ]);
 
   const ban = admin ? null : getActiveBan(viewer);
   // Номер счётчика Яндекс Метрики — из переменной YANDEX_METRIKA_ID в Timeweb
@@ -60,7 +64,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         </div>
       )}
       <div className="ban-shell" inert={ban ? true : undefined}>
-        <Header signedIn={!!viewer} admin={admin} />
+        <Header signedIn={!!viewer} admin={admin} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} />
       </div>

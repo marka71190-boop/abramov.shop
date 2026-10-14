@@ -24,6 +24,12 @@ export const IconBag = ({ size, className }: P) => (
     <path d="M9 8V6a3 3 0 0 1 6 0v2" />
   </svg>
 );
+export const IconSearch = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M16 16l4.5 4.5" />
+  </svg>
+);
 export const IconArrow = ({ size, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M5 12h14M13 6l6 6-6 6" />

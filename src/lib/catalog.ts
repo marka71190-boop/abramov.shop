@@ -8,7 +8,7 @@ export async function getPublicCategories() {
 }
 
 /** Первые фото и остатки для списка товаров. */
-async function decorate(products: (typeof s.product.$inferSelect)[]) {
+export async function decorate(products: (typeof s.product.$inferSelect)[]) {
   if (!products.length) return [];
   const ids = products.map((p) => p.id);
   const [images, variants] = await Promise.all([
