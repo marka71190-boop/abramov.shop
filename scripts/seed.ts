@@ -13,7 +13,7 @@
  * На сервере (Docker) запускается сам при каждом старте — вручную ничего делать не нужно.
  */
 import { createHash } from "node:crypto";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as s from "../src/db/schema";
@@ -24,6 +24,8 @@ import {
   CONSENT_PD_TITLE,
   DRAFT_PAGES,
   PRIVACY_BODY,
+  PRIVACY_COOKIE_NEW,
+  PRIVACY_COOKIE_OLD,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 
@@ -72,6 +74,11 @@ async function main() {
       .where(and(eq(s.page.slug, p.slug), like(s.page.body, "## Черновик%")));
   }
   await ensurePage({ slug: "privacy", title: "Политика конфиденциальности", body: PRIVACY_BODY, visibility: "PUBLISHED", sortOrder: 4 });
+  // Раздел о cookie: дописываем Яндекс Метрику (остальные правки из админки сохраняются)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${PRIVACY_COOKIE_OLD}, ${PRIVACY_COOKIE_NEW})` })
+    .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_COOKIE_OLD}%`)));
   // Текст согласия берётся из текущей редакции в журнале согласий, страница — только «обложка»
   await ensurePage({ slug: "consent", title: CONSENT_PD_TITLE, body: "", visibility: "PUBLISHED", sortOrder: 5 });
   await ensurePage({ slug: "marketing-consent", title: CONSENT_MARKETING_TITLE, body: "", visibility: "PUBLISHED", showInFooter: false, sortOrder: 6 });
