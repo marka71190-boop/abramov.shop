@@ -80,6 +80,34 @@ export const auth = betterAuth({
       }
     },
   },
+  /*
+   * Подтверждение почты. Войти и купить можно и без него — письмо со ссылкой уходит
+   * сразу после регистрации, а приветственные бонусы начисляются после подтверждения.
+   */
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60 * 24 * 3, // ссылка действует 3 дня
+    sendVerificationEmail: async ({ user, url }) => {
+      const [{ sendMail, mailEnabled }, { getSettings }] = await Promise.all([import("@/lib/mail"), import("@/lib/settings")]);
+      if (!mailEnabled() || isPlaceholderEmail(user.email)) return;
+      const welcome = (await getSettings()).loyalty.welcomeBonus;
+      // Не ждём отправки: регистрация не должна тормозить из-за почтового сервера
+      void sendMail(
+        user.email,
+        "Подтвердите почту — Abramov Shop",
+        "Подтвердите почту",
+        `Здравствуйте! Вы зарегистрировались на abramov.shop. Нажмите кнопку ниже, чтобы подтвердить, что это ваш адрес.` +
+          (welcome > 0 ? `<br><br>После подтверждения начислим <b>${welcome}</b> приветственных бонусов.` : "") +
+          `<br><br>Ссылка действует 3 дня. Если вы не регистрировались — просто проигнорируйте письмо.`,
+        { text: "Подтвердить почту", url },
+      ).catch((e) => console.error("[mail] verify:", e instanceof Error ? e.message : e));
+    },
+    afterEmailVerification: async (user) => {
+      const { grantWelcomeBonus } = await import("@/lib/bonuses");
+      await grantWelcomeBonus(user.id).catch((e) => console.error("[bonus] welcome:", e));
+    },
+  },
   socialProviders,
   user: {
     // Телефон приходит из VK ID; из форм его напрямую не принимаем (input: false)
@@ -93,22 +121,34 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30, // 30 дней
     updateAge: 60 * 60 * 24,
   },
-  rateLimit: { enabled: true, window: 60, max: 30 },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 30,
+    // Повторное письмо с подтверждением — не чаще 3 раз в 10 минут
+    customRules: { "/send-verification-email": { window: 600, max: 3 } },
+  },
   databaseHooks: {
     account: {
       create: {
         /*
          * Защита от «захвата» аккаунта: злоумышленник мог заранее зарегистрироваться
-         * по чужой почте с паролем (почту мы пока не подтверждаем). Когда настоящий
+         * по чужой почте с паролем (войти можно и без подтверждения почты). Когда настоящий
          * владелец почты входит через Google или VK, сервис подтверждает почту — и мы удаляем
          * пароль, заданный без подтверждения. Дальше вход — через Google или VK.
          */
         after: async (acc) => {
           if (acc.providerId !== "google" && acc.providerId !== "vk") return;
-          await db
-            .delete(s.account)
-            .where(and(eq(s.account.userId, acc.userId), eq(s.account.providerId, "credential")));
-          await db.update(s.user).set({ emailVerified: true }).where(eq(s.user.id, acc.userId));
+          const u = await db.query.user.findFirst({ where: eq(s.user.id, acc.userId), columns: { emailVerified: true } });
+          // Пароль удаляем, только если почту не подтверждали: если подтвердили по ссылке — пароль задал сам владелец
+          if (!u?.emailVerified) {
+            await db
+              .delete(s.account)
+              .where(and(eq(s.account.userId, acc.userId), eq(s.account.providerId, "credential")));
+            await db.update(s.user).set({ emailVerified: true }).where(eq(s.user.id, acc.userId));
+          }
+          const { grantWelcomeBonus } = await import("@/lib/bonuses");
+          await grantWelcomeBonus(acc.userId).catch((e) => console.error("[bonus] welcome:", e));
         },
       },
     },
@@ -137,12 +177,12 @@ export const auth = betterAuth({
           // Владелец магазина (OWNER_EMAIL) сразу получает доступ к админке
           const role = ownerEmail && created.email.toLowerCase() === ownerEmail ? ("OWNER" as const) : undefined;
           if (phone || role) await db.update(s.user).set({ ...(phone ? { phone } : {}), ...(role ? { role } : {}) }).where(eq(s.user.id, created.id));
-          // Приветственные бонусы (если включены в админке)
-          const { getSettings } = await import("@/lib/settings");
-          const welcome = (await getSettings()).loyalty.welcomeBonus;
-          if (welcome > 0) {
-            const { creditBonus } = await import("@/lib/bonuses");
-            await creditBonus(created.id, welcome, "WELCOME", "Приветственные бонусы").catch((e) => console.error("[bonus] welcome:", e));
+          // Приветственные бонусы: сразу — если почта уже подтверждена (Google) или почта на сайте не настроена
+          // и подтвердить её нечем; иначе — после перехода по ссылке из письма (afterEmailVerification)
+          const { mailEnabled } = await import("@/lib/mail");
+          if (created.emailVerified || !mailEnabled()) {
+            const { grantWelcomeBonus } = await import("@/lib/bonuses");
+            await grantWelcomeBonus(created.id).catch((e) => console.error("[bonus] welcome:", e));
           }
         },
       },

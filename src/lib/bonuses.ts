@@ -27,6 +27,37 @@ export async function creditBonus(userId: string, amount: number, reason: Reason
   });
 }
 
+/**
+ * Приветственные бонусы — один раз на аккаунт и только с подтверждённой почтой
+ * (или после входа через Google/VK). Так за бонусами не заводят аккаунты на выдуманные адреса.
+ * Повторный вызов ничего не начислит. Возвращает число начисленных бонусов.
+ */
+export async function grantWelcomeBonus(userId: string) {
+  const settings = await getSettings();
+  const amount = settings.loyalty.welcomeBonus;
+  if (amount <= 0) return 0;
+  const days = settings.loyalty.expiryDays || null;
+  return db.transaction(async (tx) => {
+    // Блокировка на пользователя: два одновременных вызова не начислят дважды
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"welcome:" + userId}))`);
+    const [had] = await tx
+      .select({ id: s.bonusTransaction.id })
+      .from(s.bonusTransaction)
+      .where(and(eq(s.bonusTransaction.userId, userId), eq(s.bonusTransaction.reason, "WELCOME")))
+      .limit(1);
+    if (had) return 0;
+    await tx.update(s.user).set({ bonusBalance: sql`${s.user.bonusBalance} + ${amount}` }).where(eq(s.user.id, userId));
+    await tx.insert(s.bonusTransaction).values({
+      userId,
+      amount,
+      reason: "WELCOME",
+      comment: "Приветственные бонусы",
+      expiresAt: days ? new Date(Date.now() + days * 86400_000) : null,
+    });
+    return amount;
+  });
+}
+
 /** Сколько бонусов «живо» (не истекло) на момент `at`. */
 async function liveAt(userId: string, at: Date) {
   const [r] = await db

@@ -50,7 +50,7 @@ export function RegisterForm({ next, google, vk, socialFailed }: Props) {
     setError(null);
     try {
       await saveConsent({ source: "REGISTRATION", marketing, name, phone, email });
-      const { error: err } = await authClient.signUp.email({ name, email, password });
+      const { error: err } = await authClient.signUp.email({ name, email, password, callbackURL: "/account?verified=1" });
       if (err) throw err;
       goal("sign_up");
       // Даём счётчику отправить цель до перехода

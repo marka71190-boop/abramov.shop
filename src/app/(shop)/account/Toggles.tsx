@@ -1,7 +1,48 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
+import { authClient } from "@/lib/auth-client";
 import { setBirthday, setRealEmail, telegramLink, unlinkTelegram } from "./actions";
+
+export const VERIFY_CALLBACK = "/account?verified=1";
+
+/** Плашка «Подтвердите почту» с кнопкой повторной отправки письма. */
+export function VerifyEmailNotice({ email, welcome }: { email: string; welcome: number }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [wait, setWait] = useState(0);
+
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
+  async function resend() {
+    setState("sending");
+    const { error } = await authClient.sendVerificationEmail({ email, callbackURL: VERIFY_CALLBACK });
+    setState(error ? "error" : "sent");
+    setWait(60);
+  }
+
+  return (
+    <div className="panel stack" style={{ borderColor: "var(--c-gold)" }}>
+      <div>
+        <strong>Подтвердите почту</strong>
+        <div className="muted small">
+          Мы отправили письмо со ссылкой на <b>{email}</b>. Если его нет — проверьте «Спам».
+          {welcome > 0 && <> После подтверждения начислим {welcome} приветственных бонусов.</>}
+        </div>
+      </div>
+      <div className="row" style={{ gap: 12 }}>
+        <button type="button" className="btn btn--line btn--sm" onClick={resend} disabled={state === "sending" || wait > 0}>
+          {state === "sending" ? "Отправляем…" : wait > 0 ? `Отправить ещё раз через ${wait} с` : "Отправить письмо ещё раз"}
+        </button>
+        {state === "sent" && <span className="small" style={{ color: "var(--c-success)" }}>Письмо отправлено</span>}
+        {state === "error" && <span className="small" style={{ color: "var(--c-danger)" }}>Слишком часто — попробуйте через несколько минут</span>}
+      </div>
+    </div>
+  );
+}
 
 export function Toggle({ label, on, action }: { label: string; on: boolean; action: (v: boolean) => Promise<void> }) {
   const [optimistic, setOptimistic] = useOptimistic(on);
@@ -48,7 +89,7 @@ export function RealEmailForm() {
     <form action={action} className="panel stack" style={{ borderColor: "var(--c-gold)" }}>
       <div>
         <strong>Укажите почту</strong>
-        <div className="muted small">Вы вошли через VK ID без почты. На неё придут кассовые чеки и статусы заказов.</div>
+        <div className="muted small">Вы вошли через VK ID без почты. На неё придут кассовые чеки и статусы заказов, а после сохранения — письмо для подтверждения.</div>
       </div>
       <div className="row">
         <input className="input" type="email" name="email" required placeholder="you@example.com" style={{ flex: "1 1 240px", width: "auto" }} />

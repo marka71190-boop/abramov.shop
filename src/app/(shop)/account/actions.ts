@@ -51,6 +51,11 @@ export async function setRealEmail(_: { error?: string; ok?: string }, form: For
   });
   if (taken) return { error: "Эта почта уже привязана к другому аккаунту. Войдите в него или напишите в поддержку." };
   await db.update(s.user).set({ email, emailVerified: false }).where(eq(s.user.id, u.id));
+  // Письмо со ссылкой для подтверждения новой почты
+  const { auth } = await import("@/lib/auth");
+  await auth.api
+    .sendVerificationEmail({ body: { email, callbackURL: "/account?verified=1" } })
+    .catch((e) => console.error("[mail] verify:", e instanceof Error ? e.message : e));
   revalidatePath("/account");
   return { ok: "Почта сохранена" };
 }

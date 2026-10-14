@@ -38,7 +38,8 @@ export default async function CustomerPage({ params }: Props) {
       <div className="grid-2">
         <div className="panel stack" style={{ gap: 8 }}>
           <div>
-            <span className="muted">Почта:</span> {u.email}
+            <span className="muted">Почта:</span> {u.email}{" "}
+            <span className={`pill ${u.emailVerified ? "pill--ok" : "pill--warn"}`}>{u.emailVerified ? "подтверждена" : "не подтверждена"}</span>
           </div>
           <div>
             <span className="muted">Телефон:</span> {prettyPhone(u.phone) || "—"}

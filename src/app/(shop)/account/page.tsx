@@ -10,7 +10,8 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { BirthdayForm, CopyButton, RealEmailForm, TelegramConnect, Toggle } from "./Toggles";
+import { BirthdayForm, CopyButton, RealEmailForm, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
+import { mailEnabled } from "@/lib/mail";
 import { expiringSoon } from "@/lib/bonuses";
 import { ProductCard } from "@/components/product/ProductCard";
 import { getPublicProductsByIds } from "@/lib/catalog";
@@ -42,7 +43,15 @@ const BONUS_REASON: Record<string, string> = {
   REVIEW: "За отзыв",
 };
 
-export default async function AccountPage() {
+const VERIFY_ERROR: Record<string, string> = {
+  TOKEN_EXPIRED: "Ссылка для подтверждения устарела. Отправьте письмо ещё раз — кнопка ниже.",
+  INVALID_TOKEN: "Ссылка для подтверждения неверная или уже использована. Отправьте письмо ещё раз — кнопка ниже.",
+  INVALID_USER: "Эта ссылка — для другого аккаунта. Выйдите и откройте её снова.",
+  USER_NOT_FOUND: "Аккаунт для этой ссылки не найден.",
+};
+
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ verified?: string; error?: string }> }) {
+  const sp = await searchParams;
   let user = await requireUser("/account");
   const settings = await getSettings();
 
@@ -96,7 +105,22 @@ export default async function AccountPage() {
           Здравствуйте, {firstName}
         </h1>
 
+        {sp.verified && sp.error ? (
+          <div className="form-error" role="alert">
+            {VERIFY_ERROR[sp.error] ?? "Не получилось подтвердить почту. Отправьте письмо ещё раз."}
+          </div>
+        ) : sp.verified && user.emailVerified ? (
+          <div className="form-ok" role="status">
+            Почта подтверждена.
+            {bonusLog.some((b) => b.reason === "WELCOME") && settings.loyalty.welcomeBonus > 0
+              ? ` Приветственные бонусы начислены — ${num(settings.loyalty.welcomeBonus)}.`
+              : ""}
+          </div>
+        ) : null}
         {isPlaceholderEmail(user.email) && <RealEmailForm />}
+        {!user.emailVerified && !isPlaceholderEmail(user.email) && mailEnabled() && (
+          <VerifyEmailNotice email={user.email} welcome={settings.loyalty.welcomeBonus} />
+        )}
 
         <div id="bonus" className="grid-2">
           <div className="bonus-card">
