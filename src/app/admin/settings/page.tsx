@@ -23,6 +23,7 @@ export default async function SettingsPage() {
     db.$count(sc.user, and(inArray(sc.user.role, ["OWNER", "MANAGER"]), isNotNull(sc.user.telegramChatId))),
   ]);
   const cdek = cdekEnabled();
+  const metrika = Number(process.env.YANDEX_METRIKA_ID) || null;
   return (
     <>
       <h1>Настройки</h1>
@@ -100,6 +101,26 @@ export default async function SettingsPage() {
             {mailEnabled() && <TelegramTest kind="mail" />}
             <span className={`pill ${mailEnabled() ? "pill--ok" : "pill--bad"}`}>{mailEnabled() ? "подключена" : "не подключена"}</span>
           </div>
+        </div>
+        <div className="row-line">
+          <div>
+            <div>Яндекс Метрика{metrika ? ` · счётчик ${metrika}` : ""}</div>
+            <div className="muted small">
+              {metrika ? (
+                <>
+                  Счётчик включается только у посетителей, которые нажали «Принять» в плашке о cookie. Цели (тип «JavaScript-событие»):{" "}
+                  <code>add_to_cart</code>, <code>begin_checkout</code>, <code>order_created</code>, <code>purchase</code>, <code>sign_up</code>.
+                  Электронная коммерция — контейнер <code>dataLayer</code>.{" "}
+                  <a href={`https://metrika.yandex.ru/dashboard?id=${metrika}`} target="_blank" rel="noreferrer">
+                    Открыть Метрику
+                  </a>
+                </>
+              ) : (
+                "Создайте счётчик на metrika.yandex.ru и добавьте в Timeweb переменную YANDEX_METRIKA_ID с его номером"
+              )}
+            </div>
+          </div>
+          <span className={`pill ${metrika ? "pill--ok" : "pill--bad"}`}>{metrika ? "подключена" : "не подключена"}</span>
         </div>
       </div>
 

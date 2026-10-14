@@ -1,9 +1,20 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { Analytics } from "@/components/analytics/Analytics";
+import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { Logo } from "@/components/Logo";
 
+// Номер счётчика читаем при каждом запросе, а не при сборке
+export const dynamic = "force-dynamic";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const metrikaId = Number(process.env.YANDEX_METRIKA_ID) || null;
   return (
     <div className="auth">
+      <Suspense fallback={null}>
+        <Analytics metrikaId={metrikaId} />
+      </Suspense>
+      <CookieBanner analytics={!!metrikaId} />
       <aside className="auth__brand">
         <div className="stripe stripe--gold" aria-hidden />
         <div className="stripe stripe--silver" aria-hidden />

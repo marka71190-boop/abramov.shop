@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { rub } from "@/lib/format";
+import { ecommerce, goal } from "@/lib/track";
 import { useCart } from "./CartProvider";
 
 interface Variant {
@@ -30,12 +31,15 @@ export function AddToCart({
   maxPerItem,
   selectedId,
   showPicker = true,
+  track,
 }: {
   variants: Variant[];
   maxPerItem: number;
   /** Вариант выбирают снаружи (на странице товара — вместе с фото) */
   selectedId?: string;
   showPicker?: boolean;
+  /** Для Яндекс Метрики */
+  track?: { id: string; name: string };
 }) {
   const cart = useCart();
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
@@ -100,6 +104,8 @@ export function AddToCart({
             style={{ flex: 1 }}
             onClick={() => {
               cart.add(v.id, Math.min(qty, max));
+              goal("add_to_cart");
+              if (track) ecommerce("add", [{ id: track.id, name: track.name, price: v.price / 100, quantity: Math.min(qty, max), variant: variants.length > 1 ? v.name : undefined }]);
               setAdded(true);
               setQty(1);
             }}

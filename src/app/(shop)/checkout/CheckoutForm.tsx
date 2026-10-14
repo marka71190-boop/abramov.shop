@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { useQuote } from "@/components/cart/useQuote";
 import { num, rub } from "@/lib/format";
+import { goal } from "@/lib/track";
 import { placeOrderAction } from "./actions";
 
 interface City {
@@ -181,6 +182,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   const [error, setError] = useState<string | null>(null);
   const errRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => goal("begin_checkout"), []);
+
   useEffect(() => {
     try {
       const r = localStorage.getItem("as_ref");
@@ -242,6 +245,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       expectedTotal: quote.total,
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
+      goal("order_created", { order_price: quote.total / 100 });
       try {
         localStorage.removeItem("as_ref");
       } catch {}

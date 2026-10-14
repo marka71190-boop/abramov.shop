@@ -2416,3 +2416,29 @@ h3 {
 .vchip--more {
   color: var(--c-muted);
 }
+
+/* ---------- Баннер cookie ---------- */
+.cookie {
+  position: fixed;
+  z-index: 90;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-line-2);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+}
+.cookie p {
+  flex: 1 1 320px;
+  margin: 0;
+  color: var(--c-muted);
+}

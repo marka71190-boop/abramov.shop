@@ -10,6 +10,7 @@ import { getPayUrl, syncPayment } from "@/lib/orders";
 import { getSettings } from "@/lib/settings";
 import { isAdmin, requireUser } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
+import { PurchaseTracker } from "@/components/analytics/PurchaseTracker";
 import { AutoRefresh, CancelButton, TestPayButton } from "./OrderActions";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
@@ -60,6 +61,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </div>
       </div>
 
+      {o.paidAt && o.userId === user.id && ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status) && Date.now() - +o.paidAt < 3 * 86400_000 && (
+        <PurchaseTracker
+          number={o.number}
+          total={o.total}
+          items={items.map((i) => ({ id: i.product?.slug ?? i.name, name: i.name, price: i.price / 100, quantity: i.quantity }))}
+        />
+      )}
       {justPaid && (
         <div className="hero-note">
           <div className="h3">Спасибо, оплата прошла</div>

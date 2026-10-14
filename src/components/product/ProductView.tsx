@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddToCart } from "@/components/cart/AddToCart";
 import { rub } from "@/lib/format";
+import { ecommerce } from "@/lib/track";
 
 export interface GalleryImage {
   url: string;
@@ -94,7 +95,9 @@ export function ProductView({
   buyFallback,
   extra,
   body,
+  track,
 }: {
+  track: { id: string; name: string };
   images: GalleryImage[];
   variants: Variant[];
   initialVariantId: string | null;
@@ -113,6 +116,11 @@ export function ProductView({
   const shown = useMemo(() => photosFor(images, vid, hasVariantPhotos), [images, vid, hasVariantPhotos]);
   const v = variants.find((x) => x.id === vid) ?? variants[0];
   const multi = variants.length > 1;
+
+  // Метрика: просмотр товара (и смена варианта)
+  useEffect(() => {
+    if (v) ecommerce("detail", [{ id: track.id, name: track.name, price: v.price / 100, variant: multi ? v.name : undefined }]);
+  }, [v, track.id, track.name, multi]);
 
   const pick = (id: string) => {
     setVid(id);
@@ -164,7 +172,7 @@ export function ProductView({
               Этого варианта нет в наличии
             </button>
           ) : (
-            <AddToCart key={v?.id} variants={variants} selectedId={v?.id} showPicker={false} maxPerItem={maxPerItem} />
+            <AddToCart key={v?.id} variants={variants} selectedId={v?.id} showPicker={false} maxPerItem={maxPerItem} track={track} />
           ))}
         {extra}
         {body}

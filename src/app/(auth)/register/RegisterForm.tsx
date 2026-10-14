@@ -4,6 +4,7 @@ import { useState } from "react";
 import { IconGoogle, IconVk } from "@/components/Icons";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
+import { goal } from "@/lib/track";
 
 interface Props {
   next: string;
@@ -51,6 +52,9 @@ export function RegisterForm({ next, google, vk, socialFailed }: Props) {
       await saveConsent({ source: "REGISTRATION", marketing, name, phone, email });
       const { error: err } = await authClient.signUp.email({ name, email, password });
       if (err) throw err;
+      goal("sign_up");
+      // Даём счётчику отправить цель до перехода
+      await new Promise((r) => setTimeout(r, 300));
       window.location.href = next;
     } catch (err) {
       setError(authErrorMessage(err as { code?: string; message?: string; status?: number }));

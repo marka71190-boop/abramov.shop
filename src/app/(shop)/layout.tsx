@@ -1,6 +1,9 @@
 import { asc, eq } from "drizzle-orm";
 import { BanModal } from "@/components/BanModal";
 import { CartProvider, RefCatcher } from "@/components/cart/CartProvider";
+import { Analytics } from "@/components/analytics/Analytics";
+import { CookieBanner } from "@/components/analytics/CookieBanner";
+import { Suspense } from "react";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Logo } from "@/components/Logo";
@@ -41,10 +44,16 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
     .orderBy(asc(s.page.sortOrder));
 
   const ban = admin ? null : getActiveBan(viewer);
+  // Номер счётчика Яндекс Метрики — из переменной YANDEX_METRIKA_ID в Timeweb
+  const metrikaId = Number(process.env.YANDEX_METRIKA_ID) || null;
 
   return (
     <CartProvider>
       <RefCatcher />
+      <Suspense fallback={null}>
+        <Analytics metrikaId={metrikaId} />
+      </Suspense>
+      <CookieBanner analytics={!!metrikaId} />
       {settings.maintenance && admin && (
         <div className="notice">
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>

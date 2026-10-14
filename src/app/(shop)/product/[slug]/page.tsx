@@ -78,6 +78,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           </p>
         )}
         <ProductView
+          track={{ id: p.sku ?? p.slug, name: p.name }}
           images={gallery}
           variants={variants}
           initialVariantId={initialVariant?.id ?? null}
