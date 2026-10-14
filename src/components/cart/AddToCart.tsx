@@ -25,10 +25,22 @@ export function QtyStepper({ value, max, onChange, size = "md" }: { value: numbe
   );
 }
 
-export function AddToCart({ variants, maxPerItem }: { variants: Variant[]; maxPerItem: number }) {
+export function AddToCart({
+  variants,
+  maxPerItem,
+  selectedId,
+  showPicker = true,
+}: {
+  variants: Variant[];
+  maxPerItem: number;
+  /** Вариант выбирают снаружи (на странице товара — вместе с фото) */
+  selectedId?: string;
+  showPicker?: boolean;
+}) {
   const cart = useCart();
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
-  const [vid, setVid] = useState(firstInStock?.id);
+  const [ownVid, setVid] = useState(firstInStock?.id);
+  const vid = selectedId ?? ownVid;
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const v = variants.find((x) => x.id === vid);
@@ -40,7 +52,7 @@ export function AddToCart({ variants, maxPerItem }: { variants: Variant[]; maxPe
 
   return (
     <div className="stack" style={{ gap: 14 }}>
-      {variants.length > 1 && (
+      {showPicker && variants.length > 1 && (
         <div className="variants" role="radiogroup" aria-label="Вариант">
           {variants.map((x) => (
             <button
@@ -61,7 +73,7 @@ export function AddToCart({ variants, maxPerItem }: { variants: Variant[]; maxPe
           ))}
         </div>
       )}
-      {variants.length > 1 && v.price !== variants[0].price && <div className="price-big">{rub(v.price)}</div>}
+      {showPicker && variants.length > 1 && v.price !== variants[0].price && <div className="price-big">{rub(v.price)}</div>}
       {v.stock <= 0 ? (
         <button className="btn btn--line btn--block" disabled>
           Нет в наличии

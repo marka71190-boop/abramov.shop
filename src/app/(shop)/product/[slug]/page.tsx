@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AddToCart } from "@/components/cart/AddToCart";
 import { FavoriteButton } from "@/components/product/FavoriteButton";
+import { ProductView } from "@/components/product/ProductView";
+import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
 import { Stars } from "@/components/product/Stars";
 import { StockAlert } from "@/components/product/StockAlert";
@@ -11,12 +12,12 @@ import { KeepBeta } from "@/components/RichText";
 import { notFound } from "next/navigation";
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { getProductBySlug } from "@/lib/catalog";
-import { fmtDate, num, rub } from "@/lib/format";
+import { fmtDate, num } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
 import { getViewer, isAdmin } from "@/lib/viewer";
 import { canView, isPublic } from "@/lib/visibility";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string; v?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await getProductBySlug((await params).slug);
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params, searchParams }: Props) {
-  const [{ slug }, { preview }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { preview, v: wanted }] = await Promise.all([params, searchParams]);
   const p = await getProductBySlug(slug);
   const viewer = await getViewer();
   const admin = isAdmin(viewer);
@@ -35,7 +36,11 @@ export default async function ProductPage({ params, searchParams }: Props) {
 
   const stock = p.variants.reduce((a, v) => a + v.stock, 0);
   const settings = await getSettings();
-  const cover = p.images[0];
+  const dims = await imageDims(p.images.map((i) => i.url));
+  const gallery = p.images.map((i) => ({ url: i.url, alt: i.alt || p.name, variantId: i.variantId, w: dims.get(i.url)?.w ?? null, h: dims.get(i.url)?.h ?? null }));
+  const variants = p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock }));
+  // Вариант из ссылки (?v=…), иначе первый в наличии
+  const initialVariant = variants.find((v) => v.id === wanted) ?? variants.find((v) => v.stock > 0) ?? variants[0];
   const [reviews, ratings, fav, alert, canReview, mine] = await Promise.all([
     approvedReviews(p.id),
     ratingsFor([p.id]),
@@ -72,58 +77,54 @@ export default async function ProductPage({ params, searchParams }: Props) {
             <Link href={`/catalog/${p.category.slug}`}>← {p.category.name}</Link>
           </p>
         )}
-        <div className="drop">
-          <div className="drop__media">
-            {cover && <img src={cover.url} alt={cover.alt} />}
-            {p.isLimited && <span className="tag">Limited</span>}
-          </div>
-          <div className="drop__body">
-            <h1 className="h2" style={{ fontSize: "clamp(32px, 3.6vw, 52px)" }}>
-              <KeepBeta text={p.name} />
-            </h1>
-            {rating && (
-              <a href="#reviews" className="row small" style={{ gap: 8, color: "inherit", textDecoration: "none" }}>
-                <Stars value={rating.avg} /> {rating.avg.toFixed(1)} · {rating.count} {plural(rating.count, "отзыв", "отзыва", "отзывов")}
-              </a>
-            )}
-            <p className="muted" style={{ whiteSpace: "pre-line" }}>
-              {p.description}
-            </p>
-            {p.isLimited && p.limitedTotal ? (
-              <div className="meter">
-                <div className="meter__row">
-                  <span className="muted">Осталось</span>
-                  <strong>
-                    {num(stock)} из {num(p.limitedTotal)}
-                  </strong>
+        <ProductView
+          images={gallery}
+          variants={variants}
+          initialVariantId={initialVariant?.id ?? null}
+          basePrice={p.price}
+          oldPrice={p.oldPrice}
+          maxPerItem={settings.checkout.maxQtyPerItem}
+          badge={p.isLimited ? "Limited" : undefined}
+          head={
+            <>
+              <h1 className="h2" style={{ fontSize: "clamp(32px, 3.6vw, 52px)" }}>
+                <KeepBeta text={p.name} />
+              </h1>
+              {rating && (
+                <a href="#reviews" className="row small" style={{ gap: 8, color: "inherit", textDecoration: "none" }}>
+                  <Stars value={rating.avg} /> {rating.avg.toFixed(1)} · {rating.count} {plural(rating.count, "отзыв", "отзыва", "отзывов")}
+                </a>
+              )}
+            </>
+          }
+          buyFallback={stock > 0 ? null : <StockAlert productId={p.id} initial={alert} />}
+          extra={<FavoriteButton productId={p.id} initial={fav} variant="button" />}
+          body={
+            <>
+              {p.isLimited && p.limitedTotal ? (
+                <div className="meter">
+                  <div className="meter__row">
+                    <span className="muted">Осталось</span>
+                    <strong>
+                      {num(stock)} из {num(p.limitedTotal)}
+                    </strong>
+                  </div>
+                  <div className="meter__bar">
+                    <div className="meter__fill" style={{ width: `${Math.min(100, (stock / p.limitedTotal) * 100)}%` }} />
+                  </div>
                 </div>
-                <div className="meter__bar">
-                  <div className="meter__fill" style={{ width: `${Math.min(100, (stock / p.limitedTotal) * 100)}%` }} />
+              ) : null}
+              {p.description && (
+                <div className="pp__desc">
+                  <div className="label">Описание</div>
+                  <p className="muted" style={{ whiteSpace: "pre-line", margin: "10px 0 0" }}>
+                    {p.description}
+                  </p>
                 </div>
-              </div>
-            ) : null}
-            <div className="price-big">
-              {rub(p.price)}
-              {p.oldPrice ? <span className="old-price">{rub(p.oldPrice)}</span> : null}
-            </div>
-            {stock > 0 ? (
-              <AddToCart
-                variants={p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock }))}
-                maxPerItem={settings.checkout.maxQtyPerItem}
-              />
-            ) : (
-              <StockAlert productId={p.id} initial={alert} />
-            )}
-            <FavoriteButton productId={p.id} initial={fav} variant="button" />
-          </div>
-        </div>
-        {p.images.length > 1 && (
-          <div className="products" style={{ marginTop: 16 }}>
-            {p.images.slice(1).map((img) => (
-              <img key={img.id} className="pcard__img" src={img.url} alt={img.alt} />
-            ))}
-          </div>
-        )}
+              )}
+            </>
+          }
+        />
         <div id="reviews" className="reviews">
           <div className="section-head" style={{ marginBottom: 20 }}>
             <h2 className="h3">Отзывы{rating ? ` · ${rating.avg.toFixed(1)}` : ""}</h2>

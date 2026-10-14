@@ -291,6 +291,8 @@ export const productImage = pgTable("product_image", {
   productId: text("product_id")
     .notNull()
     .references(() => product.id, { onDelete: "cascade" }),
+  // Фото конкретного варианта (цвет, рука…). Пусто — общее фото товара
+  variantId: text("variant_id").references(() => productVariant.id, { onDelete: "set null" }),
   url: text("url").notNull(),
   alt: text("alt").default("").notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),

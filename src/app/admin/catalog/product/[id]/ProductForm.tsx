@@ -4,6 +4,7 @@ import { slugify } from "@/lib/slug";
 import { deleteProduct, saveProduct } from "../../../shop-actions";
 
 interface Variant {
+  key: string; // id сохранённого варианта или временный ключ нового
   id?: string;
   name: string;
   sku: string;
@@ -14,6 +15,7 @@ interface Variant {
 interface Image {
   url: string;
   alt: string;
+  variantKey: string | null;
 }
 
 export interface ProductData {
@@ -36,9 +38,10 @@ export interface ProductData {
   sortOrder: number;
   previewToken: string;
   variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean }[];
-  images: { url: string; alt: string }[];
+  images: { url: string; alt: string; variantId: string | null }[];
 }
 
+const newKey = () => `new-${Math.random().toString(36).slice(2, 10)}`;
 const toLocal = (d: Date | null) => (d ? new Date(+new Date(d) + 3 * 3600_000).toISOString().slice(0, 16) : "");
 const rubStr = (k: number | null | undefined) => (k == null ? "" : String(k / 100));
 
@@ -59,11 +62,11 @@ export function ProductForm({
   const [slugTouched, setSlugTouched] = useState(!!product);
   const [limited, setLimited] = useState(product?.isLimited ?? false);
   const [variants, setVariants] = useState<Variant[]>(
-    product?.variants.map((v) => ({ id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive })) ?? [
-      { name: "Основной", sku: "", price: "", stock: 0, isActive: true },
+    product?.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive })) ?? [
+      { key: newKey(), name: "Основной", sku: "", price: "", stock: 0, isActive: true },
     ],
   );
-  const [images, setImages] = useState<Image[]>(product?.images ?? []);
+  const [images, setImages] = useState<Image[]>(product?.images.map((im) => ({ url: im.url, alt: im.alt, variantKey: im.variantId })) ?? []);
   const [uploading, setUploading] = useState(0);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,7 +89,7 @@ export function ProductForm({
         const fd = new FormData();
         fd.append("file", f);
         const r = await fetch("/api/admin/media", { method: "POST", body: fd }).then((x) => x.json());
-        if (r.url) setImages((im) => [...im, { url: r.url, alt: "" }]);
+        if (r.url) setImages((im) => [...im, { url: r.url, alt: "", variantKey: null }]);
         else setUploadErr(r.error ?? "Не удалось загрузить");
       } catch {
         setUploadErr("Не удалось загрузить — проверьте интернет");
@@ -192,13 +195,30 @@ export function ProductForm({
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Фото</h2>
         <p className="muted small" style={{ margin: 0 }}>
-          Первое фото — обложка. Загружайте JPG или PNG до 15 МБ: сайт сам уменьшит и сожмёт.
+          Первое фото — обложка. Подойдёт любой формат кадра — квадрат 1000×1000, вертикальный или горизонтальный, страница товара
+          подстроится. JPG или PNG до 15 МБ, сайт сам уменьшит и сожмёт.
+          {variants.length > 1 && " У каждого фото выберите вариант — покупатель увидит эти фото, когда выберет вариант. «Общее» показывается всегда."}
         </p>
         <div className="img-grid">
           {images.map((im, i) => (
             <div key={im.url + i} className="img-tile">
               <img src={im.url} alt="" />
               {i === 0 && <span className="tag" style={{ position: "absolute", top: 6, left: 6, padding: "3px 8px", fontSize: 11 }}>Обложка</span>}
+              {variants.length > 1 && (
+                <select
+                  className="img-tile__variant"
+                  aria-label="Вариант для фото"
+                  value={im.variantKey ?? ""}
+                  onChange={(e) => setImages((a) => a.map((x, j) => (j === i ? { ...x, variantKey: e.target.value || null } : x)))}
+                >
+                  <option value="">Общее фото</option>
+                  {variants.map((v) => (
+                    <option key={v.key} value={v.key}>
+                      {v.name || "Без названия"}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="img-tile__bar">
                 <button type="button" aria-label="Левее" disabled={i === 0} onClick={() => setImages((a) => move(a, i, -1))}>
                   ←
@@ -239,7 +259,7 @@ export function ProductForm({
             </thead>
             <tbody>
               {variants.map((v, i) => (
-                <tr key={v.id ?? `new-${i}`}>
+                <tr key={v.key}>
                   <td>
                     <input className="input" value={v.name} onChange={(e) => setV(i, { name: e.target.value })} required />
                   </td>
@@ -262,7 +282,11 @@ export function ProductForm({
                       type="button"
                       className="linklike small"
                       disabled={variants.length === 1}
-                      onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        const removed = variants[i];
+                        setVariants((vs) => vs.filter((_, j) => j !== i));
+                        setImages((a) => a.map((x) => (x.variantKey === removed.key ? { ...x, variantKey: null } : x)));
+                      }}
                     >
                       Убрать
                     </button>
@@ -273,7 +297,7 @@ export function ProductForm({
           </table>
         </div>
         <div>
-          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { name: "", sku: "", price: "", stock: 0, isActive: true }])}>
+          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { key: newKey(), name: "", sku: "", price: "", stock: 0, isActive: true }])}>
             + Вариант
           </button>
         </div>

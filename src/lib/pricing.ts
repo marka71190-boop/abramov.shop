@@ -88,7 +88,7 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
 
   const rows = await db.query.productVariant.findMany({
     where: inArray(s.productVariant.id, ids),
-    with: { product: { with: { category: true, images: { orderBy: asc(s.productImage.sortOrder), limit: 1 } } } },
+    with: { product: { with: { category: true, images: { orderBy: asc(s.productImage.sortOrder), limit: 30 } } } },
   });
 
   // Сколько активных вариантов у каждого товара: если один — название варианта не показываем
@@ -128,7 +128,8 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
       name: p.name,
       variantName: single ? null : v.name,
       sku: v.sku ?? p.sku ?? p.slug,
-      image: p.images[0]?.url ?? null,
+      // Фото выбранного варианта, иначе общее фото товара
+      image: (p.images.find((im) => im.variantId === v.id) ?? p.images.find((im) => !im.variantId) ?? p.images[0])?.url ?? null,
       price,
       qty,
       stock: v.stock,

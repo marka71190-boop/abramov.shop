@@ -156,13 +156,18 @@ const slugRe = /^[a-z0-9-]{2,80}$/;
 
 const VariantIn = z.object({
   id: z.string().optional(),
+  key: z.string().max(64).optional(), // временный ключ нового варианта — к нему привязывают фото до сохранения
   name: z.string().trim().min(1, "Название варианта не может быть пустым").max(120),
   sku: z.string().trim().max(60).optional().default(""),
   price: z.string().optional().default(""),
   stock: z.coerce.number().int().min(0, "Остаток не может быть отрицательным"),
   isActive: z.boolean(),
 });
-const ImageIn = z.object({ url: z.string().min(1).max(500), alt: z.string().max(200).default("") });
+const ImageIn = z.object({
+  url: z.string().min(1).max(500),
+  alt: z.string().max(200).default(""),
+  variantKey: z.string().max(64).nullish(), // к какому варианту относится фото; пусто — общее
+});
 
 const ProductIn = z.object({
   id: z.string().optional(),
@@ -235,6 +240,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
       await tx
         .delete(s.productVariant)
         .where(and(eq(s.productVariant.productId, productId!), keep.length ? notInArray(s.productVariant.id, keep) : undefined));
+      const keyToId = new Map<string, string>();
       for (const [i, v] of variants.data.entries()) {
         const row = {
           name: v.name,
@@ -244,14 +250,29 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
           isActive: v.isActive,
           sortOrder: i,
         };
-        if (v.id) await tx.update(s.productVariant).set(row).where(and(eq(s.productVariant.id, v.id), eq(s.productVariant.productId, productId!)));
-        else await tx.insert(s.productVariant).values({ ...row, productId: productId! });
+        if (v.id) {
+          await tx.update(s.productVariant).set(row).where(and(eq(s.productVariant.id, v.id), eq(s.productVariant.productId, productId!)));
+          keyToId.set(v.key ?? v.id, v.id);
+          keyToId.set(v.id, v.id);
+        } else {
+          const [created] = await tx.insert(s.productVariant).values({ ...row, productId: productId! }).returning({ id: s.productVariant.id });
+          if (v.key) keyToId.set(v.key, created.id);
+        }
       }
 
       // Фото: порядок — как в списке
       await tx.delete(s.productImage).where(eq(s.productImage.productId, productId!));
       if (images.data.length) {
-        await tx.insert(s.productImage).values(images.data.map((im, i) => ({ productId: productId!, url: im.url, alt: im.alt || d.name, sortOrder: i })));
+        await tx.insert(s.productImage).values(
+          images.data.map((im, i) => ({
+            productId: productId!,
+            url: im.url,
+            alt: im.alt || d.name,
+            sortOrder: i,
+            // Если товар без вариантов — все фото общие
+            variantId: variants.data.length > 1 && im.variantKey ? (keyToId.get(im.variantKey) ?? null) : null,
+          })),
+        );
       }
     });
   } catch (e) {

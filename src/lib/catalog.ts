@@ -21,7 +21,7 @@ async function decorate(products: (typeof s.product.$inferSelect)[]) {
   ]);
   return products.map((p) => ({
     ...p,
-    image: images.find((i) => i.productId === p.id) ?? null,
+    image: images.find((i) => i.productId === p.id && !i.variantId) ?? images.find((i) => i.productId === p.id) ?? null,
     stock: stock.find((x) => x.productId === p.id)?.stock ?? 0,
   }));
 }
