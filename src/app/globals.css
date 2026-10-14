@@ -632,7 +632,7 @@ h3 {
   color: var(--c-text);
 }
 .pcard__img {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 1; /* под квадратные фото товаров 1000×1000 */
   object-fit: cover;
   width: 100%;
   background: var(--c-panel-2);
@@ -2363,4 +2363,56 @@ h3 {
   background: rgba(10, 10, 10, 0.85);
   color: var(--c-gold);
   font-size: 12px;
+}
+
+/* ---------- Варианты на карточке товара ---------- */
+.pcard__link {
+  display: block;
+}
+.pcard__name {
+  color: var(--c-text);
+  text-decoration: none;
+}
+.pcard__name:hover {
+  color: var(--c-gold);
+}
+.pcard__variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--c-line-2);
+  color: var(--c-text);
+  font-size: 12px;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.vchip:has(img) {
+  padding-left: 3px;
+}
+.vchip img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+}
+.vchip:hover,
+.vchip:focus-visible {
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+}
+.vchip[data-out] {
+  color: var(--c-dim);
+  border-style: dashed;
+}
+.vchip[data-out] span {
+  text-decoration: line-through;
+}
+.vchip--more {
+  color: var(--c-muted);
 }

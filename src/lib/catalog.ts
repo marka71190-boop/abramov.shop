@@ -11,19 +11,30 @@ export async function getPublicCategories() {
 async function decorate(products: (typeof s.product.$inferSelect)[]) {
   if (!products.length) return [];
   const ids = products.map((p) => p.id);
-  const [images, stock] = await Promise.all([
+  const [images, variants] = await Promise.all([
     db.select().from(s.productImage).where(inArray(s.productImage.productId, ids)).orderBy(asc(s.productImage.sortOrder)),
     db
-      .select({ productId: s.productVariant.productId, stock: sql<number>`coalesce(sum(${s.productVariant.stock}), 0)::int` })
+      .select()
       .from(s.productVariant)
       .where(and(inArray(s.productVariant.productId, ids), eq(s.productVariant.isActive, true)))
-      .groupBy(s.productVariant.productId),
+      .orderBy(asc(s.productVariant.sortOrder)),
   ]);
-  return products.map((p) => ({
-    ...p,
-    image: images.find((i) => i.productId === p.id && !i.variantId) ?? images.find((i) => i.productId === p.id) ?? null,
-    stock: stock.find((x) => x.productId === p.id)?.stock ?? 0,
-  }));
+  return products.map((p) => {
+    const own = variants.filter((v) => v.productId === p.id);
+    return {
+      ...p,
+      image: images.find((i) => i.productId === p.id && !i.variantId) ?? images.find((i) => i.productId === p.id) ?? null,
+      stock: own.reduce((a, v) => a + v.stock, 0),
+      // Варианты для карточки: название, наличие, цена и своё фото — чтобы не заводить отдельную карточку на каждый
+      variants: own.map((v) => ({
+        id: v.id,
+        name: v.name,
+        stock: v.stock,
+        price: v.price ?? p.price,
+        image: images.find((i) => i.variantId === v.id)?.url ?? null,
+      })),
+    };
+  });
 }
 
 export async function getPublicProductsByCategory(categoryId: string) {
