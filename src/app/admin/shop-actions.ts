@@ -175,6 +175,7 @@ const ProductIn = z.object({
   slug: z.string().trim().toLowerCase().regex(slugRe, "Адрес — латиница, цифры и дефис"),
   categoryId: z.string().optional(),
   description: z.string().max(20_000).default(""),
+  searchTags: z.string().max(1000, "Слов для поиска слишком много — до 1000 символов").default(""),
   price: z.string(),
   oldPrice: z.string().optional(),
   sku: z.string().trim().max(60).optional(),
@@ -189,6 +190,20 @@ const ProductIn = z.object({
   variants: z.string(),
   images: z.string(),
 });
+
+/** «Джос, джосс,  jos, джос» → «Джос, джосс, jos»: без пустых и повторов (без учёта регистра) */
+function cleanTags(raw: string) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const w of raw.split(/[,;\n]+/).map((x) => x.trim().replace(/\s+/g, " "))) {
+    const key = w.toLowerCase().replace(/ё/g, "е");
+    if (w && !seen.has(key)) {
+      seen.add(key);
+      out.push(w);
+    }
+  }
+  return out.join(", ");
+}
 
 export async function saveProduct(_: ActionState, form: FormData): Promise<ActionState> {
   const me = await requireAdmin();
@@ -213,6 +228,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     slug: d.slug,
     categoryId: d.categoryId || null,
     description: d.description,
+    searchTags: cleanTags(d.searchTags),
     price,
     oldPrice,
     sku: d.sku || null,

@@ -42,6 +42,7 @@ export interface CatalogParams {
 interface Row {
   id: string;
   name: string;
+  tags: string;
   extra: string;
   categoryId: string | null;
   price: number; // минимальная цена среди вариантов, копейки
@@ -76,6 +77,7 @@ async function loadRows(fixedCategoryId?: string) {
     return {
       id: p.id,
       name: p.name,
+      tags: p.searchTags,
       extra: [p.sku, cat?.name, ...own.map((v) => `${v.name} ${v.sku ?? ""}`), p.description.slice(0, 2000)].filter(Boolean).join(" "),
       categoryId: p.categoryId,
       price: prices.length ? Math.min(...prices) : p.price,

@@ -254,6 +254,8 @@ export const product = pgTable("product", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
+  // Слова для поиска: другие написания, бренд по-русски, частые ошибки. Покупателю не показываются
+  searchTags: text("search_tags").notNull().default(""),
   categoryId: text("category_id").references(() => category.id, { onDelete: "set null" }),
   price: integer("price").notNull(), // копейки
   oldPrice: integer("old_price"),

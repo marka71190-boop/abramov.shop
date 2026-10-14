@@ -1,0 +1,1 @@
+ALTER TABLE "product" ADD COLUMN "search_tags" text DEFAULT '' NOT NULL;

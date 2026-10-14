@@ -47,6 +47,8 @@ export function swapLayout(q: string) {
 
 export interface Searchable {
   name: string;
+  /** Слова для поиска из админки — весят как название */
+  tags?: string;
   extra: string; // артикулы, варианты, категория, описание
 }
 
@@ -57,15 +59,18 @@ export interface Searchable {
 export function score(item: Searchable, qTokens: string[]) {
   if (!qTokens.length) return 1;
   const name = " " + normalize(item.name) + " ";
+  const tags = " " + normalize(item.tags ?? "") + " ";
   const extra = " " + normalize(item.extra) + " ";
   let total = 0;
   for (const t of qTokens) {
     if (name.includes(" " + t)) total += 10;
+    else if (tags.includes(" " + t)) total += 9;
     else if (name.includes(t)) total += 6;
+    else if (t.length >= 3 && tags.includes(t)) total += 5;
     else if (extra.includes(" " + t)) total += 3;
     else if (t.length >= 3 && extra.includes(t)) total += 1;
     else return 0;
   }
-  if (name.trim().startsWith(qTokens[0])) total += 5;
+  if (name.trim().startsWith(qTokens[0]) || tags.includes(" " + qTokens[0])) total += 5;
   return total;
 }

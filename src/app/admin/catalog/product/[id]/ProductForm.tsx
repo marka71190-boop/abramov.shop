@@ -24,6 +24,7 @@ export interface ProductData {
   slug: string;
   categoryId: string | null;
   description: string;
+  searchTags: string;
   price: number;
   oldPrice: number | null;
   sku: string | null;
@@ -177,6 +178,20 @@ export function ProductForm({
         <label className="field">
           Описание
           <textarea className="textarea" name="description" defaultValue={product?.description} style={{ minHeight: 160, paddingTop: 12 }} />
+        </label>
+        <label className="field">
+          Слова для поиска
+          <input
+            className="input"
+            name="searchTags"
+            defaultValue={product?.searchTags ?? ""}
+            maxLength={1000}
+            placeholder="Например: джос, джосс, jos"
+          />
+          <span className="muted small">
+            Через запятую: как ещё покупатели могут назвать товар — бренд по-русски, сокращения, частые ошибки. На сайте эти слова не видны, по ним
+            только ищут. Название, варианты, артикул и описание искать и так умеет — их сюда писать не нужно.
+          </span>
         </label>
         <div className="row" style={{ gap: 24, alignItems: "flex-end" }}>
           <label className="check">
