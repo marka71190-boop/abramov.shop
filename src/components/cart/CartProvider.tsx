@@ -99,12 +99,37 @@ export function CartBadge() {
 }
 
 /** Запоминает код друга из ссылки вида abramov.shop/?ref=AS-XXXXXX */
+export const PROMO_KEY = "as_promo";
+
+/** Промокод, пришедший по ссылке из рассылки (действует 30 дней с перехода). */
+export function storedPromo(): string | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(PROMO_KEY) || "null") as { code?: string; at?: number } | null;
+    if (v?.code && v.at && Date.now() - v.at < 30 * 86400_000) return v.code;
+  } catch {}
+  return null;
+}
+
+export function forgetPromo() {
+  try {
+    localStorage.removeItem(PROMO_KEY);
+  } catch {}
+}
+
 export function RefCatcher() {
   useEffect(() => {
-    const ref = new URLSearchParams(location.search).get("ref");
+    const params = new URLSearchParams(location.search);
+    const ref = params.get("ref");
     if (ref && /^AS-[A-Z0-9]{6}$/i.test(ref)) {
       try {
         localStorage.setItem("as_ref", ref.toUpperCase());
+      } catch {}
+    }
+    // Промокод из письма рассылки (?promo=CODE) — подставится при оформлении заказа
+    const promo = params.get("promo");
+    if (promo && /^[A-Z0-9_-]{2,40}$/i.test(promo)) {
+      try {
+        localStorage.setItem(PROMO_KEY, JSON.stringify({ code: promo.toUpperCase(), at: Date.now() }));
       } catch {}
     }
   }, []);

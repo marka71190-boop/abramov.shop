@@ -26,6 +26,6 @@ export const SELLER = {
  * Служебная почта для входа через VK без указанной почты.
  * Такой адрес никуда не пишет — в кабинете клиента просим указать настоящий (для чеков).
  */
-const PLACEHOLDER_DOMAIN = "no-email.abramov.shop";
+export const PLACEHOLDER_DOMAIN = "no-email.abramov.shop";
 export const placeholderEmail = (provider: string, id: string | number) => `${provider}-${id}@${PLACEHOLDER_DOMAIN}`;
 export const isPlaceholderEmail = (email: string | null | undefined) => !!email?.endsWith(`@${PLACEHOLDER_DOMAIN}`);

@@ -32,6 +32,8 @@ export const BACKUP_TABLES = [
   "stock_subscription",
   "setting",
   "audit_log",
+  "campaign",
+  "campaign_recipient",
 ] as const;
 
 export async function createBackup(opts: { withMedia: boolean }) {

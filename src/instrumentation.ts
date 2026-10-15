@@ -3,6 +3,7 @@
  *   • каждую минуту — спрашиваем ЮKassa об оплате ожидающих заказов;
  *   • каждые 5 минут — отменяем неоплаченные вовремя заказы (товар возвращается в продажу);
  *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК;
+ *   • каждую минуту — очередная партия писем рассылки;
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании.
  */
 export async function register() {
@@ -25,6 +26,11 @@ export async function register() {
   setInterval(safe("expire", expireUnpaidOrders), 5 * 60_000);
   setInterval(safe("payments", pollPendingPayments), 60_000);
   setInterval(safe("cdek", syncShipments), 30 * 60_000);
+
+  // Рассылки: очередь писем — партия раз в минуту (и сразу после перезапуска, если рассылка шла)
+  const { processCampaigns } = await import("@/lib/campaigns");
+  setTimeout(safe("mailing", processCampaigns), 90_000);
+  setInterval(safe("mailing", processCampaigns), 60_000);
 
   // Бонусы: сгорание, день рождения, напоминания — раз в час (всё повторно безопасно)
   const bonuses = await import("@/lib/bonuses");

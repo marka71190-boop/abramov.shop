@@ -578,6 +578,57 @@ export const setting = pgTable("setting", {
   updatedAt: updatedAt(),
 });
 
+// ============================================================
+// Рассылки (промокоды и новости) — только тем, кто дал согласие на рекламу
+// ============================================================
+
+export const campaignStatusEnum = pgEnum("campaign_status", ["DRAFT", "SENDING", "DONE", "CANCELLED"]);
+export const deliveryStatusEnum = pgEnum("delivery_status", ["PENDING", "SENT", "FAILED", "SKIPPED"]);
+
+export const campaign = pgTable("campaign", {
+  id: id(),
+  subject: text("subject").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""), // обычный текст, переносы строк сохраняются
+  promoCodeId: text("promo_code_id").references(() => promoCode.id, { onDelete: "set null" }),
+  buttonText: text("button_text"),
+  buttonUrl: text("button_url"),
+  channelEmail: boolean("channel_email").default(true).notNull(),
+  channelTelegram: boolean("channel_telegram").default(false).notNull(),
+  onlyVerified: boolean("only_verified").default(false).notNull(),
+  status: campaignStatusEnum("status").default("DRAFT").notNull(),
+  total: integer("total").default(0).notNull(),
+  sent: integer("sent").default(0).notNull(),
+  failed: integer("failed").default(0).notNull(),
+  skipped: integer("skipped").default(0).notNull(),
+  createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  startedAt: ts("started_at"),
+  finishedAt: ts("finished_at"),
+});
+
+export const campaignRecipient = pgTable(
+  "campaign_recipient",
+  {
+    id: id(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaign.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(), // email | telegram
+    address: text("address").notNull(), // почта или Telegram ID на момент запуска
+    status: deliveryStatusEnum("status").default("PENDING").notNull(),
+    error: text("error"),
+    sentAt: ts("sent_at"),
+  },
+  (t) => [
+    uniqueIndex("campaign_recipient_uniq").on(t.campaignId, t.userId, t.channel),
+    index("campaign_recipient_status_idx").on(t.status, t.channel),
+  ],
+);
+
 export const auditLog = pgTable(
   "audit_log",
   {
@@ -596,6 +647,17 @@ export const auditLog = pgTable(
 // ============================================================
 // Связи (для удобных запросов db.query.*)
 // ============================================================
+
+export const campaignRelations = relations(campaign, ({ one, many }) => ({
+  promo: one(promoCode, { fields: [campaign.promoCodeId], references: [promoCode.id] }),
+  createdBy: one(user, { fields: [campaign.createdById], references: [user.id] }),
+  recipients: many(campaignRecipient),
+}));
+
+export const campaignRecipientRelations = relations(campaignRecipient, ({ one }) => ({
+  campaign: one(campaign, { fields: [campaignRecipient.campaignId], references: [campaign.id] }),
+  user: one(user, { fields: [campaignRecipient.userId], references: [user.id] }),
+}));
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),

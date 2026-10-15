@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useCart } from "@/components/cart/CartProvider";
+import { forgetPromo, storedPromo, useCart } from "@/components/cart/CartProvider";
 import { useQuote } from "@/components/cart/useQuote";
 import { num, rub } from "@/lib/format";
 import { goal } from "@/lib/track";
@@ -186,6 +186,11 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
 
   useEffect(() => {
     try {
+      const fromMail = storedPromo();
+      if (fromMail) {
+        setPromo(fromMail);
+        setPromoInput(fromMail);
+      }
       const r = localStorage.getItem("as_ref");
       if (r && canReferral) setReferral(r);
     } catch {}
@@ -209,6 +214,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
     if (quote.promoError) {
       setPromoMsg(quote.promoError);
       setPromo(null);
+      // «Войдите, чтобы применить» — промокод из письма сохраняем до входа
+      if (!quote.promoError.startsWith("Войдите")) forgetPromo();
     } else setPromoMsg(null);
   }, [quote, promo]);
 
@@ -248,6 +255,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       goal("order_created", { order_price: quote.total / 100 });
       try {
         localStorage.removeItem("as_ref");
+        forgetPromo();
       } catch {}
       cart.clear();
       window.location.href = r.payUrl;

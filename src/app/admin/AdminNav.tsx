@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/admin/pages", label: "Страницы" },
   { href: "/admin/catalog", label: "Каталог" },
   { href: "/admin/promo", label: "Промокоды" },
+  { href: "/admin/mailing", label: "Рассылки" },
   { href: "/admin/reviews", label: "Отзывы" },
   { href: "/admin/settings", label: "Настройки", owner: true },
   { href: "/admin/backup", label: "Резервные копии", owner: true },
