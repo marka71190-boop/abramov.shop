@@ -52,7 +52,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const metrikaId = Number(process.env.YANDEX_METRIKA_ID) || null;
 
   return (
-    <CartProvider>
+    <CartProvider signedIn={!!viewer}>
       <RefCatcher />
       <Suspense fallback={null}>
         <Analytics metrikaId={metrikaId} />

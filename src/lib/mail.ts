@@ -52,12 +52,17 @@ export interface MailExtra {
 const toText = (html: string) =>
   html
     .replace(/<br\s*\/?>/g, "\n")
+    .replace(/<\/(div|tr|p|table)>/g, "\n")
+    .replace(/<\/td>/g, " ")
     .replace(/<a [^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g, "$2 ($1)")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
 export function renderMail(title: string, bodyHtml: string, button?: { text: string; url: string }, extra: MailExtra = {}) {
   return layout(title, bodyHtml, button, extra.footerHtml);

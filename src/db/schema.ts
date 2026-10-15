@@ -579,6 +579,25 @@ export const setting = pgTable("setting", {
 });
 
 // ============================================================
+// Корзина вошедшего покупателя на сервере: одна на всех устройствах и для напоминаний о брошенной корзине
+// ============================================================
+
+export const savedCart = pgTable(
+  "saved_cart",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    items: jsonb("items").$type<{ variantId: string; qty: number }[]>().default([]).notNull(),
+    updatedAt: ts("updated_at").defaultNow().notNull(),
+    remindedAt: ts("reminded_at"), // когда напомнили о брошенной корзине
+    remindCount: integer("remind_count").default(0).notNull(),
+    recoveredAt: ts("recovered_at"), // оформил заказ после напоминания
+  },
+  (t) => [index("saved_cart_updated_idx").on(t.updatedAt)],
+);
+
+// ============================================================
 // Рассылки (промокоды и новости) — только тем, кто дал согласие на рекламу
 // ============================================================
 

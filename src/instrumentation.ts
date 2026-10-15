@@ -4,6 +4,7 @@
  *   • каждые 5 минут — отменяем неоплаченные вовремя заказы (товар возвращается в продажу);
  *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК;
  *   • каждую минуту — очередная партия писем рассылки;
+ *   • каждые 30 минут — напоминания о брошенных корзинах;
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании.
  */
 export async function register() {
@@ -31,6 +32,12 @@ export async function register() {
   const { processCampaigns } = await import("@/lib/campaigns");
   setTimeout(safe("mailing", processCampaigns), 90_000);
   setInterval(safe("mailing", processCampaigns), 60_000);
+
+  // Напоминания о брошенных корзинах — раз в 30 минут (днём по Москве)
+  const { remindAbandonedCarts } = await import("@/lib/abandoned");
+  const abandoned = async () => void (await remindAbandonedCarts());
+  setTimeout(safe("abandoned", abandoned), 5 * 60_000);
+  setInterval(safe("abandoned", abandoned), 30 * 60_000);
 
   // Бонусы: сгорание, день рождения, напоминания — раз в час (всё повторно безопасно)
   const bonuses = await import("@/lib/bonuses");

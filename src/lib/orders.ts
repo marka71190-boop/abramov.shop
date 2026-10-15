@@ -183,6 +183,15 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
       })),
     );
     if (promoId) await tx.insert(s.promoUsage).values({ promoId, userId: user.id, orderId: o.id });
+    // Корзина на сервере опустела; если до этого напоминали о ней — заказ «вернулся» после напоминания
+    await tx
+      .update(s.savedCart)
+      .set({
+        items: [],
+        updatedAt: new Date(),
+        recoveredAt: sql`case when ${s.savedCart.remindedAt} > now() - interval '7 days' then now() else ${s.savedCart.recoveredAt} end`,
+      })
+      .where(eq(s.savedCart.userId, user.id));
     if (spentBonus > 0) {
       await tx.insert(s.bonusTransaction).values({
         userId: user.id,

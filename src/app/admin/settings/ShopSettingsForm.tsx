@@ -60,6 +60,10 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
           Максимум одного товара в заказе, шт.
           <input className="input" name="maxQtyPerItem" type="number" min={1} defaultValue={s.checkout.maxQtyPerItem} />
         </label>
+        <label className="field">
+          Напомнить о брошенной корзине через, часов (0 — не напоминать)
+          <input className="input" name="abandonedHours" type="number" min={0} max={168} defaultValue={s.checkout.abandonedHours} />
+        </label>
       </div>
       <label className="field">
         Объявление на странице оформления (например, «Отправка после 15 октября»)

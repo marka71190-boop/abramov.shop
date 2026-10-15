@@ -32,6 +32,7 @@ export const BACKUP_TABLES = [
   "stock_subscription",
   "setting",
   "audit_log",
+  "saved_cart",
   "campaign",
   "campaign_recipient",
 ] as const;

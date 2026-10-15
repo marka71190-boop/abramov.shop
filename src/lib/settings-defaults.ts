@@ -36,6 +36,7 @@ export interface SiteSettings {
     paymentMinutes: number; // сколько ждём оплату, потом заказ отменяется и товар возвращается в продажу
     maxQtyPerItem: number;
     notice: string; // объявление на странице оформления
+    abandonedHours: number; // через сколько часов напомнить о брошенной корзине; 0 — не напоминать
   };
 }
 
@@ -74,6 +75,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     paymentMinutes: 60,
     maxQtyPerItem: 10,
     notice: "",
+    abandonedHours: 3,
   },
 };
 

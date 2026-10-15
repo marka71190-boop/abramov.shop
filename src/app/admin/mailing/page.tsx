@@ -1,7 +1,9 @@
 import { desc } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
+import { abandonedStats } from "@/lib/abandoned";
 import { sendingQuota, subscriberStats } from "@/lib/campaigns";
+import { getSettings } from "@/lib/settings";
 import { fmtDateTime, num } from "@/lib/format";
 import { mailEnabled } from "@/lib/mail";
 import { telegramEnabled } from "@/lib/telegram";
@@ -10,11 +12,14 @@ import { CAMPAIGN_STATUS } from "./status";
 
 export default async function MailingPage() {
   await requireAdmin();
-  const [campaigns, subs, quota] = await Promise.all([
+  const [campaigns, subs, quota, ab, settings] = await Promise.all([
     db.query.campaign.findMany({ orderBy: desc(s.campaign.createdAt), limit: 100, with: { promo: { columns: { code: true } } } }),
     subscriberStats(),
     sendingQuota(),
+    abandonedStats(),
+    getSettings(),
   ]);
+  const hours = settings.checkout.abandonedHours;
 
   return (
     <>
@@ -48,6 +53,18 @@ export default async function MailingPage() {
           акции»). Этого требует закон о рекламе. В каждом письме есть ссылка «Отписаться». Письма уходят постепенно — {quota.perMinute} в
           минуту и не больше {num(quota.limit)} в сутки (ограничение почтового сервиса); большая рассылка растянется, сайт продолжит сам.
         </p>
+        <div className="small" style={{ borderTop: "1px solid var(--c-line)", paddingTop: 12 }}>
+          <strong>Брошенные корзины.</strong>{" "}
+          {hours ? (
+            <>
+              Подписчикам, которые положили товары в корзину и не оформили заказ, через {hours} ч приходит напоминание с этими товарами (днём,
+              не чаще раза в 3 дня). За 30 дней напомнили: {num(ab.reminded)}, оформили заказ после напоминания: {num(ab.recovered)}.
+            </>
+          ) : (
+            <>Напоминания выключены.</>
+          )}{" "}
+          <Link href="/admin/settings">Настроить</Link>
+        </div>
         {!mailEnabled() && <div className="form-error">Почта на сайте не настроена — можно отправлять только в Telegram.</div>}
         {!telegramEnabled() && !mailEnabled() && <div className="form-error">Ни почта, ни Telegram-бот не подключены — отправлять некуда.</div>}
       </div>

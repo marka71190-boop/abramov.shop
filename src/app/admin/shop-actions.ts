@@ -386,6 +386,7 @@ const ShopSettingsIn = z.object({
   paymentMinutes: z.coerce.number().int().min(15, "Не меньше 15 минут").max(1440),
   maxQtyPerItem: z.coerce.number().int().min(1).max(999),
   notice: z.string().trim().max(500),
+  abandonedHours: z.coerce.number().int().min(0).max(168, "Не больше 168 часов (неделя)"),
 });
 
 export async function updateShopSettings(_: ActionState, form: FormData): Promise<ActionState> {
@@ -411,7 +412,7 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
       flatPvz: d.flatPvz,
       flatCourier: d.flatCourier,
     },
-    checkout: { paymentMinutes: d.paymentMinutes, maxQtyPerItem: d.maxQtyPerItem, notice: d.notice },
+    checkout: { paymentMinutes: d.paymentMinutes, maxQtyPerItem: d.maxQtyPerItem, notice: d.notice, abandonedHours: d.abandonedHours },
   });
   await audit(me.id, "settings.shop", "setting", "site", d);
   revalidatePath("/", "layout");

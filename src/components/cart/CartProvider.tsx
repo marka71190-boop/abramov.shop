@@ -1,10 +1,13 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Корзина хранится в браузере покупателя (localStorage): работает и без входа,
  * переживает перезагрузку и синхронизируется между вкладками.
  * Цены и остатки здесь не храним — их всегда считает сервер.
+ *
+ * У вошедшего покупателя корзина ещё и копируется на сервер: она появится на другом
+ * устройстве, а магазин сможет напомнить о брошенной корзине.
  */
 export interface CartItem {
   variantId: string;
@@ -36,9 +39,12 @@ function read(): CartItem[] {
   }
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
+export function CartProvider({ children, signedIn = false }: { children: React.ReactNode; signedIn?: boolean }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [ready, setReady] = useState(false);
+  const synced = useRef(false); // первая сверка с сервером начата
+  const [syncDone, setSyncDone] = useState(false); // и закончена — до этого ничего не отправляем
+  const lastSent = useRef<string | null>(null);
 
   useEffect(() => {
     setItems(read());
@@ -47,6 +53,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  // Первая сверка: на этом устройстве корзина пустая — берём сохранённую на сервере
+  useEffect(() => {
+    if (!ready || !signedIn || synced.current) return;
+    synced.current = true;
+    if (read().length) return setSyncDone(true); // локальная корзина главнее — отправится ниже
+    fetch("/api/cart", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { items?: CartItem[] } | null) => {
+        const server = (d?.items ?? []).filter((i) => typeof i?.variantId === "string" && Number.isInteger(i?.qty) && i.qty > 0);
+        lastSent.current = JSON.stringify(server);
+        if (server.length && !read().length) {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(server));
+          } catch {}
+          setItems(server);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSyncDone(true));
+  }, [ready, signedIn]);
+
+  // Каждое изменение — на сервер (с паузой, чтобы не слать запрос на каждый клик «+»)
+  useEffect(() => {
+    if (!ready || !signedIn || !syncDone) return;
+    const body = JSON.stringify(items);
+    if (body === lastSent.current) return;
+    const t = setTimeout(() => {
+      lastSent.current = body;
+      fetch("/api/cart", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }), keepalive: true }).catch(
+        () => {
+          lastSent.current = null;
+        },
+      );
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [items, ready, signedIn, syncDone]);
 
   const commit = useCallback((fn: (prev: CartItem[]) => CartItem[]) => {
     setItems((prev) => {
