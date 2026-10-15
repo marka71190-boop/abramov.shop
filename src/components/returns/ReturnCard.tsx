@@ -3,6 +3,7 @@ import { fmtDate, rub } from "@/lib/format";
 import { TONE_PILL } from "@/lib/order-status";
 import { RETURN_KIND, RETURN_RESOLUTION, RETURN_STATUS, type ReturnListItem } from "@/lib/returns";
 import { CancelReturnButton } from "./CancelReturnButton";
+import { MediaGallery } from "@/components/inspection/MediaGallery";
 
 /** Карточка заявки на возврат — в личном кабинете и на странице заказа. */
 export function ReturnCard({ r, showOrder = true }: { r: ReturnListItem; showOrder?: boolean }) {
@@ -33,7 +34,17 @@ export function ReturnCard({ r, showOrder = true }: { r: ReturnListItem; showOrd
         </div>
       </div>
       {r.status === "NEW" && <div className="muted small">Ответим до {fmtDate(r.decisionDue)}</div>}
+      {r.status === "RECEIVED" && r.inspectionDue && <div className="muted small">Проверка мастером — до {fmtDate(r.inspectionDue)}</div>}
       {r.answer && <div className="rcard__answer">{r.answer}</div>}
+      {r.conclusion && (
+        <div className="small">
+          <span className="label">Заключение мастера</span>
+          <div className="rcard__answer" style={{ marginTop: 6 }}>
+            {r.conclusion}
+          </div>
+        </div>
+      )}
+      {r.media.length > 0 && <MediaGallery media={r.media} />}
       {r.refundAmount != null && r.refundAmount > 0 && (
         <div className="small" style={{ color: "var(--c-success)" }}>
           Возвращено {rub(r.refundAmount)}

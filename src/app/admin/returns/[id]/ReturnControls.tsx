@@ -62,7 +62,7 @@ export function ReturnControls(p: Props) {
           </label>
           <div>
             <button type="button" className="btn btn--line btn--sm" disabled={pending} onClick={() => run(() => receiveAction(p.id, restock))}>
-              Товар получен
+              Товар получен — на проверку мастеру
             </button>
           </div>
         </div>

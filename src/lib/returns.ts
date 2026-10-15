@@ -22,13 +22,15 @@ import { createRefund, receiptLines, yookassaEnabled } from "@/lib/yookassa";
 export const QUALITY_DAYS = 7;
 export const DEFECT_DAYS = 730;
 export const DECISION_DAYS = 7;
+/** Сколько дней у мастера на проверку после получения товара (деньги — в течение 10 дней по закону) */
+export const INSPECTION_DAYS = 10;
 
 export class ReturnError extends Error {}
 
 export const RETURN_STATUS = {
   NEW: { text: "На рассмотрении", tone: "gold" },
   APPROVED: { text: "Одобрена — ждём товар", tone: "gold" },
-  RECEIVED: { text: "Товар получен", tone: "gold" },
+  RECEIVED: { text: "Товар получен — на проверке у мастера", tone: "gold" },
   COMPLETED: { text: "Завершена", tone: "ok" },
   REJECTED: { text: "Отклонена", tone: "bad" },
   CANCELLED: { text: "Отменена", tone: "dim" },
@@ -200,7 +202,14 @@ export async function receiveReturn(id: string, actorId: string, restock: boolea
   const r = await db.transaction(async (tx) => {
     const [row] = await tx
       .update(s.returnRequest)
-      .set({ status: "RECEIVED", handledById: actorId, restocked: restock, updatedAt: new Date() })
+      .set({
+        status: "RECEIVED",
+        handledById: actorId,
+        restocked: restock,
+        receivedAt: new Date(),
+        inspectionDue: new Date(Date.now() + INSPECTION_DAYS * 86400_000),
+        updatedAt: new Date(),
+      })
       .where(and(eq(s.returnRequest.id, id), eq(s.returnRequest.status, "APPROVED")))
       .returning();
     if (!row) throw new ReturnError("Статус заявки уже изменился — обновите страницу");
@@ -370,9 +379,12 @@ export async function notifyReturn(id: string, event: ReturnEvent) {
       },
       rejected: {
         title: "Заявка отклонена",
-        body: `К сожалению, по заявке <b>${r.number}</b> мы отказали.${r.answer ? `<br><br>Причина: ${escHtml(r.answer).replace(/\n/g, "<br>")}` : ""}<br><br>Если не согласны — ответьте на это письмо или напишите в поддержку.`,
+        body: `К сожалению, по заявке <b>${r.number}</b> мы отказали.${r.answer ? `<br><br>Причина: ${escHtml(r.answer).replace(/\n/g, "<br>")}` : ""}${r.conclusion ? `<br><br>Заключение мастера: ${escHtml(r.conclusion).replace(/\n/g, "<br>")}` : ""}<br><br>Фото проверки — в личном кабинете. Если не согласны — ответьте на это письмо или напишите в поддержку.`,
       },
-      received: { title: "Товар получен", body: `Получили товар по заявке <b>${r.number}</b>. Проверим и сообщим о возврате денег.` },
+      received: {
+        title: "Товар получен",
+        body: `Получили товар по заявке <b>${r.number}</b>. Мастер проверит его${r.inspectionDue ? ` до ${fmtDate(r.inspectionDue)}` : ""} — сообщим решение и, если всё в порядке, сразу вернём деньги.`,
+      },
       refunded: {
         title: "Деньги возвращены",
         body:
@@ -394,8 +406,37 @@ export async function notifyReturn(id: string, event: ReturnEvent) {
   }
 }
 
+/** Заключение мастера после проверки товара — покупатель увидит его в кабинете. */
+export async function saveConclusion(id: string, actorId: string, conclusion: string) {
+  const [r] = await db
+    .update(s.returnRequest)
+    .set({ conclusion: conclusion.trim() || null, handledById: actorId, updatedAt: new Date() })
+    .where(and(eq(s.returnRequest.id, id), inArray(s.returnRequest.status, ["RECEIVED", "APPROVED"])))
+    .returning();
+  if (!r) throw new ReturnError("Заключение можно записать, пока заявка в работе");
+  return r;
+}
+
 /** Раз в час: напоминаем админам о заявках, срок ответа по которым истекает в ближайшие сутки. */
 export async function remindReturnDeadlines() {
+  // Проверка мастером: напоминаем за 2 дня до конца срока
+  const inspecting = await db
+    .select()
+    .from(s.returnRequest)
+    .where(
+      and(
+        eq(s.returnRequest.status, "RECEIVED"),
+        lt(s.returnRequest.inspectionDue, new Date(Date.now() + 2 * 86400_000)),
+        isNull(s.returnRequest.inspectionReminderAt),
+      ),
+    );
+  for (const r of inspecting) {
+    await notifyAdmins(`🔧 Заявка <b>${r.number}</b>: проверку мастером нужно закончить до ${r.inspectionDue ? fmtDate(r.inspectionDue) : "—"} и вернуть деньги или отказать.`, {
+      text: "Открыть заявку",
+      url: `${SITE.url}/admin/returns/${r.id}`,
+    });
+    await db.update(s.returnRequest).set({ inspectionReminderAt: new Date() }).where(eq(s.returnRequest.id, r.id));
+  }
   const soon = await db
     .select()
     .from(s.returnRequest)
@@ -411,12 +452,17 @@ export async function remindReturnDeadlines() {
 
 /** Заявки покупателя (для кабинета) или по заказу. */
 export async function listReturns(where: { userId?: string; orderId?: string }) {
-  return db.query.returnRequest.findMany({
+  const rows = await db.query.returnRequest.findMany({
     where: where.orderId ? eq(s.returnRequest.orderId, where.orderId) : eq(s.returnRequest.userId, where.userId!),
     orderBy: (r, { desc }) => desc(r.createdAt),
     limit: 30,
     with: { items: { with: { orderItem: { columns: { name: true, price: true } } } }, order: { columns: { number: true } } },
   });
+  // Фото и видео проверки товара по заявке (с Google Диска)
+  const media = rows.length
+    ? await db.query.inspectionMedia.findMany({ where: inArray(s.inspectionMedia.returnId, rows.map((r) => r.id)), orderBy: (m, { asc }) => asc(m.createdAt) })
+    : [];
+  return rows.map((r) => ({ ...r, media: media.filter((m) => m.returnId === r.id) }));
 }
 export type ReturnListItem = Awaited<ReturnType<typeof listReturns>>[number];
 

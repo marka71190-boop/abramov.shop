@@ -7,6 +7,10 @@ import { fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
 import { ORDER_STATUS, TONE_PILL } from "@/lib/order-status";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { OrderControls } from "./OrderControls";
+import { InspectionPanel } from "./InspectionPanel";
+import { MediaGallery } from "@/components/inspection/MediaGallery";
+import { driveStatus } from "@/lib/gdrive";
+import { CHECKLIST, loadInspection } from "@/lib/inspection";
 
 const PAY = { PENDING: "ожидает", WAITING_FOR_CAPTURE: "ждёт подтверждения", SUCCEEDED: "оплачен", CANCELED: "отменён", REFUNDED: "возвращён" } as const;
 const EVENTS: Record<string, string> = {
@@ -30,6 +34,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
     orderBy: desc(s.auditLog.createdAt),
   });
   const actors = await db.query.user.findMany({ columns: { id: true, name: true }, where: (u, { inArray }) => inArray(u.id, events.map((e) => e.actorId).filter((x): x is string => !!x).concat("-")) });
+  const [drive, inspection] = await Promise.all([driveStatus(), loadInspection(o.id)]);
   const st = ORDER_STATUS[o.status];
   const paid = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status);
 
@@ -168,6 +173,23 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         ))}
         {!o.payments.length && !yookassaEnabled() && <div className="muted small">ЮKassa не подключена — платежей нет.</div>}
       </div>
+
+      <InspectionPanel
+        orderId={o.id}
+        connected={drive.connected}
+        checklistItems={CHECKLIST}
+        initial={{
+          serialNumber: inspection.insp?.serialNumber ?? "",
+          sealNumber: inspection.insp?.sealNumber ?? "",
+          note: inspection.insp?.note ?? "",
+          checklist: inspection.insp?.checklist ?? [],
+          checkedAt: inspection.insp?.checkedAt ? fmtDateTime(inspection.insp.checkedAt) : null,
+          folderUrl: inspection.insp?.folderUrl ?? null,
+        }}
+        mediaCount={inspection.media.length}
+      >
+        <MediaGallery media={inspection.media} canDelete={!inspection.insp?.checkedAt} />
+      </InspectionPanel>
 
       {events.length > 0 && (
         <div className="panel stack">

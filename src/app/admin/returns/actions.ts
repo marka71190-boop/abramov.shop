@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { approveReturn, completeReturn, receiveReturn, refundReturn, rejectReturn, ReturnError } from "@/lib/returns";
+import { approveReturn, completeReturn, receiveReturn, refundReturn, rejectReturn, ReturnError, saveConclusion } from "@/lib/returns";
 import { requireAdmin } from "@/lib/viewer";
 
 export type ReturnActionState = { error?: string; ok?: string };
@@ -31,6 +31,9 @@ export async function receiveAction(id: string, restock: boolean) {
 export async function refundAction(id: string, rubles: number, restock: boolean, returnBonuses: boolean, answer: string) {
   if (!Number.isFinite(rubles) || rubles < 0) return { error: "Укажите сумму в рублях" };
   return run(id, (a) => refundReturn(id, a, { amount: Math.round(rubles * 100), restock, returnBonuses, answer }), "Деньги возвращены, заявка завершена");
+}
+export async function conclusionAction(id: string, text: string) {
+  return run(id, (a) => saveConclusion(id, a, text), "Заключение сохранено — покупатель увидит его в кабинете");
 }
 export async function completeAction(id: string, answer: string, restock: boolean) {
   return run(id, (a) => completeReturn(id, a, answer, restock), "Заявка завершена");

@@ -579,6 +579,45 @@ export const setting = pgTable("setting", {
 });
 
 // ============================================================
+// Проверка товара перед отправкой: фото и видео на Google Диске, серийник, пломба, чек-лист мастера
+// ============================================================
+
+export const orderInspection = pgTable("order_inspection", {
+  orderId: text("order_id")
+    .primaryKey()
+    .references(() => order.id, { onDelete: "cascade" }),
+  folderId: text("folder_id"), // папка заказа на Google Диске
+  folderUrl: text("folder_url"),
+  serialNumber: text("serial_number"),
+  sealNumber: text("seal_number"),
+  checklist: text("checklist").array().default([]).notNull(), // отмеченные пункты
+  note: text("note"),
+  checkedAt: ts("checked_at"), // «Проверено» — с этого момента покупатель видит проверку
+  checkedById: text("checked_by_id").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: ts("updated_at").defaultNow().notNull(),
+});
+
+export const inspectionMedia = pgTable(
+  "inspection_media",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    returnId: text("return_id"), // фото проверки по заявке на возврат; пусто — проверка перед отправкой
+    driveFileId: text("drive_file_id").notNull(),
+    name: text("name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size"),
+    driveCreatedAt: ts("drive_created_at"), // дата загрузки по Google Диску
+    webViewLink: text("web_view_link"),
+    uploadedById: text("uploaded_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("inspection_media_order_idx").on(t.orderId)],
+);
+
+// ============================================================
 // Возвраты и обмены: заявка из личного кабинета, рассматриваем в течение 7 дней
 // ============================================================
 
@@ -611,6 +650,11 @@ export const returnRequest = pgTable(
     updatedAt: ts("updated_at").defaultNow().notNull(),
     resolvedAt: ts("resolved_at"),
     dueReminderAt: ts("due_reminder_at"),
+    // Проверка мастером после получения товара: срок — 10 дней с получения
+    receivedAt: ts("received_at"),
+    inspectionDue: ts("inspection_due"),
+    inspectionReminderAt: ts("inspection_reminder_at"),
+    conclusion: text("conclusion"), // заключение мастера — видит покупатель
   },
   (t) => [index("return_request_status_idx").on(t.status), index("return_request_order_idx").on(t.orderId)],
 );
@@ -756,6 +800,16 @@ export const orderRelations = relations(order, ({ one, many }) => ({
   items: many(orderItem),
   payments: many(payment),
   returns: many(returnRequest),
+  inspection: one(orderInspection),
+  media: many(inspectionMedia),
+}));
+
+export const orderInspectionRelations = relations(orderInspection, ({ one }) => ({
+  order: one(order, { fields: [orderInspection.orderId], references: [order.id] }),
+}));
+
+export const inspectionMediaRelations = relations(inspectionMedia, ({ one }) => ({
+  order: one(order, { fields: [inspectionMedia.orderId], references: [order.id] }),
 }));
 
 export const orderItemRelations = relations(orderItem, ({ one }) => ({

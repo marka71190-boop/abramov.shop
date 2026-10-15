@@ -2852,3 +2852,39 @@ button.vchip {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ---------- Проверка перед отправкой: фото и видео с Google Диска ---------- */
+.mgallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.mgallery__item {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mgallery__item iframe {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel-2);
+}
+.inspect-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.inspect-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.inspect-list li::before {
+  content: "✓ ";
+  color: var(--c-success);
+}

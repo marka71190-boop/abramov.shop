@@ -10,11 +10,23 @@ import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
 import { requireAdmin } from "@/lib/viewer";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
+import { driveStatus, redirectUri } from "@/lib/gdrive";
+import { DriveDisconnect } from "./DriveDisconnect";
 import { SettingsForm } from "./SettingsForm";
 import { ShopSettingsForm } from "./ShopSettingsForm";
 
-export default async function SettingsPage() {
+const DRIVE_MSG: Record<string, { ok: boolean; text: string }> = {
+  ok: { ok: true, text: "Google Диск подключён" },
+  denied: { ok: false, text: "Вы отменили доступ в Google — Диск не подключён" },
+  badstate: { ok: false, text: "Ссылка устарела — нажмите «Подключить» ещё раз" },
+  error: { ok: false, text: "Google не принял подключение. Проверьте адрес перенаправления в Google Cloud и попробуйте ещё раз" },
+  noconfig: { ok: false, text: "Сначала добавьте в Timeweb переменные GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET" },
+};
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ drive?: string }> }) {
   const me = await requireAdmin("OWNER");
+  const { drive: driveMsg } = await searchParams;
+  const drive = await driveStatus();
   const [settings, origin] = await Promise.all([getSettings(), getOrigin(SITE.url)]);
   const yk = yookassaEnabled();
   const tg = telegramEnabled();
@@ -100,6 +112,37 @@ export default async function SettingsPage() {
           <div className="row" style={{ gap: 12 }}>
             {mailEnabled() && <TelegramTest kind="mail" />}
             <span className={`pill ${mailEnabled() ? "pill--ok" : "pill--bad"}`}>{mailEnabled() ? "подключена" : "не подключена"}</span>
+          </div>
+        </div>
+        <div className="row-line" id="drive">
+          <div>
+            <div>Google Диск{drive.email ? ` · ${drive.email}` : ""}</div>
+            <div className="muted small">
+              {drive.connected ? (
+                <>Фото и видео проверки товаров складываются в папку «Abramov Shop — проверка товаров». Покупатели могут смотреть, но не скачивать.</>
+              ) : drive.configured ? (
+                <>
+                  Для фото и видео проверки товаров перед отправкой. Адрес перенаправления в Google Cloud: <code>{redirectUri()}</code>
+                </>
+              ) : (
+                "Добавьте в Timeweb переменные GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET (OAuth-клиент Google Cloud с включённым Google Drive API)"
+              )}
+            </div>
+            {driveMsg && DRIVE_MSG[driveMsg] && (
+              <div className={DRIVE_MSG[driveMsg].ok ? "form-ok" : "form-error"} style={{ marginTop: 8 }}>
+                {DRIVE_MSG[driveMsg].text}
+              </div>
+            )}
+          </div>
+          <div className="row" style={{ gap: 12 }}>
+            {drive.connected ? (
+              <DriveDisconnect />
+            ) : drive.configured ? (
+              <a className="btn btn--gold btn--sm" href="/api/google/drive/connect">
+                Подключить
+              </a>
+            ) : null}
+            <span className={`pill ${drive.connected ? "pill--ok" : "pill--bad"}`}>{drive.connected ? "подключён" : "не подключён"}</span>
           </div>
         </div>
         <div className="row-line">

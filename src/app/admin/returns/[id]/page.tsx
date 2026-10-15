@@ -5,6 +5,13 @@ import { TONE_PILL } from "@/lib/order-status";
 import { defaultInstructions, loadForAdmin, RETURN_KIND, RETURN_RESOLUTION, RETURN_STATUS, ReturnError } from "@/lib/returns";
 import { requireAdmin } from "@/lib/viewer";
 import { ReturnControls } from "./ReturnControls";
+import { ConclusionForm } from "./ConclusionForm";
+import { MediaGallery } from "@/components/inspection/MediaGallery";
+import { MediaUploader } from "@/components/inspection/MediaUploader";
+import { db, schema as s } from "@/db";
+import { and, asc, eq } from "drizzle-orm";
+import { driveStatus } from "@/lib/gdrive";
+import { loadInspection } from "@/lib/inspection";
 
 export default async function ReturnAdminPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -15,6 +22,11 @@ export default async function ReturnAdminPage({ params }: { params: Promise<{ id
   });
   if (!data) notFound();
   const { r, estimate } = data;
+  const [shipped, returnMedia, drive] = await Promise.all([
+    loadInspection(r.orderId),
+    db.query.inspectionMedia.findMany({ where: and(eq(s.inspectionMedia.returnId, r.id)), orderBy: asc(s.inspectionMedia.createdAt) }),
+    driveStatus(),
+  ]);
   const st = RETURN_STATUS[r.status];
   const o = r.order;
   const late = r.status === "NEW" && +r.decisionDue < Date.now();
@@ -78,6 +90,38 @@ export default async function ReturnAdminPage({ params }: { params: Promise<{ id
               </div>
             )}
           </div>
+          {(r.status === "RECEIVED" || r.status === "APPROVED" || returnMedia.length > 0 || r.conclusion) && (
+            <div className="panel stack">
+              <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <strong>Проверка мастером</strong>
+                {r.inspectionDue && r.status === "RECEIVED" && (
+                  <span className={`pill ${+r.inspectionDue < Date.now() ? "pill--bad" : "pill--warn"}`}>до {fmtDate(r.inspectionDue)}</span>
+                )}
+              </div>
+              <div className="muted small">
+                Сфотографируйте и снимите на видео, в каком виде пришёл товар: серийный номер, пломбу, недостаток. Файлы попадут в папку заказа на Google
+                Диске, покупатель увидит их в кабинете.
+              </div>
+              <MediaGallery media={returnMedia} canDelete={["APPROVED", "RECEIVED"].includes(r.status)} />
+              {drive.connected && ["APPROVED", "RECEIVED"].includes(r.status) && <MediaUploader orderId={r.orderId} returnId={r.id} />}
+              {["APPROVED", "RECEIVED"].includes(r.status) ? (
+                <ConclusionForm id={r.id} initial={r.conclusion ?? ""} />
+              ) : (
+                r.conclusion && <div className="rcard__answer">{r.conclusion}</div>
+              )}
+            </div>
+          )}
+          {(shipped.media.length > 0 || shipped.insp?.serialNumber || shipped.insp?.sealNumber) && (
+            <div className="panel stack">
+              <strong>Как товар уходил покупателю</strong>
+              <div className="small">
+                {shipped.insp?.checkedAt ? `Проверен ${fmtDateTime(shipped.insp.checkedAt)}` : "Проверка не отмечена"}
+                {shipped.insp?.serialNumber ? ` · серийный номер ${shipped.insp.serialNumber}` : ""}
+                {shipped.insp?.sealNumber ? ` · пломба ${shipped.insp.sealNumber}` : ""}
+              </div>
+              <MediaGallery media={shipped.media} />
+            </div>
+          )}
           <div className="panel small stack" style={{ gap: 6 }}>
             <strong>Расчёт возврата</strong>
             <div className="summary__row">

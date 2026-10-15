@@ -509,3 +509,15 @@ export async function moderateReview(_: ActionState, form: FormData): Promise<Ac
   revalidatePath(`/product/${r.product.slug}`);
   return { ok: (status === "APPROVED" ? "Опубликован" : status === "REJECTED" ? "Отклонён" : "Сохранено") + bonusNote };
 }
+
+// ============================================================
+// Google Диск
+// ============================================================
+
+export async function disconnectDriveAction() {
+  const me = await requireAdmin("OWNER");
+  const { disconnectDrive } = await import("@/lib/gdrive");
+  await disconnectDrive();
+  await audit(me.id, "drive.disconnect", "setting", "google_drive");
+  revalidatePath("/admin/settings");
+}

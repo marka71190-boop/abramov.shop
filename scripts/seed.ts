@@ -27,6 +27,8 @@ import {
   PRIVACY_COOKIE_NEW,
   PRIVACY_COOKIE_OLD,
   RETURNS_HOWTO_NEW,
+  RETURNS_CHECK_ANCHOR,
+  RETURNS_CHECK_SECTION,
   RETURNS_HOWTO_OLD,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
@@ -81,6 +83,11 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${RETURNS_HOWTO_OLD}, ${RETURNS_HOWTO_NEW})` })
     .where(and(eq(s.page.slug, "returns"), like(s.page.body, `%${RETURNS_HOWTO_OLD}%`)));
+  // Правила возврата: раздел о проверке товара (фото и видео, серийник, пломба, заключение мастера)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${RETURNS_CHECK_ANCHOR}, ${RETURNS_CHECK_SECTION + RETURNS_CHECK_ANCHOR})` })
+    .where(and(eq(s.page.slug, "returns"), like(s.page.body, `%${RETURNS_CHECK_ANCHOR}%`), sql`${s.page.body} not like '%## Проверка товара%'`));
   // Раздел о cookie: дописываем Яндекс Метрику (остальные правки из админки сохраняются)
   await db
     .update(s.page)

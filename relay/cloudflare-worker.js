@@ -4,6 +4,10 @@
  * 1. Релей Telegram Bot API (с российских серверов api.telegram.org часто недоступен).
  *    Переменная RELAY_KEY. На сайте: TELEGRAM_API_URL=https://<воркер>.workers.dev/<RELAY_KEY>
  *
+ * 1а. Релей Google Диска (если с сервера не открывается googleapis.com):
+ *    GOOGLE_API_URL=https://<воркер>.workers.dev/<RELAY_KEY>/g
+ *    GOOGLE_TOKEN_URL=https://<воркер>.workers.dev/<RELAY_KEY>/oauth/token
+ *
  * 2. Мониторинг: по расписанию (Cron Trigger, например каждые 5 минут) проверяет
  *    https://abramov.shop/api/health и пишет в Telegram, если сайт или база не отвечают.
  *    Переменные: BOT_TOKEN (токен бота), ALERT_CHAT_ID (ваш Telegram ID — виден в админке → Настройки),
@@ -14,9 +18,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const [, key, ...rest] = url.pathname.split("/");
-    if (!env.RELAY_KEY || key !== env.RELAY_KEY || !rest[0]?.startsWith("bot")) {
-      return new Response("Not found", { status: 404 });
-    }
+    if (!env.RELAY_KEY || key !== env.RELAY_KEY) return new Response("Not found", { status: 404 });
+    // Google Диск (если сервер в России не достаёт до Google): /<RELAY_KEY>/g/... и /<RELAY_KEY>/oauth/token
+    if (rest[0] === "g" || (rest[0] === "oauth" && rest[1] === "token")) return google(request, url, rest);
+    if (!rest[0]?.startsWith("bot")) return new Response("Not found", { status: 404 });
     const target = `https://api.telegram.org/${rest.join("/")}${url.search}`;
     return fetch(target, {
       method: request.method,
@@ -29,6 +34,26 @@ export default {
     ctx.waitUntil(monitor(env));
   },
 };
+
+async function google(request, url, rest) {
+  const target = rest[0] === "g" ? `https://www.googleapis.com/${rest.slice(1).join("/")}${url.search}` : "https://oauth2.googleapis.com/token";
+  const headers = new Headers();
+  for (const h of ["authorization", "content-type", "content-range", "content-length", "x-upload-content-type", "x-upload-content-length"]) {
+    const v = request.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  const res = await fetch(target, {
+    method: request.method,
+    headers,
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+    redirect: "manual",
+  });
+  // Адрес сессии загрузки тоже ведём через релей
+  const out = new Headers(res.headers);
+  const loc = out.get("location");
+  if (loc) out.set("location", loc.replace("https://www.googleapis.com/", `${url.origin}/${url.pathname.split("/")[1]}/g/`));
+  return new Response(res.body, { status: res.status, headers: out });
+}
 
 async function check(url) {
   const started = Date.now();

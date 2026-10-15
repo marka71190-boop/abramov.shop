@@ -14,6 +14,8 @@ import { PurchaseTracker } from "@/components/analytics/PurchaseTracker";
 import { AutoRefresh, CancelButton, TestPayButton } from "./OrderActions";
 import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns, returnable } from "@/lib/returns";
+import { loadInspection } from "@/lib/inspection";
+import { MediaGallery } from "@/components/inspection/MediaGallery";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -31,7 +33,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     o = (await db.query.order.findFirst({ where: eq(s.order.id, o.id) }))!;
   }
 
-  const [items, settings, payUrl, returns, canReturn] = await Promise.all([
+  const [items, settings, payUrl, returns, canReturn, inspection] = await Promise.all([
     db.query.orderItem.findMany({
       where: eq(s.orderItem.orderId, o.id),
       orderBy: asc(s.orderItem.name),
@@ -41,6 +43,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     o.status === "AWAITING_PAYMENT" ? getPayUrl(o.id) : null,
     listReturns({ orderId: o.id }),
     o.status === "DELIVERED" && o.userId === user.id ? returnable(o.id).then((r) => !!r?.allowed) : false,
+    loadInspection(o.id),
   ]);
 
   const st = ORDER_STATUS[o.status];
@@ -169,6 +172,39 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <span>{rub(o.total)}</span>
           </div>
         </div>
+
+        {inspection.insp?.checkedAt && inspection.media.length > 0 && (
+          <div className="panel stack" id="inspection">
+            <h2 style={{ margin: 0 }}>Проверено перед отправкой</h2>
+            <p className="muted small" style={{ margin: 0 }}>
+              Мы лично проверили заказ {fmtDateTime(inspection.insp.checkedAt)} и сняли фото и видео. При получении сверьте товар
+              {inspection.insp.sealNumber ? " и целостность пломбы" : ""}. Удобнее всего — вскрыть посылку прямо в пункте СДЭК.
+            </p>
+            {(inspection.insp.serialNumber || inspection.insp.sealNumber) && (
+              <div className="inspect-facts small">
+                {inspection.insp.serialNumber && (
+                  <span>
+                    Серийный номер: <b>{inspection.insp.serialNumber}</b>
+                  </span>
+                )}
+                {inspection.insp.sealNumber && (
+                  <span>
+                    Пломба: <b>{inspection.insp.sealNumber}</b>
+                  </span>
+                )}
+              </div>
+            )}
+            {inspection.insp.checklist.length > 0 && (
+              <ul className="inspect-list small">
+                {inspection.insp.checklist.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            )}
+            {inspection.insp.note && <div className="rcard__answer">{inspection.insp.note}</div>}
+            <MediaGallery media={inspection.media} />
+          </div>
+        )}
 
         {(canReturn || returns.length > 0) && (
           <div className="panel stack" id="returns">

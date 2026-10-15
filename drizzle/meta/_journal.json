@@ -71,6 +71,20 @@
       "when": 1792077739548,
       "tag": "0009_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792079202754,
+      "tag": "0010_inspection",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792079510797,
+      "tag": "0011_return_inspection",
+      "breakpoints": true
     }
   ]
 }
