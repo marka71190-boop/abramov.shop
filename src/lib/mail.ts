@@ -18,6 +18,8 @@ function getTransport() {
       host: process.env.SMTP_HOST,
       port,
       secure: port === 465,
+      // 587 и 2525 — сначала без шифрования, затем обязательно STARTTLS
+      requireTLS: port !== 465 && port !== 25,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
@@ -82,6 +84,19 @@ export async function sendMail(
     `${title}\n\n${toText(bodyHtml)}${button ? `\n\n${button.text}: ${button.url}` : ""}` + (extra.footerHtml ? `\n\n---\n${toText(extra.footerHtml)}` : "");
   await getTransport().sendMail({ from, to, subject, html: layout(title, bodyHtml, button, extra.footerHtml), text, headers: extra.headers });
   return true;
+}
+
+/** Понятное описание ошибки почты для админки. */
+export function mailErrorText(e: unknown) {
+  const err = e as { code?: string; responseCode?: number; message?: string };
+  const where = `${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 465}`;
+  if (err?.code === "EAUTH" || err?.responseCode === 535)
+    return `Почтовый сервер не принял логин или пароль (${where}). Проверьте SMTP_USER — адрес ящика целиком — и SMTP_PASS — пароль от этого ящика.`;
+  if (["ETIMEDOUT", "ECONNECTION", "ESOCKET", "ECONNREFUSED"].includes(err?.code ?? "") || /timeout/i.test(err?.message ?? ""))
+    return `Сайт не может подключиться к ${where} — похоже, хостинг закрывает этот порт для исходящей почты. Попробуйте SMTP_PORT=587 или попросите поддержку Timeweb открыть исходящие порты 465 и 587 для приложения.`;
+  if (err?.code === "EENVELOPE" || err?.responseCode === 550 || err?.responseCode === 553)
+    return `Сервер отказался отправлять от этого адреса: SMTP_FROM должен совпадать с ящиком SMTP_USER. (${err?.message ?? ""})`;
+  return `${err?.code ? `${err.code}: ` : ""}${err?.message ?? "Не отправилось"}`;
 }
 
 /** Для админки: проверка подключения к почтовому серверу. */

@@ -438,14 +438,15 @@ export async function telegramTest(): Promise<ActionState> {
 
 export async function mailTest(): Promise<ActionState> {
   const me = await requireAdmin();
-  const { mailEnabled, sendMail, verifyMail } = await import("@/lib/mail");
+  const { mailEnabled, mailErrorText, sendMail, verifyMail } = await import("@/lib/mail");
   if (!mailEnabled()) return { error: "Добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в переменные Timeweb" };
   try {
     await verifyMail();
     await sendMail(me.email, "Проверка почты Abramov Shop", "Почта работает", "Так будут выглядеть письма покупателям: восстановление пароля, оплата и трек-номер.");
-    return { ok: `Письмо отправлено на ${me.email}` };
+    return { ok: `Письмо отправлено на ${me.email} с ${process.env.SMTP_FROM || process.env.SMTP_USER} через ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 465}` };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Не отправилось" };
+    console.error("[mail] test:", e);
+    return { error: mailErrorText(e) };
   }
 }
 
