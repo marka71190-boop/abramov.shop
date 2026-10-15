@@ -149,6 +149,9 @@ export function TelegramConnect({ linked }: { linked: boolean }) {
         Подключить Telegram
       </button>
       {hint && <span className="muted small">{hint}</span>}
+      <span className="muted small" style={{ maxWidth: 360, textAlign: "right" }}>
+        В Telegram (сервис в ОАЭ) будут приходить только номер и статус заказа, трек и бонусы — без имени, телефона и адреса.
+      </span>
     </div>
   );
 }

@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   maintenance: false,
   maintenanceMessage: "Мы обновляем магазин. Совсем скоро вернёмся!",
   supportTelegram: "abramov_shop1",
-  supportEmail: "oplatyabramovshop@gmail.com",
+  supportEmail: "shop@abramov.shop",
   loyalty: {
     tiers: {
       SILVER: { percent: 3, threshold: 0 },

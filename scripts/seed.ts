@@ -27,6 +27,8 @@ import {
   PRIVACY_COOKIE_NEW,
   PRIVACY_COOKIE_OLD,
   RETURNS_HOWTO_NEW,
+  PRIVACY_S5_NEW,
+  PRIVACY_S5_OLD,
   RETURNS_CHECK_ANCHOR,
   RETURNS_CHECK_SECTION,
   RETURNS_HOWTO_OLD,
@@ -83,6 +85,19 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${RETURNS_HOWTO_OLD}, ${RETURNS_HOWTO_NEW})` })
     .where(and(eq(s.page.slug, "returns"), like(s.page.body, `%${RETURNS_HOWTO_OLD}%`)));
+  // Контактная почта магазина переехала с Gmail на ящик в России (shop@abramov.shop)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, 'oplatyabramovshop@gmail.com', 'shop@abramov.shop')` })
+    .where(like(s.page.body, "%oplatyabramovshop@gmail.com%"));
+  await db.execute(
+    sql`update ${s.setting} set value = jsonb_set(value, '{supportEmail}', '"shop@abramov.shop"') where key = 'site' and value->>'supportEmail' = 'oplatyabramovshop@gmail.com'`,
+  );
+  // Политика: кому передаются данные, почта в РФ, уведомления через Telegram
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${PRIVACY_S5_OLD}, ${PRIVACY_S5_NEW})` })
+    .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_S5_OLD.slice(0, 60)}%`)));
   // Правила возврата: раздел о проверке товара (фото и видео, серийник, пломба, заключение мастера)
   await db
     .update(s.page)

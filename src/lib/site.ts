@@ -19,7 +19,7 @@ export const SELLER = {
   ogrnip: "325237500448706",
   legalAddress: "350011, г. Краснодар, ул. Обрывная, 132/1",
   actualAddress: "350051, г. Краснодар, ул. Шоссе Нефтяников, 40",
-  email: "oplatyabramovshop@gmail.com",
+  email: "shop@abramov.shop",
 } as const;
 
 /**
