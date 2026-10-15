@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { trackUrl } from "@/lib/cdek";
-import { num, prettyPhone, rub } from "@/lib/format";
+import { num, rub } from "@/lib/format";
 import { ORDER_STATUS } from "@/lib/order-status";
 import { SITE } from "@/lib/site";
 
@@ -285,11 +285,12 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
         .from(s.user)
         .where(and(inArray(s.user.role, ["OWNER", "MANAGER"]), isNotNull(s.user.telegramChatId)));
       const items = o.items.map((i) => `• ${esc(i.name)} × ${i.quantity}`).join("\n");
+      // Без имени, телефона, адреса и комментария: Telegram — иностранный сервис, персональные данные
+      // покупателей туда не передаём (152-ФЗ). Всё это — в админке по кнопке.
       const text =
         `🛒 <b>Новый заказ ${o.number}</b> — ${rub(o.total)}\n` +
-        `${esc(o.customerName)}, ${prettyPhone(o.phone)}\n` +
-        `${o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}: ${esc([o.city, o.address].filter(Boolean).join(", "))}\n\n${items}` +
-        (o.comment ? `\n\n💬 ${esc(o.comment)}` : "") +
+        `${o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}${o.city ? `, ${esc(o.city)}` : ""}\n\n${items}` +
+        (o.comment ? `\n\n💬 Есть комментарий покупателя — в админке` : "") +
         (extra?.note || o.cancelReason ? `\n\n⚠️ ${esc(extra?.note ?? o.cancelReason ?? "")}` : "");
       for (const a of admins) {
         if (a.chatId) await send(a.chatId, text, [{ text: "Открыть в админке", url: `${site}/admin/orders/${o.id}` }]).catch((e) => console.error("[telegram] админу:", e.message));
