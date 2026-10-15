@@ -8,6 +8,7 @@ import { Stars } from "@/components/product/Stars";
 import { StockAlert } from "@/components/product/StockAlert";
 import { approvedReviews, isFavorite, isSubscribed, myReview, ratingsFor, reviewableOrder, shortName } from "@/lib/reviews";
 import { SITE } from "@/lib/site";
+import { breadcrumbs, ldJson, og, shareImage, snippet } from "@/lib/seo";
 import { KeepBeta } from "@/components/RichText";
 import { notFound } from "next/navigation";
 import { PreviewBanner } from "@/components/PreviewBanner";
@@ -19,10 +20,32 @@ import { canView, isPublic } from "@/lib/visibility";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string; v?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const p = await getProductBySlug((await params).slug);
-  if (!p || !isPublic(p)) return { robots: { index: false } };
-  return { title: p.name, description: p.description.slice(0, 160) };
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const [{ slug }, { v }] = await Promise.all([params, searchParams]);
+  const p = await getProductBySlug(slug);
+  if (!p || !isPublic(p) || (p.category && !isPublic(p.category))) return { robots: { index: false } };
+  // Ссылка на вариант (?v=…) — в превью его фото и цена
+  const variant = p.variants.find((x) => x.id === v);
+  const photo = (variant && p.images.find((i) => i.variantId === variant.id)) ?? p.images.find((i) => !i.variantId) ?? p.images[0];
+  const prices = p.variants.map((x) => x.price ?? p.price);
+  const price = variant ? (variant.price ?? p.price) : prices.length ? Math.min(...prices) : p.price;
+  const priceText = `${variant || new Set(prices).size <= 1 ? "" : "от "}${Math.round(price / 100).toLocaleString("ru-RU")} ₽`;
+  const title = variant && p.variants.length > 1 ? `${p.name} — ${variant.name}` : p.name;
+  const description = snippet(p.description, `${p.name} в Abramov Shop. Доставка СДЭК по всей России, бонусы с каждой покупки.`);
+  const image = shareImage(photo?.url);
+  return {
+    title,
+    description,
+    alternates: { canonical: `/product/${p.slug}` },
+    openGraph: og({
+      url: `/product/${p.slug}${variant ? `?v=${variant.id}` : ""}`,
+      title: `${title} · ${priceText}`,
+      description,
+      images: image ? [{ url: image, alt: photo?.alt || p.name }] : undefined,
+    }),
+    twitter: { card: "summary_large_image" },
+    other: { "product:price:amount": (price / 100).toFixed(2), "product:price:currency": "RUB" },
+  };
 }
 
 export default async function ProductPage({ params, searchParams }: Props) {
@@ -55,16 +78,28 @@ export default async function ProductPage({ params, searchParams }: Props) {
     "@type": "Product",
     name: p.name,
     description: p.description.slice(0, 500),
-    image: p.images.map((i) => (i.url.startsWith("http") ? i.url : `${SITE.url}${i.url}`)),
+    image: p.images.map((i) => shareImage(i.url)!),
     sku: p.sku ?? undefined,
     brand: { "@type": "Brand", name: "Abramov Shop" },
-    offers: {
-      "@type": "Offer",
-      price: (p.price / 100).toFixed(2),
-      priceCurrency: "RUB",
-      availability: stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: `${SITE.url}/product/${p.slug}`,
-    },
+    // Несколько вариантов с разной ценой — диапазон цен
+    offers:
+      new Set(variants.map((v) => v.price)).size > 1
+        ? {
+            "@type": "AggregateOffer",
+            lowPrice: (Math.min(...variants.map((v) => v.price)) / 100).toFixed(2),
+            highPrice: (Math.max(...variants.map((v) => v.price)) / 100).toFixed(2),
+            offerCount: variants.length,
+            priceCurrency: "RUB",
+            availability: stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            url: `${SITE.url}/product/${p.slug}`,
+          }
+        : {
+            "@type": "Offer",
+            price: ((variants[0]?.price ?? p.price) / 100).toFixed(2),
+            priceCurrency: "RUB",
+            availability: stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            url: `${SITE.url}/product/${p.slug}`,
+          },
     ...(rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating.avg, reviewCount: rating.count } } : {}),
   };
 
@@ -174,7 +209,21 @@ export default async function ProductPage({ params, searchParams }: Props) {
           </div>
         </div>
       </section>
-      {isPublic(p) && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
+      {isPublic(p) && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />}
+      {isPublic(p) && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: ldJson(
+              breadcrumbs([
+                { name: "Каталог", url: "/catalog" },
+                ...(p.category ? [{ name: p.category.name, url: `/catalog/${p.category.slug}` }] : []),
+                { name: p.name, url: `/product/${p.slug}` },
+              ]),
+            ),
+          }}
+        />
+      )}
     </>
   );
 }

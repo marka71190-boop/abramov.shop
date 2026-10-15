@@ -6,6 +6,7 @@ import { CatalogView, parseCatalogParams, type RawSearch } from "@/components/ca
 import { PreviewBanner } from "@/components/PreviewBanner";
 import { db, schema as s } from "@/db";
 import { getViewer, isAdmin } from "@/lib/viewer";
+import { breadcrumbs, ldJson, og, shareImage, snippet } from "@/lib/seo";
 import { canView, isPublic } from "@/lib/visibility";
 
 type Props = {
@@ -20,10 +21,13 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   });
   if (!cat || !isPublic(cat)) return { robots: { index: false } };
   const filtered = Object.keys(sp).some((k) => k !== "preview");
+  const description = snippet(cat.description, `${cat.name} в Abramov Shop: доставка СДЭК по всей России, бонусы с каждой покупки.`);
+  const image = shareImage(cat.image);
   return {
     title: cat.name,
-    description: cat.description?.slice(0, 160) || `${cat.name} в Abramov Shop: доставка СДЭК по всей России, бонусы с каждой покупки.`,
+    description,
     alternates: { canonical: `/catalog/${cat.slug}` },
+    openGraph: og({ url: `/catalog/${cat.slug}`, title: `${cat.name} — Abramov Shop`, description, images: image ? [{ url: image, alt: cat.name }] : undefined }),
     robots: filtered || !isPublic(cat) ? { index: false, follow: true } : undefined,
   };
 }
@@ -61,6 +65,19 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           isAll={false}
         />
       </section>
+      {isPublic(cat) && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: ldJson(
+              breadcrumbs([
+                { name: "Каталог", url: "/catalog" },
+                { name: cat.name, url: `/catalog/${cat.slug}` },
+              ]),
+            ),
+          }}
+        />
+      )}
     </>
   );
 }

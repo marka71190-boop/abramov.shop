@@ -7,6 +7,8 @@ import { db, schema as s } from "@/db";
 import { getCurrentDocument } from "@/lib/consent";
 import { fmtDate } from "@/lib/format";
 import { getViewer, isAdmin } from "@/lib/viewer";
+import { og, snippet } from "@/lib/seo";
+import { SITE } from "@/lib/site";
 import { canView, isPublic } from "@/lib/visibility";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> };
@@ -18,7 +20,13 @@ async function load(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await load((await params).slug);
   if (!page || !isPublic(page)) return { robots: { index: false } };
-  return { title: page.seoTitle || page.title, description: page.seoDescription || undefined };
+  const description = page.seoDescription || snippet(page.body, SITE.description);
+  return {
+    title: page.seoTitle || page.title,
+    description,
+    alternates: { canonical: `/p/${page.slug}` },
+    openGraph: og({ url: `/p/${page.slug}`, title: page.seoTitle || page.title, description }),
+  };
 }
 
 export default async function ContentPage({ params, searchParams }: Props) {

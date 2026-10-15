@@ -10,6 +10,8 @@ import { num, rub } from "@/lib/format";
 import { favoriteIds, ratingsFor, shortName } from "@/lib/reviews";
 import { getSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
+import { ldJson } from "@/lib/seo";
+import { SITE } from "@/lib/site";
 
 type Card = Awaited<ReturnType<typeof getNewArrivals>>[number];
 
@@ -277,6 +279,29 @@ export default async function HomePage() {
           </a>
         </div>
       </section>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: ldJson([
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: SITE.name,
+              url: SITE.url,
+              logo: `${SITE.url}/icons/icon-512.png`,
+              sameAs: [`https://t.me/${settings.supportTelegram}`],
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: SITE.name,
+              url: SITE.url,
+              inLanguage: "ru",
+              potentialAction: { "@type": "SearchAction", target: `${SITE.url}/catalog?q={search_term_string}`, "query-input": "required name=search_term_string" },
+            },
+          ]),
+        }}
+      />
     </>
   );
 }

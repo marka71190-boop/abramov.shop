@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CatalogView, parseCatalogParams, type RawSearch } from "@/components/catalog/CatalogView";
+import { og } from "@/lib/seo";
 import { getViewer } from "@/lib/viewer";
 
 type Props = { searchParams: Promise<RawSearch> };
@@ -12,6 +13,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     title: q ? `Поиск: ${q.slice(0, 60)}` : "Каталог",
     description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка СДЭК по всей России, бонусы с каждой покупки.",
     alternates: { canonical: "/catalog" },
+    openGraph: og({ url: "/catalog", title: "Каталог — Abramov Shop", description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка СДЭК по всей России." }),
     // Страницы поиска и фильтров не нужны в выдаче — индексируется только сам каталог
     robots: filtered ? { index: false, follow: true } : undefined,
   };
