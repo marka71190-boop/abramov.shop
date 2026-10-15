@@ -26,6 +26,8 @@ import {
   PRIVACY_BODY,
   PRIVACY_COOKIE_NEW,
   PRIVACY_COOKIE_OLD,
+  RETURNS_HOWTO_NEW,
+  RETURNS_HOWTO_OLD,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 
@@ -74,6 +76,11 @@ async function main() {
       .where(and(eq(s.page.slug, p.slug), like(s.page.body, "## Черновик%")));
   }
   await ensurePage({ slug: "privacy", title: "Политика конфиденциальности", body: PRIVACY_BODY, visibility: "PUBLISHED", sortOrder: 4 });
+  // Правила возврата: заявка из личного кабинета и срок рассмотрения 7 дней (правки из админки сохраняются)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${RETURNS_HOWTO_OLD}, ${RETURNS_HOWTO_NEW})` })
+    .where(and(eq(s.page.slug, "returns"), like(s.page.body, `%${RETURNS_HOWTO_OLD}%`)));
   // Раздел о cookie: дописываем Яндекс Метрику (остальные правки из админки сохраняются)
   await db
     .update(s.page)

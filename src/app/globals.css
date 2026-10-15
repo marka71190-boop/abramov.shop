@@ -2771,3 +2771,84 @@ h3 {
   border: 1px solid var(--c-line);
   background: #0a0a0a;
 }
+
+/* ---------- Возвраты ---------- */
+.rform fieldset {
+  margin: 0;
+  min-width: 0;
+}
+.rform legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 4px;
+}
+.rform legend + * {
+  clear: both;
+}
+.vchip[aria-pressed="true"] {
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+  color: var(--c-gold);
+}
+button.vchip {
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  min-height: 38px;
+  padding: 0 14px;
+}
+.rlist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rcard {
+  border: 1px solid var(--c-line);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rcard__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rcard__answer {
+  border-left: 2px solid var(--c-gold);
+  padding: 6px 0 6px 12px;
+  white-space: pre-line;
+  font-size: 14px;
+}
+.rphotos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rphotos img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--c-line);
+}
+/* Переключатель «один из» — круглый, с точкой */
+.check input[type="radio"] {
+  border-radius: 50%;
+}
+.check input[type="radio"]:checked {
+  background: var(--c-bg);
+}
+.check input[type="radio"]:checked::after {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--c-gold);
+  transform: none;
+}
+.check input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

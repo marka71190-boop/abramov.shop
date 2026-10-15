@@ -12,6 +12,8 @@ import { isAdmin, requireUser } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { PurchaseTracker } from "@/components/analytics/PurchaseTracker";
 import { AutoRefresh, CancelButton, TestPayButton } from "./OrderActions";
+import { ReturnCard } from "@/components/returns/ReturnCard";
+import { listReturns, returnable } from "@/lib/returns";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -29,7 +31,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     o = (await db.query.order.findFirst({ where: eq(s.order.id, o.id) }))!;
   }
 
-  const [items, settings, payUrl] = await Promise.all([
+  const [items, settings, payUrl, returns, canReturn] = await Promise.all([
     db.query.orderItem.findMany({
       where: eq(s.orderItem.orderId, o.id),
       orderBy: asc(s.orderItem.name),
@@ -37,6 +39,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
     }),
     getSettings(),
     o.status === "AWAITING_PAYMENT" ? getPayUrl(o.id) : null,
+    listReturns({ orderId: o.id }),
+    o.status === "DELIVERED" && o.userId === user.id ? returnable(o.id).then((r) => !!r?.allowed) : false,
   ]);
 
   const st = ORDER_STATUS[o.status];
@@ -165,6 +169,30 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <span>{rub(o.total)}</span>
           </div>
         </div>
+
+        {(canReturn || returns.length > 0) && (
+          <div className="panel stack" id="returns">
+            <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <h2 style={{ margin: 0 }}>Возврат и обмен</h2>
+              {canReturn && (
+                <Link href={`/order/${o.number}/return`} className="btn btn--line btn--sm">
+                  Оформить возврат или обмен
+                </Link>
+              )}
+            </div>
+            {returns.length > 0 ? (
+              <div className="rlist">
+                {returns.map((r) => (
+                  <ReturnCard key={r.id} r={r} showOrder={false} />
+                ))}
+              </div>
+            ) : (
+              <p className="muted small" style={{ margin: 0 }}>
+                Не подошёл товар — вернуть можно в течение 7 дней после получения. Брак или повреждение — в течение 2 лет.
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="panel stack">
           <h2 style={{ margin: 0 }}>Доставка</h2>

@@ -18,6 +18,8 @@ import { getPublicProductsByIds } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { telegramEnabled } from "@/lib/telegram";
 import { isPlaceholderEmail } from "@/lib/site";
+import { ReturnCard } from "@/components/returns/ReturnCard";
+import { listReturns } from "@/lib/returns";
 
 export const metadata: Metadata = { title: "Личный кабинет", robots: { index: false } };
 
@@ -83,6 +85,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const burning = await expiringSoon(user.id, user.bonusBalance, 30);
   const favRows = await db.query.favorite.findMany({ where: eq(s.favorite.userId, user.id), orderBy: desc(s.favorite.createdAt), limit: 24 });
   const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
+  const returns = await listReturns({ userId: user.id });
   const favRatings = await ratingsFor(favorites.map((f) => f.id));
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
@@ -95,6 +98,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </Link>
         <Link href="#orders">Заказы</Link>
         <Link href="#bonus">Бонусы</Link>
+        {returns.length > 0 && <Link href="#returns">Возвраты</Link>}
         <Link href="#favorites">Избранное</Link>
         <Link href="#settings">Настройки</Link>
         <SignOutButton>Выйти</SignOutButton>
@@ -208,6 +212,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             })
           )}
         </section>
+
+        {returns.length > 0 && (
+          <section id="returns" className="panel">
+            <h2>Возвраты и обмены</h2>
+            <div className="rlist">
+              {returns.map((r) => (
+                <ReturnCard key={r.id} r={r} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {favorites.length > 0 && (
           <section id="favorites" className="panel">

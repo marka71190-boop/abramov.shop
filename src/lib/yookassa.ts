@@ -129,10 +129,12 @@ export async function createRefund(p: {
   orderId: string;
   customer: ReceiptCustomer;
   receipt: ReceiptLine[];
+  /** Для частичных возвратов (по заявке) — свой ключ, иначе ЮKassa вернёт результат первого возврата */
+  idempotenceKey?: string;
 }): Promise<YkRefund> {
   const body: Record<string, unknown> = { payment_id: p.paymentId, amount: money(p.amount) };
   if (sendReceipt()) body.receipt = buildReceipt(p.customer, p.receipt);
-  return request<YkRefund>("/refunds", { method: "POST", body, idempotenceKey: `refund-${p.orderId}` });
+  return request<YkRefund>("/refunds", { method: "POST", body, idempotenceKey: p.idempotenceKey ?? `refund-${p.orderId}` });
 }
 
 /**

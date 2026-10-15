@@ -579,6 +579,54 @@ export const setting = pgTable("setting", {
 });
 
 // ============================================================
+// Возвраты и обмены: заявка из личного кабинета, рассматриваем в течение 7 дней
+// ============================================================
+
+export const returnKindEnum = pgEnum("return_kind", ["QUALITY", "DEFECT"]); // не подошёл / брак, повреждение, пересорт
+export const returnResolutionEnum = pgEnum("return_resolution", ["REFUND", "EXCHANGE", "DISCOUNT"]);
+export const returnStatusEnum = pgEnum("return_status", ["NEW", "APPROVED", "RECEIVED", "COMPLETED", "REJECTED", "CANCELLED"]);
+
+export const returnRequest = pgTable(
+  "return_request",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // RT-261015-7QX4
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    kind: returnKindEnum("kind").notNull(),
+    resolution: returnResolutionEnum("resolution").default("REFUND").notNull(), // чего хочет покупатель
+    reason: text("reason").notNull(),
+    comment: text("comment").default("").notNull(),
+    photos: text("photos").array().default([]).notNull(),
+    status: returnStatusEnum("status").default("NEW").notNull(),
+    decisionDue: ts("decision_due").notNull(), // до какого числа ответить (7 дней)
+    answer: text("answer"), // ответ магазина: инструкция по отправке или причина отказа
+    refundAmount: integer("refund_amount"), // копейки, сколько вернули
+    bonusReturned: integer("bonus_returned"), // бонусов вернули на счёт
+    restocked: boolean("restocked").default(false).notNull(),
+    handledById: text("handled_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").defaultNow().notNull(),
+    resolvedAt: ts("resolved_at"),
+    dueReminderAt: ts("due_reminder_at"),
+  },
+  (t) => [index("return_request_status_idx").on(t.status), index("return_request_order_idx").on(t.orderId)],
+);
+
+export const returnItem = pgTable("return_item", {
+  id: id(),
+  requestId: text("request_id")
+    .notNull()
+    .references(() => returnRequest.id, { onDelete: "cascade" }),
+  orderItemId: text("order_item_id")
+    .notNull()
+    .references(() => orderItem.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull(),
+});
+
+// ============================================================
 // Корзина вошедшего покупателя на сервере: одна на всех устройствах и для напоминаний о брошенной корзине
 // ============================================================
 
@@ -667,6 +715,17 @@ export const auditLog = pgTable(
 // Связи (для удобных запросов db.query.*)
 // ============================================================
 
+export const returnRequestRelations = relations(returnRequest, ({ one, many }) => ({
+  order: one(order, { fields: [returnRequest.orderId], references: [order.id] }),
+  user: one(user, { fields: [returnRequest.userId], references: [user.id] }),
+  items: many(returnItem),
+}));
+
+export const returnItemRelations = relations(returnItem, ({ one }) => ({
+  request: one(returnRequest, { fields: [returnItem.requestId], references: [returnRequest.id] }),
+  orderItem: one(orderItem, { fields: [returnItem.orderItemId], references: [orderItem.id] }),
+}));
+
 export const campaignRelations = relations(campaign, ({ one, many }) => ({
   promo: one(promoCode, { fields: [campaign.promoCodeId], references: [promoCode.id] }),
   createdBy: one(user, { fields: [campaign.createdById], references: [user.id] }),
@@ -696,6 +755,7 @@ export const orderRelations = relations(order, ({ one, many }) => ({
   promo: one(promoCode, { fields: [order.promoCodeId], references: [promoCode.id] }),
   items: many(orderItem),
   payments: many(payment),
+  returns: many(returnRequest),
 }));
 
 export const orderItemRelations = relations(orderItem, ({ one }) => ({
