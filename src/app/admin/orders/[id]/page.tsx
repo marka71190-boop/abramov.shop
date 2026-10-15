@@ -50,6 +50,18 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         </span>
       </div>
       {o.cancelReason && <div className="notice notice--muted" style={{ margin: 0 }}>{o.cancelReason}</div>}
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <span className="muted small">Печать:</span>
+        <a className="btn btn--line btn--sm" href={`/print/orders?ids=${o.id}&doc=all&auto=1`} target="_blank" rel="noreferrer">
+          Лист + листовка
+        </a>
+        <a className="btn btn--line btn--sm" href={`/print/orders?ids=${o.id}&doc=packing&auto=1`} target="_blank" rel="noreferrer">
+          Сборочный лист
+        </a>
+        <a className="btn btn--line btn--sm" href={`/print/orders?ids=${o.id}&doc=insert&auto=1`} target="_blank" rel="noreferrer">
+          Листовка в посылку
+        </a>
+      </div>
 
       <OrderControls
         id={o.id}

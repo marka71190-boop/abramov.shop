@@ -2888,3 +2888,278 @@ button.vchip {
   content: "✓ ";
   color: var(--c-success);
 }
+
+/* ---------- Печать: сборочный лист и листовка ---------- */
+body:has(.print-root) {
+  background: #e9e9ea;
+  color: #111;
+}
+.print-root {
+  color: #111;
+  font-family: var(--font-body);
+  padding: 72px 0 40px;
+}
+.print-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  background: #0a0a0a;
+  color: #f3f2ef;
+  font-size: 14px;
+}
+.sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 24px;
+  padding: 14mm 14mm 12mm;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.sheet__head,
+.insert__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 2px solid #111;
+  padding-bottom: 12px;
+}
+.sheet__label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+}
+.sheet__number {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.sheet__muted {
+  color: #666;
+  font-size: 12px;
+}
+.sheet__qr {
+  width: 26mm;
+  height: 26mm;
+  flex: none;
+}
+.sheet__qr svg,
+.insert__qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sheet__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.sheet__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sheet__table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #666;
+  border-bottom: 1px solid #111;
+  padding: 6px 6px 6px 0;
+}
+.sheet__table td {
+  border-bottom: 1px solid #ccc;
+  padding: 6px 6px 6px 0;
+  vertical-align: middle;
+}
+.sheet__table img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  display: block;
+}
+.sheet__qty {
+  font-size: 18px;
+  font-weight: 700;
+}
+.box {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #111;
+  vertical-align: -2px;
+  position: relative;
+}
+.box--on::after {
+  content: "✓";
+  position: absolute;
+  inset: -4px 0 0 1px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.sheet__checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2;
+  column-gap: 24px;
+}
+.sheet__checks li {
+  padding: 3px 0;
+  break-inside: avoid;
+}
+.line {
+  min-height: 22px;
+  border-bottom: 1px solid #111;
+  font-size: 15px;
+  font-weight: 600;
+}
+.sheet__note {
+  border: 1px solid #111;
+  padding: 8px 10px;
+}
+.sheet__sign {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  padding-top: 12px;
+}
+/* Листовка — половина А4 (148 мм): на одном листе помещаются две, разрезать по пунктиру */
+.sheet--insert {
+  font-size: 12.5px;
+  gap: 10px;
+  min-height: 148.5mm;
+  height: 148.5mm;
+  padding: 9mm 12mm 8mm;
+  overflow: hidden;
+}
+.insert__head {
+  justify-content: flex-start;
+  align-items: center;
+  padding-bottom: 8px;
+}
+.insert__head .logo {
+  width: 48px;
+  height: auto;
+}
+.insert__head .logo__gold {
+  fill: #b8975a;
+}
+.insert__head .logo__silver {
+  fill: #9a9899;
+}
+.insert__head .logo__word {
+  display: none;
+}
+.insert__brand {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+}
+.insert__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  margin: 6px 0 0;
+}
+.sheet--insert p {
+  margin: 0;
+}
+.insert__qr {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  border: 2px solid #111;
+  padding: 10px;
+}
+.insert__qr > div:first-child {
+  width: 26mm;
+  height: 26mm;
+  flex: none;
+}
+.insert__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.insert__cols h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+.insert__tip {
+  background: #f1efe9;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.insert__foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: #444;
+  border-top: 1px solid #ccc;
+  padding-top: 6px;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body:has(.print-root) {
+    background: #fff;
+  }
+  .print-root {
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+    min-height: 297mm;
+    break-inside: avoid;
+  }
+  /* Сборочный лист — всегда с новой страницы; листовки идут по две на страницу */
+  .sheet:not(.sheet--insert) {
+    break-before: page;
+  }
+  .sheet--insert {
+    min-height: 148.5mm;
+    border-bottom: 1px dashed #999;
+  }
+}
+@media screen and (max-width: 860px) {
+  .sheet {
+    width: auto;
+    min-height: 0;
+    margin: 0 8px 16px;
+    padding: 16px;
+  }
+}

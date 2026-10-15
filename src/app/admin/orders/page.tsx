@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDateTime, prettyPhone, rub } from "@/lib/format";
@@ -39,17 +39,26 @@ export default async function OrdersPage({ searchParams }: Props) {
   if (status && status in ORDER_STATUS) conds.push(eq(s.order.status, status as OrderStatus));
   const where = conds.length ? and(...conds) : undefined;
 
-  const [rows, total, paidCount] = await Promise.all([
+  const [rows, total, paidCount, toPack] = await Promise.all([
     db.query.order.findMany({ where, orderBy: desc(s.order.createdAt), limit: PER_PAGE, offset: (pageNum - 1) * PER_PAGE, with: { items: { columns: { quantity: true } } } }),
     db.$count(s.order, where),
     db.$count(s.order, eq(s.order.status, "PAID")),
+    // Всё, что нужно собрать: оплачено или уже собирается
+    db.select({ id: s.order.id }).from(s.order).where(inArray(s.order.status, ["PAID", "ASSEMBLING"])).orderBy(desc(s.order.paidAt)).limit(100),
   ]);
   const pages = Math.max(1, Math.ceil(total / PER_PAGE));
   const qs = (p: Record<string, string>) => `?${new URLSearchParams({ q, status, page: "1", ...p })}`;
 
   return (
     <>
-      <h1>Заказы</h1>
+      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <h1 style={{ margin: 0 }}>Заказы</h1>
+        {toPack.length > 0 && (
+          <a className="btn btn--line btn--sm" href={`/print/orders?ids=${toPack.map((r) => r.id).join(",")}&doc=all`} target="_blank" rel="noreferrer">
+            Распечатать к отправке · {toPack.length}
+          </a>
+        )}
+      </div>
       <nav className="tabs" aria-label="Статус">
         {TABS.map((t) => (
           <Link key={t.key} href={qs({ status: t.key })} aria-current={status === t.key ? "page" : undefined}>
