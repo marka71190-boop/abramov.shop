@@ -63,6 +63,14 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>
         </div>
       )}
+      {settings.pdPause &&
+        (admin ? (
+          <div className="notice">
+            Приём заказов и регистрация на паузе — покупатели видят только каталог. <a href="/admin/settings#pd-pause">Выключить</a>
+          </div>
+        ) : (
+          <div className="notice">{settings.pdPauseMessage}</div>
+        ))}
       <div className="ban-shell" inert={ban ? true : undefined}>
         <Header signedIn={!!viewer} admin={admin} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>

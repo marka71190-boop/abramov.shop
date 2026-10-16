@@ -12,6 +12,7 @@ import { z } from "zod";
 import { CONSENT_COOKIE, CONSENT_TTL_MIN, recordConsent } from "@/lib/consent";
 import { normalizePhone } from "@/lib/format";
 import { metaFromHeaders } from "@/lib/request";
+import { getSettings } from "@/lib/settings";
 
 const Body = z.object({
   personalData: z.literal(true, { message: "Нужно согласие на обработку персональных данных" }),
@@ -34,6 +35,8 @@ function tooMany(ip: string | null) {
 }
 
 export async function POST(req: Request) {
+  // Пауза приёма данных: ничего не записываем
+  if ((await getSettings()).pdPause) return NextResponse.json({ error: "Регистрация временно закрыта" }, { status: 403 });
   const meta = metaFromHeaders(req.headers);
   if (tooMany(meta.ip)) return NextResponse.json({ error: "Слишком много попыток, подождите немного" }, { status: 429 });
 

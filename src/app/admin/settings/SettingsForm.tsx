@@ -20,6 +20,21 @@ export function SettingsForm({ s }: { s: SiteSettings }) {
         </label>
       </div>
 
+      <div className="panel stack" id="pd-pause">
+        <h2 style={{ marginBottom: 0 }}>Пауза приёма заказов</h2>
+        <label className="check">
+          <input type="checkbox" name="pdPause" defaultChecked={s.pdPause} />
+          <span>
+            Закрыть регистрацию и оформление заказов — сайт перестаёт собирать персональные данные. Каталог и цены видны всем, админы могут
+            входить и работать
+          </span>
+        </label>
+        <label className="field">
+          Текст на сайте и на странице оформления
+          <input className="input" name="pdPauseMessage" defaultValue={s.pdPauseMessage} maxLength={500} required />
+        </label>
+      </div>
+
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Поддержка</h2>
         <div className="form-grid">

@@ -159,7 +159,12 @@ export const auth = betterAuth({
          * Отметка записывается в журнал в момент нажатия галочки (/api/consent),
          * а здесь мы проверяем её по cookie — и для регистрации по почте, и для Google.
          */
-        before: async (_user, ctx) => {
+        before: async (newUser, ctx) => {
+          // Пауза приёма данных (админка → Настройки): новые аккаунты не создаются, кроме владельца
+          const { getSettings } = await import("@/lib/settings");
+          if ((await getSettings()).pdPause && !(ownerEmail && newUser.email?.toLowerCase() === ownerEmail)) {
+            throw new APIError("FORBIDDEN", { code: "REGISTRATION_PAUSED", message: "Регистрация временно закрыта" });
+          }
           const token = ctx?.getCookie(CONSENT_COOKIE);
           const pending = token ? await findPendingConsent(token) : null;
           if (!pending) {

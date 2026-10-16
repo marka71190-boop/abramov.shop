@@ -25,6 +25,19 @@ export default async function CheckoutPage() {
     db.select().from(s.page).where(inArray(s.page.slug, ["offer", "returns"])),
   ]);
   const published = (slug: string) => docs.some((d) => d.slug === slug && isPublic(d));
+  if (settings.pdPause && !isAdmin(user)) {
+    return (
+      <section className="container page-pad">
+        <h1 className="h2" style={{ marginBottom: 28 }}>
+          Оформление
+        </h1>
+        <div className="notice">{settings.pdPauseMessage}</div>
+        <p className="muted">
+          Корзина сохранится. Вопросы — в Telegram <a href={`https://t.me/${settings.supportTelegram}`}>@{settings.supportTelegram}</a>.
+        </p>
+      </section>
+    );
+  }
   const payments = yookassaEnabled();
 
   return (

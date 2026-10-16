@@ -8,6 +8,9 @@ export type TierKey = "SILVER" | "GOLD" | "BLACK";
 export interface SiteSettings {
   maintenance: boolean;
   maintenanceMessage: string;
+  /** Пауза сбора персональных данных: закрыты регистрация и оформление заказов, каталог открыт */
+  pdPause: boolean;
+  pdPauseMessage: string;
   supportTelegram: string; // без @
   supportEmail: string;
   loyalty: {
@@ -43,6 +46,8 @@ export interface SiteSettings {
 export const DEFAULT_SETTINGS: SiteSettings = {
   maintenance: false,
   maintenanceMessage: "Мы обновляем магазин. Совсем скоро вернёмся!",
+  pdPause: false,
+  pdPauseMessage: "Приём заказов и регистрация временно приостановлены. Каталог открыт — скоро снова начнём принимать заказы.",
   supportTelegram: "abramov_shop1",
   supportEmail: "shop@abramov.shop",
   loyalty: {

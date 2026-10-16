@@ -204,6 +204,8 @@ export async function deletePage(id: string) {
 const SettingsInput = z.object({
   maintenance: z.string().optional(),
   maintenanceMessage: z.string().trim().max(500),
+  pdPause: z.string().optional(),
+  pdPauseMessage: z.string().trim().min(5, "Напишите текст для покупателей о паузе").max(500),
   supportTelegram: z
     .string()
     .trim()
@@ -235,6 +237,8 @@ export async function updateSettings(_: ActionState, form: FormData): Promise<Ac
     ...cur,
     maintenance: d.maintenance === "on",
     maintenanceMessage: d.maintenanceMessage,
+    pdPause: d.pdPause === "on",
+    pdPauseMessage: d.pdPauseMessage,
     supportTelegram: d.supportTelegram,
     supportEmail: d.supportEmail,
     loyalty: {

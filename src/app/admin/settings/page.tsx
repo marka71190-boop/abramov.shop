@@ -11,7 +11,9 @@ import { SITE } from "@/lib/site";
 import { requireAdmin } from "@/lib/viewer";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
 import { driveStatus, redirectUri } from "@/lib/gdrive";
+import { purgePreview } from "@/lib/pd-purge";
 import { DriveDisconnect } from "./DriveDisconnect";
+import { PurgeForm } from "./PurgeForm";
 import { SettingsForm } from "./SettingsForm";
 import { ShopSettingsForm } from "./ShopSettingsForm";
 
@@ -26,7 +28,7 @@ const DRIVE_MSG: Record<string, { ok: boolean; text: string }> = {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ drive?: string }> }) {
   const me = await requireAdmin("OWNER");
   const { drive: driveMsg } = await searchParams;
-  const drive = await driveStatus();
+  const [drive, purge] = await Promise.all([driveStatus(), purgePreview(me.id)]);
   const [settings, origin] = await Promise.all([getSettings(), getOrigin(SITE.url)]);
   const yk = yookassaEnabled();
   const tg = telegramEnabled();
@@ -169,6 +171,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <ShopSettingsForm s={settings} />
       <SettingsForm s={settings} />
+
+      <div className="panel stack" id="pd-purge">
+        <h2 style={{ marginBottom: 0 }}>Удаление персональных данных</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Удаляет все аккаунты, кроме вашего ({me.email}), — вместе с менеджерами, бонусами, адресами, избранным, отзывами, корзинами,
+          подписками и журналом согласий. Заказы остаются для учёта (товары, суммы, статусы, трек), но имя, телефон, почта, адрес и
+          комментарий в них стираются. В заявках на возврат стираются комментарий и фото покупателя. <b>Отменить нельзя.</b>
+        </p>
+        <p className="small" style={{ margin: 0 }}>
+          Будет удалено аккаунтов: <b>{purge.users}</b>, записей о согласиях: <b>{purge.consents}</b>, отзывов: <b>{purge.reviews}</b>. Будет
+          обезличено заказов: <b>{purge.orders}</b>, заявок на возврат: <b>{purge.returns}</b>.
+        </p>
+        {!!purge.active && (
+          <div className="notice">
+            Есть заказы в работе: {purge.active}. После удаления в них не будет имени, телефона и адреса — СДЭК-отправление не создать.
+            Сначала отправьте или отмените их: <Link href="/admin/orders">Заказы</Link>.
+          </div>
+        )}
+        {!settings.pdPause && <div className="notice notice--muted">Сначала включите «Пауза приёма заказов» выше и сохраните настройки.</div>}
+        <PurgeForm />
+      </div>
     </>
   );
 }
