@@ -65,9 +65,9 @@ export interface ReceiptLine {
   name: string;
   quantity: number;
   price: number; // копейки за 1 шт. — уже со скидкой
-  /** payment — «платёж»: подарочный сертификат (аванс) */
-  kind: "commodity" | "service" | "payment";
-  /** advance — аванс (продажа сертификата); по умолчанию полный расчёт */
+  /** another — «иной предмет расчёта»: подарочный сертификат */
+  kind: "commodity" | "service" | "another";
+  /** По умолчанию — полный расчёт */
   mode?: "full_payment" | "advance";
 }
 
@@ -141,26 +141,6 @@ export async function createPaymentFor(p: {
   }
   if (!payment.confirmation?.confirmation_url) throw new Error("ЮKassa не вернула ссылку на оплату");
   return payment;
-}
-
-/**
- * Чек зачёта аванса: покупатель оплатил заказ подарочным сертификатом, купленным на сайте.
- * Привязывается к платежу, которым купили сертификат. Без «Чеков от ЮKassa» не отправляется.
- */
-export async function createPrepaymentReceipt(p: {
-  paymentId: string;
-  amount: number;
-  customer: ReceiptCustomer;
-  lines: ReceiptLine[];
-  idempotenceKey: string;
-}): Promise<{ id: string; status: string } | null> {
-  if (!sendReceipt()) return null;
-  const r = buildReceipt(p.customer, p.lines);
-  return request<{ id: string; status: string }>("/receipts", {
-    method: "POST",
-    body: { type: "payment", payment_id: p.paymentId, send: true, customer: r.customer, items: r.items, settlements: [{ type: "prepayment", amount: money(p.amount) }] },
-    idempotenceKey: p.idempotenceKey,
-  });
 }
 
 export function getPayment(id: string) {

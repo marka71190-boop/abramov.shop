@@ -94,7 +94,6 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
                   <th>Заказ</th>
                   <th>Сумма</th>
                   <th>Когда</th>
-                  <th>Чек зачёта аванса</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,19 +108,6 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
                       {u.reversedAt && <div className="muted small">вернулось на сертификат {fmtDate(u.reversedAt)}</div>}
                     </td>
                     <td className="small">{fmtDateTime(u.createdAt)}</td>
-                    <td className="small">
-                      {c.source !== "SITE"
-                        ? "не нужен — выпущен в админке"
-                        : u.receiptId
-                          ? u.receiptId === "not-required"
-                            ? "чеки ЮKassa выключены"
-                            : `отправлен · ${u.receiptId}`
-                          : u.receiptError
-                            ? <span style={{ color: "var(--c-danger)" }}>не отправлен: {u.receiptError}. Повторим автоматически</span>
-                            : u.reversedAt
-                              ? "—"
-                              : "после оплаты заказа"}
-                    </td>
                   </tr>
                 ))}
               </tbody>

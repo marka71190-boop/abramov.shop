@@ -33,6 +33,7 @@ import {
   RETURNS_CHECK_SECTION,
   RETURNS_HOWTO_OLD,
   OFFER_GIFT_ANCHOR,
+  OFFER_GIFT_FIXES,
   OFFER_GIFT_SECTION,
   PRIVACY_GIFT_ANCHOR,
   PRIVACY_GIFT_LINE,
@@ -121,6 +122,12 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${OFFER_GIFT_ANCHOR}, ${OFFER_GIFT_SECTION + OFFER_GIFT_ANCHOR})` })
     .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%## 8.1. Подарочные сертификаты%'`));
+  for (const [from, to] of OFFER_GIFT_FIXES) {
+    await db
+      .update(s.page)
+      .set({ body: sql`replace(${s.page.body}, ${from}, ${to})` })
+      .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${from}%`)));
+  }
   // Текст согласия берётся из текущей редакции в журнале согласий, страница — только «обложка»
   await ensurePage({ slug: "consent", title: CONSENT_PD_TITLE, body: "", visibility: "PUBLISHED", sortOrder: 5 });
   await ensurePage({ slug: "marketing-consent", title: CONSENT_MARKETING_TITLE, body: "", visibility: "PUBLISHED", showInFooter: false, sortOrder: 6 });

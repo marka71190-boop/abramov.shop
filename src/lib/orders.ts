@@ -10,7 +10,7 @@ import "server-only";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
-import { chargeGift, rechargeGift, releaseGift, sendGiftReceipts, splitGift } from "@/lib/giftcards";
+import { chargeGift, rechargeGift, releaseGift, splitGift } from "@/lib/giftcards";
 import { cdekEnabled, CDEK_IN_TRANSIT, createShipment, getShipment, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
 import { notifyOrder } from "@/lib/telegram";
@@ -320,7 +320,6 @@ export async function markPaid(orderId: string, source: string) {
   });
   if (changed) {
     await notifyOrder(orderId, "paid");
-    await sendGiftReceipts(orderId).catch((e) => console.error("[gift] чек зачёта:", e));
   }
 }
 

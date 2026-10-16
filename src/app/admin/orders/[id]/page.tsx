@@ -183,7 +183,6 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                   <tr>
                     <td colSpan={3} className="muted">
                       Оплачено сертификатом{giftUses.length ? ` ${giftUses.map((u) => u.giftCard.code).join(", ")}` : ""}
-                      {giftUses.some((u) => u.receiptError) ? " · чек зачёта не отправлен, повторим автоматически" : ""}
                     </td>
                     <td>−{rub(o.giftCardAmount)}</td>
                   </tr>

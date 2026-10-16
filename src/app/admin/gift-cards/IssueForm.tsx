@@ -49,7 +49,7 @@ export function IssueForm({ defaultExpires }: { defaultExpires: string }) {
         <input className="input" name="note" maxLength={300} />
       </label>
       <p className="muted small" style={{ margin: 0 }}>
-        Сертификат из админки сразу действует. Если вы продаёте его за наличные или переводом — чек на аванс пробейте сами: сайт его не отправит.
+        Сертификат из админки сразу действует. Если вы продаёте его за наличные или переводом — чек пробейте сами: сайт его не отправит.
       </p>
       {state.error && <div className="form-error">{state.error}</div>}
       <div>

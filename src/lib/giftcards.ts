@@ -1,14 +1,14 @@
 /**
  * Подарочные сертификаты.
  *
- *   покупка на сайте → PENDING (ждём оплату в ЮKassa, чек «аванс»)
+ *   покупка на сайте → PENDING (ждём оплату в ЮKassa; чек — полный расчёт, «иной предмет расчёта»)
  *     ├─ оплачен → ACTIVE: письмо покупателю, письмо получателю (сразу или в выбранный день)
  *     └─ не оплачен вовремя → VOID
  *   выпуск в админке → сразу ACTIVE
  *
  * Оплата заказа: сумма списывается с баланса при оформлении (gift_card_use), при отмене
- * или возврате заказа возвращается на сертификат. Когда заказ оплачен — по сертификатам,
- * купленным на сайте, отправляется чек зачёта аванса (привязан к платежу за сертификат).
+ * или возврате заказа возвращается на сертификат. В чеке заказа сертификат — скидка:
+ * в чек попадает только то, что покупатель доплатил онлайн (так решил бухгалтер).
  *
  * Все суммы — в копейках. Один сертификат на заказ.
  */
@@ -24,11 +24,9 @@ import { SITE } from "@/lib/site";
 import type { UserRow } from "@/lib/viewer";
 import {
   createPaymentFor,
-  createPrepaymentReceipt,
   createRefund,
   fromMoney,
   getPayment,
-  receiptLines,
   yookassaEnabled,
   type ReceiptLine,
   type YkPayment,
@@ -167,52 +165,6 @@ export async function rechargeGift(tx: Tx, orderId: string) {
   return true;
 }
 
-// ---------- Чек зачёта аванса
-
-/** Отправить чеки зачёта по оплаченному заказу (повторно безопасно). */
-export async function sendGiftReceipts(orderId: string) {
-  const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true } });
-  if (!o || o.giftCardAmount <= 0 || !["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status)) return;
-  const uses = await db.query.giftCardUse.findMany({
-    where: and(eq(s.giftCardUse.orderId, orderId), isNull(s.giftCardUse.reversedAt), isNull(s.giftCardUse.receiptId)),
-    with: { giftCard: true },
-  });
-  for (const u of uses) {
-    if (!u.giftCard.paymentId || !yookassaEnabled()) continue; // выпущен в админке — чек не нужен
-    const split = splitGift({ total: o.total, shippingCost: o.shippingCost, giftCardAmount: u.amount });
-    const lines = receiptLines(
-      o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
-      split.certGoods,
-      split.certShip,
-    );
-    try {
-      const r = await createPrepaymentReceipt({
-        paymentId: u.giftCard.paymentId,
-        amount: u.amount,
-        customer: { email: o.email, phone: o.phone },
-        lines,
-        idempotenceKey: `gift-receipt-${u.id}`,
-      });
-      await db.update(s.giftCardUse).set({ receiptId: r?.id ?? "not-required", receiptError: null }).where(eq(s.giftCardUse.id, u.id));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[gift] чек зачёта для ${o.number}:`, msg);
-      await db.update(s.giftCardUse).set({ receiptError: msg.slice(0, 300) }).where(eq(s.giftCardUse.id, u.id));
-    }
-  }
-}
-
-/** Фоновая задача: повторить чеки зачёта, которые не отправились. */
-export async function retryGiftReceipts() {
-  const rows = await db
-    .select({ orderId: s.giftCardUse.orderId })
-    .from(s.giftCardUse)
-    .innerJoin(s.order, eq(s.order.id, s.giftCardUse.orderId))
-    .where(and(isNull(s.giftCardUse.receiptId), isNull(s.giftCardUse.reversedAt), inArray(s.order.status, ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"])))
-    .limit(50);
-  for (const r of new Set(rows.map((x) => x.orderId))) await sendGiftReceipts(r);
-}
-
 // ---------- Покупка на сайте
 
 export interface BuyInput {
@@ -232,12 +184,13 @@ export async function allowedAmount(amount: number) {
   return g.customMin > 0 && Number.isInteger(rubles) && rubles >= g.customMin && rubles <= g.customMax;
 }
 
-const advanceLine = (amount: number): ReceiptLine => ({
+/** Чек продажи сертификата: полный расчёт, «иной предмет расчёта» (так решил бухгалтер). При оплате заказа сертификат — скидка. */
+const certificateLine = (amount: number): ReceiptLine => ({
   name: `Подарочный сертификат Abramov Shop на ${rub(amount)}`,
   quantity: 1,
   price: amount,
-  kind: "payment",
-  mode: "advance",
+  kind: "another",
+  mode: "full_payment",
 });
 
 export async function buyGiftCard(user: UserRow, input: BuyInput, origin: string) {
@@ -268,7 +221,7 @@ export async function buyGiftCard(user: UserRow, input: BuyInput, origin: string
       description: `Подарочный сертификат Abramov Shop на ${rub(card.initialAmount)}`,
       metadata: { shop: "abramov.shop", asGiftId: card.id },
       customer: { email: input.email },
-      receipt: [advanceLine(card.initialAmount)],
+      receipt: [certificateLine(card.initialAmount)],
     });
     await db
       .update(s.giftCard)
@@ -390,7 +343,7 @@ export async function refundGiftCard(cardId: string) {
       amount,
       orderId: card.id,
       customer: { email: card.buyerEmail ?? "" },
-      receipt: [advanceLine(amount)],
+      receipt: [certificateLine(amount)],
       idempotenceKey: `gift-refund-${card.id}`,
     });
     if (r.status === "canceled") throw new GiftError("ЮKassa отклонила возврат. Проверьте баланс магазина в ЮKassa");
@@ -476,5 +429,4 @@ export async function giftJobs() {
     limit: 50,
   });
   for (const c of due) await mailRecipient(c).catch((e) => console.error("[gift] письмо получателю:", e));
-  await retryGiftReceipts().catch((e) => console.error("[gift] чеки зачёта:", e));
 }
