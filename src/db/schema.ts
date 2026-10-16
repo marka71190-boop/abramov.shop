@@ -481,18 +481,31 @@ export const bonusTransaction = pgTable(
 // Адреса, избранное, отзывы, «сообщить о поступлении»
 // ============================================================
 
-export const address = pgTable("address", {
-  id: id(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  label: text("label").default("Дом").notNull(),
-  city: text("city").notNull(),
-  address: text("address").notNull(),
-  postalCode: text("postal_code"),
-  cdekPvzCode: text("cdek_pvz_code"),
-  isDefault: boolean("is_default").default(false).notNull(),
-});
+/** «Мои адреса»: сохранённые карточки доставки (до 5). Получатель может быть другим человеком. */
+export const address = pgTable(
+  "address",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    label: text("label").default("Дом").notNull(),
+    deliveryType: text("delivery_type").default("PVZ").notNull(), // PVZ | COURIER
+    city: text("city").notNull(),
+    cdekCityCode: integer("cdek_city_code"),
+    address: text("address").notNull(), // адрес пункта СДЭК или адрес для курьера
+    postalCode: text("postal_code"),
+    cdekPvzCode: text("cdek_pvz_code"),
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
+    note: text("note"), // попадает в комментарий к заказу и курьеру СДЭК
+    isDefault: boolean("is_default").default(false).notNull(),
+    lastUsedAt: ts("last_used_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("address_user_idx").on(t.userId)],
+);
 
 export const favorite = pgTable(
   "favorite",

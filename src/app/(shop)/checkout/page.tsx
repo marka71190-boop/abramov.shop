@@ -11,6 +11,7 @@ import { getActiveBan, isAdmin, requireUser } from "@/lib/viewer";
 import { isPublic } from "@/lib/visibility";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
 import { CheckoutForm } from "./CheckoutForm";
+import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
 
 export const metadata: Metadata = { title: "Оформление заказа", robots: { index: false } };
 
@@ -25,6 +26,7 @@ export default async function CheckoutPage() {
     db.select().from(s.page).where(inArray(s.page.slug, ["offer", "returns"])),
   ]);
   const published = (slug: string) => docs.some((d) => d.slug === slug && isPublic(d));
+  const saved = await listAddresses(user.id);
   if (settings.pdPause && !isAdmin(user)) {
     return (
       <section className="container page-pad">
@@ -69,6 +71,21 @@ export default async function CheckoutPage() {
         canPay={payments || isAdmin(user)}
         testMode={!payments}
         docs={{ offer: published("offer"), returns: published("returns") }}
+        addresses={saved.map((a) => ({
+          id: a.id,
+          label: a.label,
+          deliveryType: a.deliveryType,
+          city: a.city,
+          cdekCityCode: a.cdekCityCode,
+          address: a.address,
+          postalCode: a.postalCode,
+          cdekPvzCode: a.cdekPvzCode,
+          recipientName: a.recipientName,
+          recipientPhone: a.recipientPhone,
+          note: a.note,
+          isDefault: a.isDefault,
+        }))}
+        maxAddresses={MAX_ADDRESSES}
       />
     </section>
   );

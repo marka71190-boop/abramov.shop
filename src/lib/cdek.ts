@@ -165,6 +165,8 @@ export async function createShipment(p: {
   toCityCode?: number | null;
   address?: string | null;
   recipient: { name: string; email: string; phone: string };
+  /** Комментарий для курьера/ПВЗ (заметка покупателя к адресу) */
+  comment?: string | null;
   parcel: Parcel;
   items: { name: string; sku: string; price: number; weight: number; quantity: number }[];
 }): Promise<string> {
@@ -190,6 +192,7 @@ export async function createShipment(p: {
       },
     ],
   };
+  if (p.comment) body.comment = p.comment.slice(0, 255);
   if (p.pvzCode) body.delivery_point = p.pvzCode;
   else body.to_location = { code: p.toCityCode, address: p.address };
   const data = await api<{ entity?: { uuid: string } }>("/orders", { method: "POST", body });

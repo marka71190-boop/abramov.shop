@@ -3349,3 +3349,42 @@ body:has(.print-root) {
     display: none;
   }
 }
+
+/* ---------- Мои адреса ---------- */
+.addr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.addr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-bg);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.addr-card--main {
+  border-color: rgba(220, 191, 131, 0.45);
+}
+.addr-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+button.addr-card {
+  cursor: pointer;
+}
+button.addr-card[aria-checked="true"] {
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+}
+button.addr-card[aria-checked="true"] strong {
+  color: var(--c-gold);
+}

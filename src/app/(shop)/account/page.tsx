@@ -20,6 +20,9 @@ import { telegramEnabled } from "@/lib/telegram";
 import { isPlaceholderEmail } from "@/lib/site";
 import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns } from "@/lib/returns";
+import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
+import { cdekEnabled } from "@/lib/cdek";
+import { AddressBook } from "@/components/delivery/AddressBook";
 
 export const metadata: Metadata = { title: "Личный кабинет", robots: { index: false } };
 
@@ -86,6 +89,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const favRows = await db.query.favorite.findMany({ where: eq(s.favorite.userId, user.id), orderBy: desc(s.favorite.createdAt), limit: 24 });
   const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
   const returns = await listReturns({ userId: user.id });
+  const addresses = await listAddresses(user.id);
   const gifts = await db.query.giftCard.findMany({
     where: and(eq(s.giftCard.buyerId, user.id), ne(s.giftCard.status, "PENDING")),
     orderBy: desc(s.giftCard.createdAt),
@@ -216,6 +220,33 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               );
             })
           )}
+        </section>
+
+        <section id="addresses" className="panel">
+          <h2>Мои адреса</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Сохраните до {MAX_ADDRESSES} адресов доставки — при оформлении заказа останется выбрать нужный. Получателем может быть другой человек,
+            например если отправляете подарок.
+          </p>
+          <AddressBook
+            addresses={addresses.map((a) => ({
+              id: a.id,
+              label: a.label,
+              deliveryType: a.deliveryType,
+              city: a.city,
+              cdekCityCode: a.cdekCityCode,
+              address: a.address,
+              postalCode: a.postalCode,
+              cdekPvzCode: a.cdekPvzCode,
+              recipientName: a.recipientName,
+              recipientPhone: a.recipientPhone,
+              note: a.note,
+              isDefault: a.isDefault,
+            }))}
+            me={{ name: user.name, phone: user.phone ?? "" }}
+            delivery={{ pvz: settings.delivery.pvzEnabled, courier: settings.delivery.courierEnabled, cdek: cdekEnabled() }}
+            max={MAX_ADDRESSES}
+          />
         </section>
 
         {returns.length > 0 && (

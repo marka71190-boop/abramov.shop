@@ -528,6 +528,7 @@ export async function shipWithCdek(orderId: string, actorId: string) {
     toCityCode: o.cdekCityCode,
     address: o.address,
     recipient: { name: o.customerName, email: o.email, phone: o.phone },
+    comment: o.comment,
     parcel: parcelFor(
       o.items.map((i) => ({
         weightGrams: i.product?.weightGrams ?? 300,

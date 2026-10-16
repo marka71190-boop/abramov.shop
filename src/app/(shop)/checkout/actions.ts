@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { getActiveConsent } from "@/lib/consent";
 import { normalizePhone } from "@/lib/format";
+import { saveAddress, touchAddress } from "@/lib/addresses";
 import { cancelOrder, markPaid, OrderError, placeOrder } from "@/lib/orders";
 import { computeQuote, type Quote } from "@/lib/pricing";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -55,6 +56,8 @@ const PlaceIn = QuoteIn.extend({
   comment: z.string().trim().max(1000).nullish(),
   referralCode: z.string().trim().max(20).nullish(),
   expectedTotal: z.number().int(),
+  savedAddressId: z.string().max(64).nullish(),
+  saveAddress: z.object({ label: z.string().trim().max(30) }).nullish(),
 });
 
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
@@ -76,6 +79,23 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
   try {
     const origin = await getOrigin(SITE.url);
     const r = await placeOrder(user, { ...p.data, phone }, origin);
+    // «Мои адреса»: отметить использованный или сохранить новый (ошибки сохранения заказ не ломают)
+    const d = p.data.delivery;
+    if (p.data.savedAddressId) await touchAddress(user.id, p.data.savedAddressId).catch(() => {});
+    else if (p.data.saveAddress && d) {
+      await saveAddress(user.id, {
+        label: p.data.saveAddress.label || "Адрес",
+        deliveryType: d.type,
+        city: d.cityName ?? "",
+        cdekCityCode: d.cityCode ?? null,
+        address: (d.type === "PVZ" ? d.pvzAddress : d.address) ?? "",
+        postalCode: d.postalCode ?? null,
+        cdekPvzCode: d.pvzCode ?? null,
+        recipientName: p.data.name,
+        recipientPhone: phone,
+        note: p.data.comment ?? null,
+      }).catch((e) => console.error("[checkout] адрес не сохранён:", e));
+    }
     revalidatePath("/account");
     return r;
   } catch (e) {

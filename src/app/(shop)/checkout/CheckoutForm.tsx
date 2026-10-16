@@ -7,17 +7,9 @@ import { num, rub } from "@/lib/format";
 import { goal } from "@/lib/track";
 import { placeOrderAction } from "./actions";
 
-interface City {
-  code: number;
-  name: string;
-}
-interface Point {
-  code: string;
-  name: string;
-  address: string;
-  workTime: string;
-  postalCode: string | null;
-}
+import type { AddressCard } from "@/components/delivery/AddressBook";
+import { CityPicker, PointPicker, type City, type Point } from "@/components/delivery/Pickers";
+import { prettyPhone } from "@/lib/format";
 
 interface Props {
   user: { name: string; phone: string; email: string; bonus: number };
@@ -27,152 +19,61 @@ interface Props {
   canPay: boolean;
   testMode: boolean;
   docs: { offer: boolean; returns: boolean };
+  addresses: AddressCard[];
+  maxAddresses: number;
 }
 
-function CityPicker({ value, onChange }: { value: City | null; onChange: (c: City | null) => void }) {
-  const [q, setQ] = useState(value?.name ?? "");
-  const [list, setList] = useState<City[]>([]);
-  const [open, setOpen] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (value && q === value.name) return;
-    if (q.trim().length < 2) {
-      setList([]);
-      return;
-    }
-    const ctl = new AbortController();
-    const t = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/delivery/cities?q=${encodeURIComponent(q.trim())}`, { signal: ctl.signal }).then((x) => x.json());
-        if (r.ok) {
-          setList(r.cities);
-          setErr(null);
-          setOpen(true);
-        } else setErr(r.error);
-      } catch {}
-    }, 300);
-    return () => {
-      clearTimeout(t);
-      ctl.abort();
-    };
-  }, [q, value]);
-
-  return (
-    <div className="suggest">
-      <label className="field">
-        Город
-        <input
-          className="input"
-          value={q}
-          placeholder="Начните вводить: Краснодар"
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open && list.length > 0}
-          aria-controls="city-list"
-          onChange={(e) => {
-            setQ(e.target.value);
-            if (value) onChange(null);
-          }}
-          onFocus={() => list.length && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-        />
-      </label>
-      {err && <div className="small" style={{ color: "var(--c-danger)", marginTop: 6 }}>{err}</div>}
-      {open && list.length > 0 && (
-        <ul className="suggest__list" id="city-list" role="listbox">
-          {list.map((c) => (
-            <li key={c.code}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={value?.code === c.code}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(c);
-                  setQ(c.name);
-                  setOpen(false);
-                }}
-              >
-                {c.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+/** Значения полей заказа из сохранённой карточки адреса */
+function fromCard(a: AddressCard, cdek: boolean) {
+  return {
+    type: (a.deliveryType === "COURIER" ? "COURIER" : "PVZ") as "PVZ" | "COURIER",
+    city: a.cdekCityCode ? { code: a.cdekCityCode, name: a.city } : null,
+    cityText: cdek ? "" : a.city,
+    point: a.deliveryType === "PVZ" && a.cdekPvzCode ? { code: a.cdekPvzCode, name: "", address: a.address, workTime: "", postalCode: a.postalCode } : null,
+    pvzText: a.deliveryType === "PVZ" && !a.cdekPvzCode ? a.address : "",
+    address: a.deliveryType === "COURIER" ? a.address : "",
+    name: a.recipientName ?? "",
+    phone: prettyPhone(a.recipientPhone) || "",
+    comment: a.note ?? "",
+  };
 }
 
-function PointPicker({ city, value, onChange }: { city: City; value: Point | null; onChange: (p: Point | null) => void }) {
-  const [points, setPoints] = useState<Point[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [filter, setFilter] = useState("");
 
-  useEffect(() => {
-    setPoints(null);
-    setErr(null);
-    fetch(`/api/delivery/points?city=${city.code}`)
-      .then((x) => x.json())
-      .then((r) => (r.ok ? setPoints(r.points) : setErr(r.error)))
-      .catch(() => setErr("Не удалось загрузить пункты выдачи"));
-  }, [city.code]);
-
-  const shown = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    return (points ?? []).filter((p) => !f || `${p.address} ${p.name}`.toLowerCase().includes(f)).slice(0, 60);
-  }, [points, filter]);
-
-  if (value) {
-    return (
-      <div className="picked">
-        <div>
-          <div style={{ fontWeight: 600 }}>{value.address}</div>
-          <div className="muted small">
-            СДЭК {value.code}
-            {value.workTime ? ` · ${value.workTime}` : ""}
-          </div>
-        </div>
-        <button type="button" className="linklike small" onClick={() => onChange(null)}>
-          Изменить
-        </button>
-      </div>
-    );
-  }
-  if (err) return <div className="form-error">{err}</div>;
-  if (!points) return <div className="muted small">Загружаем пункты выдачи…</div>;
-  if (!points.length) return <div className="form-error">В этом городе нет пунктов выдачи СДЭК — выберите доставку курьером.</div>;
-
-  return (
-    <div className="stack" style={{ gap: 10 }}>
-      <input className="input" placeholder={`Улица или метро — ${points.length} пунктов`} value={filter} onChange={(e) => setFilter(e.target.value)} />
-      <ul className="pvz-list" role="listbox" aria-label="Пункты выдачи">
-        {shown.map((p) => (
-          <li key={p.code}>
-            <button type="button" role="option" aria-selected={false} onClick={() => onChange(p)}>
-              <span style={{ fontWeight: 600 }}>{p.address}</span>
-              <span className="muted small">{p.workTime || p.name}</span>
-            </button>
-          </li>
-        ))}
-        {!shown.length && <li className="muted small" style={{ padding: 12 }}>Ничего не нашли — уточните запрос</li>}
-      </ul>
-    </div>
-  );
-}
-
-export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, docs }: Props) {
+export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, docs, addresses, maxAddresses }: Props) {
   const cart = useCart();
-  const [name, setName] = useState(user.name);
-  const [phone, setPhone] = useState(user.phone);
+  // Сохранённый адрес: основной (или последний использованный) подставляется сразу
+  const first = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
+  const init = first ? fromCard(first, delivery.cdek) : null;
+  const [picked, setPicked] = useState<string>(first?.id ?? "new");
+  const [saveNew, setSaveNew] = useState(addresses.length < maxAddresses);
+  const [saveLabel, setSaveLabel] = useState(addresses.length ? "" : "Дом");
+  const [name, setName] = useState(init?.name || user.name);
+  const [phone, setPhone] = useState(init?.phone || user.phone);
   const [email, setEmail] = useState(user.email);
-  const [comment, setComment] = useState("");
-  const [type, setType] = useState<"PVZ" | "COURIER">(delivery.pvz ? "PVZ" : "COURIER");
-  const [city, setCity] = useState<City | null>(null);
-  const [cityText, setCityText] = useState(""); // если СДЭК ещё не подключён
-  const [point, setPoint] = useState<Point | null>(null);
-  const [pvzText, setPvzText] = useState("");
-  const [address, setAddress] = useState("");
+  const [comment, setComment] = useState(init?.comment ?? "");
+  const [type, setType] = useState<"PVZ" | "COURIER">(init?.type ?? (delivery.pvz ? "PVZ" : "COURIER"));
+  const [city, setCity] = useState<City | null>(init?.city ?? null);
+  const [cityText, setCityText] = useState(init?.cityText ?? ""); // если СДЭК ещё не подключён
+  const [point, setPoint] = useState<Point | null>(init?.point ?? null);
+  const [pvzText, setPvzText] = useState(init?.pvzText ?? "");
+  const [address, setAddress] = useState(init?.address ?? "");
+
+  function pick(id: string) {
+    setPicked(id);
+    const a = addresses.find((x) => x.id === id);
+    const v = a
+      ? fromCard(a, delivery.cdek)
+      : { type: (delivery.pvz ? "PVZ" : "COURIER") as "PVZ" | "COURIER", city: null, cityText: "", point: null, pvzText: "", address: "", name: user.name, phone: user.phone, comment: "" };
+    setType(v.type);
+    setCity(v.city);
+    setCityText(v.cityText);
+    setPoint(v.point);
+    setPvzText(v.pvzText);
+    setAddress(v.address);
+    setName(v.name || user.name);
+    setPhone(v.phone || user.phone);
+    setComment(v.comment);
+  }
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<string | null>(null);
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
@@ -261,6 +162,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       email,
       comment,
       referralCode: referral || null,
+      savedAddressId: picked !== "new" ? picked : null,
+      saveAddress: picked === "new" && saveNew && addresses.length < maxAddresses ? { label: saveLabel.trim() || "Адрес" } : null,
       expectedTotal: quote.payable,
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
@@ -282,6 +185,36 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   return (
     <form className="checkout" onSubmit={submit}>
       <div className="checkout__main">
+        {addresses.length > 0 && (
+          <fieldset className="panel stack">
+            <legend className="step">
+              <span>★</span> Куда доставить
+            </legend>
+            <div className="addr-grid" role="radiogroup" aria-label="Сохранённые адреса">
+              {addresses.map((a) => (
+                <button key={a.id} type="button" role="radio" aria-checked={picked === a.id} className="addr-card" onClick={() => pick(a.id)}>
+                  <span className="addr-card__head">
+                    <strong>{a.label}</strong>
+                    {a.isDefault && <span className="muted small">основной</span>}
+                  </span>
+                  <span className="small">
+                    {a.deliveryType === "PVZ" ? "Пункт СДЭК" : "Курьер"} · {a.city}
+                  </span>
+                  <span className="small muted">{a.address}</span>
+                  <span className="small muted">{a.recipientName}</span>
+                </button>
+              ))}
+              <button type="button" role="radio" aria-checked={picked === "new"} className="addr-card" onClick={() => pick("new")}>
+                <strong>+ Новый адрес</strong>
+                <span className="small muted">заполнить вручную</span>
+              </button>
+            </div>
+            <Link href="/account#addresses" className="small">
+              Управлять адресами
+            </Link>
+          </fieldset>
+        )}
+
         <fieldset className="panel stack">
           <legend className="step">
             <span>1</span> Получатель
@@ -323,6 +256,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
 
           {delivery.cdek ? (
             <CityPicker
+              key={picked}
               value={city}
               onChange={(c) => {
                 setCity(c);
@@ -348,6 +282,20 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
               Адрес: улица, дом, квартира
               <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" placeholder="ул. Северная, 324, кв. 15" />
             </label>
+          )}
+          {picked === "new" && addresses.length < maxAddresses && (
+            <div className="row" style={{ alignItems: "flex-end" }}>
+              <label className="check" style={{ minHeight: 48 }}>
+                <input type="checkbox" checked={saveNew} onChange={(e) => setSaveNew(e.target.checked)} />
+                <span>Сохранить в мои адреса</span>
+              </label>
+              {saveNew && (
+                <label className="field" style={{ flex: "1 1 180px" }}>
+                  Название
+                  <input className="input" value={saveLabel} onChange={(e) => setSaveLabel(e.target.value)} maxLength={30} placeholder="Дом, работа…" />
+                </label>
+              )}
+            </div>
           )}
           {quote?.shippingError && <div className="form-error">{quote.shippingError}</div>}
           {quote?.shipping && (
