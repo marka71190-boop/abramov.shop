@@ -14,6 +14,7 @@ import "server-only";
 import { and, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { fmtDate, num, rub } from "@/lib/format";
+import { returnToGift, splitGift } from "@/lib/giftcards";
 import { escHtml, sendMail } from "@/lib/mail";
 import { isPlaceholderEmail, SELLER, SITE } from "@/lib/site";
 import { esc as tgEsc, notifyAdmins, notifyUser } from "@/lib/telegram";
@@ -239,9 +240,12 @@ export function refundEstimate(r: Awaited<ReturnType<typeof load>>) {
   const share = Math.min(1, value / subtotal);
   const pay = o.payments.find((p) => p.status === "SUCCEEDED" || p.status === "REFUNDED");
   const left = pay ? pay.amount - pay.refundedAmount : 0;
+  // Часть, оплаченная подарочным сертификатом, возвращается на сертификат, а не деньгами
+  const split = splitGift(o);
   return {
     value,
-    money: Math.min(Math.round((o.total - o.shippingCost) * share), pay ? left : Infinity),
+    money: Math.min(Math.round(split.cashGoods * share), pay ? left : Infinity),
+    giftBack: r.resolution === "REFUND" ? Math.round(split.certGoods * share) : 0,
     left,
     bonusBack: Math.floor((o.bonusSpent * share) / 100),
     accruedBack: o.bonusCredited ? Math.floor((o.bonusAccrued * share) / 100) : 0,
@@ -305,6 +309,7 @@ export async function refundReturn(id: string, actorId: string, opts: { amount: 
       .returning();
     if (!row) throw new ReturnError("Статус заявки уже изменился — обновите страницу");
     if (opts.restock && !r.restocked) await restockItems(tx, r.items);
+    const giftBack = await returnToGift(tx, o.id, est.giftBack);
     if (pay && amount > 0) {
       const refunded = pay.refundedAmount + amount;
       await tx
@@ -335,7 +340,7 @@ export async function refundReturn(id: string, actorId: string, opts: { amount: 
     if (Number(all[0]?.qty ?? 0) >= totalQty && (!pay || pay.refundedAmount + amount >= pay.amount - o.shippingCost)) {
       await tx.update(s.order).set({ status: "REFUNDED", cancelReason: `Возврат по заявке ${r.number}` }).where(eq(s.order.id, o.id));
     }
-    await tx.insert(s.auditLog).values({ actorId, action: "return.refund", entity: "return_request", entityId: r.id, details: { amount, bonusBack, accruedBack, restock: opts.restock } });
+    await tx.insert(s.auditLog).values({ actorId, action: "return.refund", entity: "return_request", entityId: r.id, details: { amount, giftBack, bonusBack, accruedBack, restock: opts.restock } });
     return row;
   });
   void notifyReturn(done.id, "refunded");

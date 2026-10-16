@@ -176,6 +176,9 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<string | null>(null);
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
+  const [giftInput, setGiftInput] = useState("");
+  const [gift, setGift] = useState<string | null>(null);
+  const [giftMsg, setGiftMsg] = useState<string | null>(null);
   const [useBonus, setUseBonus] = useState(false);
   const [referral, setReferral] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -205,9 +208,17 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       : null;
 
   const { quote, error: quoteError, loading, setQuote } = useQuote(
-    { promoCode: promo, useBonus, delivery: deliveryInput ? { ...deliveryInput, address: undefined, pvzAddress: undefined } : null },
-    [promo, useBonus, type, city?.code, delivery.cdek ? "" : cityText.trim()],
+    { promoCode: promo, giftCode: gift, useBonus, delivery: deliveryInput ? { ...deliveryInput, address: undefined, pvzAddress: undefined } : null },
+    [promo, gift, useBonus, type, city?.code, delivery.cdek ? "" : cityText.trim()],
   );
+
+  useEffect(() => {
+    if (!quote || !gift) return;
+    if (quote.giftError) {
+      setGiftMsg(quote.giftError);
+      setGift(null);
+    } else setGiftMsg(null);
+  }, [quote, gift]);
 
   useEffect(() => {
     if (!quote || !promo) return;
@@ -242,6 +253,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
     const r = await placeOrderAction({
       lines: cart.items,
       promoCode: promo,
+      giftCode: gift,
       useBonus,
       delivery: deliveryInput,
       name,
@@ -249,7 +261,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       email,
       comment,
       referralCode: referral || null,
-      expectedTotal: quote.total,
+      expectedTotal: quote.payable,
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
       goal("order_created", { order_price: quote.total / 100 });
@@ -350,7 +362,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
 
         <fieldset className="panel stack">
           <legend className="step">
-            <span>3</span> Скидки
+            <span>3</span> Скидки и сертификат
           </legend>
           <div className="row" style={{ flexWrap: "nowrap", alignItems: "flex-end" }}>
             <label className="field" style={{ flex: 1 }}>
@@ -384,6 +396,39 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
           </div>
           {promoMsg && <div className="small" style={{ color: "var(--c-danger)" }}>{promoMsg}</div>}
           {promo && quote?.promo && <div className="small" style={{ color: "var(--c-success)" }}>Промокод {quote.promo.code}: {quote.promo.label}</div>}
+
+          <div className="row" style={{ flexWrap: "nowrap", alignItems: "flex-end" }}>
+            <label className="field" style={{ flex: 1 }}>
+              Подарочный сертификат
+              <input
+                className="input"
+                value={gift ?? giftInput}
+                disabled={!!gift}
+                onChange={(e) => {
+                  setGiftInput(e.target.value.toUpperCase());
+                  setGiftMsg(null);
+                }}
+                placeholder="XXXX-XXXX-XXXX"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            {gift ? (
+              <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} onClick={() => setGift(null)}>
+                Убрать
+              </button>
+            ) : (
+              <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} disabled={!giftInput.trim()} onClick={() => setGift(giftInput.trim())}>
+                Применить
+              </button>
+            )}
+          </div>
+          {giftMsg && <div className="small" style={{ color: "var(--c-danger)" }}>{giftMsg}</div>}
+          {gift && quote?.gift && (
+            <div className="small" style={{ color: "var(--c-success)" }}>
+              Сертификат {quote.gift.code}: спишется {rub(quote.gift.applied)}, останется {rub(quote.gift.balance - quote.gift.applied)}
+            </div>
+          )}
 
           <label className={`check ${!quote?.bonus.available ? "check--off" : ""}`}>
             <input type="checkbox" checked={useBonus} disabled={!quote?.bonus.available} onChange={(e) => setUseBonus(e.target.checked)} />
@@ -448,9 +493,21 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
           <span>Доставка</span>
           <span>{quote?.shipping ? (quote.shipping.free ? "бесплатно" : rub(quote.shipping.cost)) : <span className="muted">выберите адрес</span>}</span>
         </div>
+        {!!quote?.gift?.applied && (
+          <>
+            <div className="summary__row">
+              <span>Итого</span>
+              <span>{rub(quote.total)}</span>
+            </div>
+            <div className="summary__row good">
+              <span>Сертификат</span>
+              <span>−{rub(quote.gift.applied)}</span>
+            </div>
+          </>
+        )}
         <div className="summary__total">
           <span>К оплате</span>
-          <span>{quote ? rub(quote.total) : "…"}</span>
+          <span>{quote ? rub(quote.payable) : "…"}</span>
         </div>
         {!!quote?.accrue && (
           <div className="summary__bonus">
@@ -463,7 +520,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
           </div>
         )}
         <button className="btn btn--gold btn--block" disabled={!ready || submitting || !canPay}>
-          {submitting ? "Создаём заказ…" : testMode ? "Создать заказ (тест)" : `Оплатить ${quote ? rub(quote.total) : ""}`}
+          {submitting ? "Создаём заказ…" : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
         </button>
         <p className="muted small" style={{ margin: 0 }}>
           {!deliveryInput
@@ -472,7 +529,9 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
               ? "Выберите пункт выдачи"
               : needAddress
                 ? "Укажите адрес для курьера"
-                : "Оплата картой, через СБП или SberPay на защищённой странице ЮKassa."}
+                : quote?.payable === 0
+                  ? "Заказ полностью оплачивается сертификатом — платить картой не нужно."
+                  : "Оплата картой, через СБП или SberPay на защищённой странице ЮKassa."}
         </p>
         <p className="muted small" style={{ margin: 0, fontSize: 12 }}>
           Нажимая кнопку, вы подтверждаете заказ

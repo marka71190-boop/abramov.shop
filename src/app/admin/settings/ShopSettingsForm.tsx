@@ -69,11 +69,36 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
         Объявление на странице оформления (например, «Отправка после 15 октября»)
         <input className="input" name="notice" defaultValue={s.checkout.notice} maxLength={500} />
       </label>
+      <h2 style={{ margin: "12px 0 0" }} id="gift-settings">
+        Подарочные сертификаты
+      </h2>
+      <label className="check">
+        <input type="checkbox" name="giftEnabled" defaultChecked={s.giftCards.enabled} />
+        <span>Продавать сертификаты на сайте (страница /gift). Выпускать в админке можно всегда</span>
+      </label>
+      <div className="form-grid">
+        <label className="field">
+          Номиналы, ₽ — через запятую
+          <input className="input" name="giftNominals" defaultValue={s.giftCards.nominals.join(", ")} />
+        </label>
+        <label className="field">
+          Своя сумма от, ₽ (0 — без своей суммы)
+          <input className="input" name="giftCustomMin" type="number" min={0} defaultValue={s.giftCards.customMin} />
+        </label>
+        <label className="field">
+          Своя сумма до, ₽
+          <input className="input" name="giftCustomMax" type="number" min={0} defaultValue={s.giftCards.customMax} />
+        </label>
+        <label className="field">
+          Срок действия, дней (0 — бессрочно)
+          <input className="input" name="giftValidityDays" type="number" min={0} max={3650} defaultValue={s.giftCards.validityDays} />
+        </label>
+      </div>
       {state.error && <div className="form-error">{state.error}</div>}
       {state.ok && <div className="form-ok">{state.ok}</div>}
       <div>
         <button className="btn btn--gold btn--sm" disabled={pending}>
-          {pending ? "Сохраняем…" : "Сохранить доставку"}
+          {pending ? "Сохраняем…" : "Сохранить"}
         </button>
       </div>
     </form>

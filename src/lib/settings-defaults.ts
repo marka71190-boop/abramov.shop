@@ -41,6 +41,13 @@ export interface SiteSettings {
     notice: string; // объявление на странице оформления
     abandonedHours: number; // через сколько часов напомнить о брошенной корзине; 0 — не напоминать
   };
+  giftCards: {
+    enabled: boolean; // продажа сертификатов на сайте
+    nominals: number[]; // ₽
+    customMin: number; // ₽, своя сумма; 0 — своей суммы нет
+    customMax: number;
+    validityDays: number; // 0 — бессрочно
+  };
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
@@ -82,6 +89,13 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     notice: "",
     abandonedHours: 3,
   },
+  giftCards: {
+    enabled: true,
+    nominals: [3000, 5000, 10000],
+    customMin: 1000,
+    customMax: 100000,
+    validityDays: 365,
+  },
 };
 
 /** Аккуратно накладывает сохранённые настройки на значения по умолчанию. */
@@ -95,6 +109,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     ...s,
     delivery: { ...d.delivery, ...(s.delivery ?? {}) },
     checkout: { ...d.checkout, ...(s.checkout ?? {}) },
+    giftCards: { ...d.giftCards, ...(s.giftCards ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

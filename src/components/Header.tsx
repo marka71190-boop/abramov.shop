@@ -24,6 +24,7 @@ export function Header({
           <Link href="/catalog">Каталог</Link>
           <Link href="/#drop">Коллекции</Link>
           <Link href="/#bonus">Бонусы</Link>
+          <Link href="/gift">Сертификаты</Link>
           <Link href="/p/delivery">Доставка</Link>
           <Link href="/#support">Поддержка</Link>
           {admin && <Link href="/admin">Админка</Link>}

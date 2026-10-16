@@ -10,6 +10,7 @@ import "server-only";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
+import { chargeGift, rechargeGift, releaseGift, sendGiftReceipts, splitGift } from "@/lib/giftcards";
 import { cdekEnabled, CDEK_IN_TRANSIT, createShipment, getShipment, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
 import { notifyOrder } from "@/lib/telegram";
@@ -80,13 +81,15 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (!quote.lines.length) throw new OrderError("Корзина пуста", quote);
   if (quote.removed.length || quote.adjusted.length) throw new OrderError("Корзина изменилась — проверьте товары и количество", quote);
   if (input.promoCode?.trim() && quote.promoError) throw new OrderError(quote.promoError, quote);
+  if (input.giftCode?.trim() && quote.giftError) throw new OrderError(quote.giftError, quote);
   if (!d) throw new OrderError("Выберите способ доставки", quote);
   if (quote.shippingError || !quote.shipping) throw new OrderError(quote.shippingError ?? "Не удалось рассчитать доставку", quote);
   if (cdekEnabled() && !d.cityCode) throw new OrderError("Выберите город доставки", quote);
   if (d.type === "PVZ" && !d.pvzCode && cdekEnabled()) throw new OrderError("Выберите пункт выдачи СДЭК", quote);
   if (d.type === "COURIER" && !d.address?.trim()) throw new OrderError("Укажите адрес для курьера", quote);
   if (!cdekEnabled() && !d.cityName?.trim()) throw new OrderError("Укажите город", quote);
-  if (quote.total !== input.expectedTotal) throw new OrderError("Сумма заказа изменилась — проверьте итог и подтвердите ещё раз", quote);
+  // Покупатель подтверждает сумму к оплате (за вычетом сертификата)
+  if (quote.payable !== input.expectedTotal) throw new OrderError("Сумма заказа изменилась — проверьте итог и подтвердите ещё раз", quote);
 
   const expiresAt = new Date(Date.now() + settings.checkout.paymentMinutes * 60_000);
   const address = d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
@@ -158,6 +161,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         bonusSpent: quote.bonus.spent,
         shippingCost: quote.shipping!.cost,
         total: quote.total,
+        giftCardAmount: quote.gift?.applied ?? 0,
         bonusAccrued: quote.accrue,
         promoCodeId: promoId,
         deliveryType: d.type,
@@ -183,6 +187,10 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
       })),
     );
     if (promoId) await tx.insert(s.promoUsage).values({ promoId, userId: user.id, orderId: o.id });
+    // Сертификат: списываем атомарно — им могли заплатить в соседней вкладке
+    if (quote.gift && quote.gift.applied > 0 && !(await chargeGift(tx, quote.gift.code, o.id, quote.gift.applied))) {
+      throw new OrderError("Баланс сертификата изменился — обновите страницу");
+    }
     // Корзина на сервере опустела; если до этого напоминали о ней — заказ «вернулся» после напоминания
     await tx
       .update(s.savedCart)
@@ -204,23 +212,29 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
     return o;
   });
 
-  // 6. Платёж
+  // 6. Платёж. Сертификат покрыл всё — платить онлайн нечего
+  const payable = order.total - order.giftCardAmount;
+  if (payable <= 0) {
+    await markPaid(order.id, "giftcard");
+    return { number: order.number, payUrl: `/order/${order.number}?from=pay` };
+  }
   if (!yookassaEnabled()) return { number: order.number, payUrl: `/order/${order.number}` };
   try {
     const items = quote.lines.map((l) => ({ name: l.variantName ? `${l.name}, ${l.variantName}` : l.name, price: l.price, quantity: l.qty }));
+    const cash = splitGift(order);
     const p = await createPayment({
       orderId: order.id,
       number: order.number,
-      amount: order.total,
+      amount: payable,
       returnUrl: `${origin}/order/${order.number}?from=pay`,
       customer: { email: order.email, phone: order.phone },
-      receipt: receiptLines(items, order.total - order.shippingCost, order.shippingCost),
+      receipt: receiptLines(items, cash.cashGoods, cash.cashShip),
     });
     await db.insert(s.payment).values({
       orderId: order.id,
       externalId: p.id,
       status: PAYMENT_STATUS[p.status],
-      amount: order.total,
+      amount: payable,
       confirmationUrl: p.confirmation!.confirmation_url!,
       raw: p,
     });
@@ -260,6 +274,8 @@ async function release(tx: Tx, o: OrderRow, restock: boolean) {
       .where(eq(s.promoCode.id, o.promoCodeId));
     await tx.delete(s.promoUsage).where(eq(s.promoUsage.orderId, o.id));
   }
+  // Подарочный сертификат: сумма возвращается на сертификат
+  if (o.giftCardAmount > 0) await releaseGift(tx, o.id);
 }
 
 export async function markPaid(orderId: string, source: string) {
@@ -294,6 +310,7 @@ export async function markPaid(orderId: string, source: string) {
       if (r.length) await tx.insert(s.bonusTransaction).values({ userId: o.userId, amount: -n, reason: "ORDER_SPEND", orderId: o.id, comment: `Оплата заказа ${o.number}` });
       else problems.push("бонусы клиента уже потрачены");
     }
+    if (o.giftCardAmount > 0 && !(await rechargeGift(tx, o.id))) problems.push("сертификат уже потрачен");
     await tx
       .update(s.order)
       .set({ status: "PAID", paidAt: new Date(), cancelReason: problems.length ? `Оплата пришла после отмены: ${problems.join(", ")}` : null })
@@ -301,7 +318,10 @@ export async function markPaid(orderId: string, source: string) {
     await tx.insert(s.auditLog).values({ actorId: null, action: "order.late_payment", entity: "order", entityId: o.id, details: { source, problems } });
     return true;
   });
-  if (changed) await notifyOrder(orderId, "paid");
+  if (changed) {
+    await notifyOrder(orderId, "paid");
+    await sendGiftReceipts(orderId).catch((e) => console.error("[gift] чек зачёта:", e));
+  }
 }
 
 /** Применяет актуальный статус платежа из ЮKassa (уведомление, возврат с оплаты, фоновая проверка). */
@@ -374,16 +394,18 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
   if (pay) {
     const amount = pay.amount - pay.refundedAmount;
     const items = o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity }));
+    // Возвращаем деньгами только то, что платили онлайн; часть сертификата вернётся на сертификат
+    const cash = splitGift(o);
     const r = await createRefund({
       paymentId: pay.externalId,
       amount,
       orderId: o.id,
       customer: { email: o.email, phone: o.phone },
-      receipt: receiptLines(items, o.total - o.shippingCost, o.shippingCost),
+      receipt: receiptLines(items, cash.cashGoods, cash.cashShip),
     });
     if (r.status === "canceled") throw new OrderError("ЮKassa отклонила возврат. Проверьте баланс магазина в ЮKassa");
     refunded = amount;
-  } else if (yookassaEnabled()) {
+  } else if (yookassaEnabled() && o.giftCardAmount < o.total) {
     throw new OrderError("Не найден успешный платёж по заказу");
   }
 

@@ -9,6 +9,7 @@ import { and, asc, count, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { calculate, cdekEnabled, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
+import { checkGiftCode, giftApplicable } from "@/lib/giftcards";
 import { getSettings } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import type { UserRow } from "@/lib/viewer";
@@ -34,6 +35,8 @@ export interface QuoteInput {
   promoCode?: string | null;
   useBonus?: boolean;
   delivery?: DeliveryInput | null;
+  /** Код подарочного сертификата */
+  giftCode?: string | null;
 }
 
 export interface QuoteLine {
@@ -68,7 +71,13 @@ export interface Quote {
   bonus: { balance: number; available: number; spent: number; blockedByPromo: boolean };
   shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean } | null;
   shippingError: string | null;
+  /** Итог заказа (товары после скидок + доставка) */
   total: number;
+  /** Подарочный сертификат: сколько спишется с него */
+  gift: { code: string; balance: number; applied: number; expiresAt: string | null } | null;
+  giftError: string | null;
+  /** Сколько платить онлайн: total − gift.applied */
+  payable: number;
   accrue: number; // копейки — бонусы за заказ (1 бонус = 100 коп.)
   tierPercent: number;
 }
@@ -241,6 +250,20 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   const tierPercent = settings.loyalty.tiers[tier].percent;
   const accrue = user ? Math.floor((goods * tierPercent) / 100 / 100) * 100 : 0;
 
+  const total = goods + (shipping?.cost ?? 0);
+
+  // ---- Подарочный сертификат — как деньги: покрывает итог вместе с доставкой
+  let gift: Quote["gift"] = null;
+  let giftError: string | null = null;
+  if (input.giftCode?.trim() && lines.length) {
+    const r = await checkGiftCode(input.giftCode);
+    if ("error" in r) giftError = r.error;
+    else {
+      const applied = shipping || !d ? giftApplicable(r.card.balance, total) : 0;
+      gift = { code: r.card.code, balance: r.card.balance, applied, expiresAt: r.card.expiresAt?.toISOString() ?? null };
+    }
+  }
+
   return {
     lines,
     removed,
@@ -252,7 +275,10 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
     bonus: { balance, available: Math.floor(available / 100), spent: bonusSpent, blockedByPromo },
     shipping,
     shippingError,
-    total: goods + (shipping?.cost ?? 0),
+    total,
+    gift,
+    giftError,
+    payable: total - (gift?.applied ?? 0),
     accrue,
     tierPercent,
   };

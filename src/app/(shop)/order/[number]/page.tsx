@@ -97,7 +97,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <div className="row">
             {payUrl && (
               <a className="btn btn--gold" href={payUrl}>
-                Оплатить {rub(o.total)}
+                Оплатить {rub(o.total - o.giftCardAmount)}
               </a>
             )}
             {!yookassaEnabled() && isAdmin(user) && <TestPayButton number={o.number} />}
@@ -167,10 +167,24 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <span>Доставка</span>
             <span>{o.shippingCost ? rub(o.shippingCost) : "бесплатно"}</span>
           </div>
-          <div className="summary__total">
-            <span>{o.paidAt ? "Оплачено" : "К оплате"}</span>
-            <span>{rub(o.total)}</span>
-          </div>
+          {o.giftCardAmount > 0 && (
+            <>
+              <div className="summary__row">
+                <span>Итого</span>
+                <span>{rub(o.total)}</span>
+              </div>
+              <div className="summary__row good">
+                <span>Подарочный сертификат</span>
+                <span>−{rub(o.giftCardAmount)}</span>
+              </div>
+            </>
+          )}
+          {o.giftCardAmount < o.total && (
+            <div className="summary__total">
+              <span>{o.paidAt ? (o.giftCardAmount > 0 ? "Оплачено картой" : "Оплачено") : "К оплате"}</span>
+              <span>{rub(o.total - o.giftCardAmount)}</span>
+            </div>
+          )}
         </div>
 
         {inspection.insp?.checkedAt && inspection.media.length > 0 && (

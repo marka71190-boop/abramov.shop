@@ -36,7 +36,11 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
     orderBy: desc(s.auditLog.createdAt),
   });
   const actors = await db.query.user.findMany({ columns: { id: true, name: true }, where: (u, { inArray }) => inArray(u.id, events.map((e) => e.actorId).filter((x): x is string => !!x).concat("-")) });
-  const [drive, inspection] = await Promise.all([driveStatus(), loadInspection(o.id)]);
+  const [drive, inspection, giftUses] = await Promise.all([
+    driveStatus(),
+    loadInspection(o.id),
+    o.giftCardAmount > 0 ? db.query.giftCardUse.findMany({ where: eq(s.giftCardUse.orderId, o.id), with: { giftCard: true } }) : Promise.resolve([]),
+  ]);
   const st = ORDER_STATUS[o.status];
   const paid = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status);
 
@@ -174,6 +178,21 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                   <strong>{rub(o.total)}</strong>
                 </td>
               </tr>
+              {o.giftCardAmount > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      Оплачено сертификатом{giftUses.length ? ` ${giftUses.map((u) => u.giftCard.code).join(", ")}` : ""}
+                      {giftUses.some((u) => u.receiptError) ? " · чек зачёта не отправлен, повторим автоматически" : ""}
+                    </td>
+                    <td>−{rub(o.giftCardAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="muted">Онлайн</td>
+                    <td>{rub(o.total - o.giftCardAmount)}</td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>

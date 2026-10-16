@@ -389,6 +389,10 @@ const ShopSettingsIn = z.object({
   maxQtyPerItem: z.coerce.number().int().min(1).max(999),
   notice: z.string().trim().max(500),
   abandonedHours: z.coerce.number().int().min(0).max(168, "Не больше 168 часов (неделя)"),
+  giftNominals: z.string().max(200),
+  giftCustomMin: z.coerce.number().int().min(0).max(1_000_000),
+  giftCustomMax: z.coerce.number().int().min(0).max(1_000_000),
+  giftValidityDays: z.coerce.number().int().min(0).max(3650),
 });
 
 export async function updateShopSettings(_: ActionState, form: FormData): Promise<ActionState> {
@@ -399,6 +403,9 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
   const pvzEnabled = form.get("pvzEnabled") === "on";
   const courierEnabled = form.get("courierEnabled") === "on";
   if (!pvzEnabled && !courierEnabled) return { error: "Оставьте хотя бы один способ доставки" };
+  const nominals = [...new Set(d.giftNominals.split(/[,;\s]+/).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 100 && x <= 1_000_000))].sort((a, b) => a - b);
+  if (!nominals.length && d.giftCustomMin === 0) return { error: "Сертификаты: укажите номиналы или разрешите свою сумму" };
+  if (d.giftCustomMin > 0 && d.giftCustomMax < d.giftCustomMin) return { error: "Сертификаты: «до» должно быть больше «от»" };
   const cur = await getSettings();
   await saveSettings({
     ...cur,
@@ -415,6 +422,13 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
       flatCourier: d.flatCourier,
     },
     checkout: { paymentMinutes: d.paymentMinutes, maxQtyPerItem: d.maxQtyPerItem, notice: d.notice, abandonedHours: d.abandonedHours },
+    giftCards: {
+      enabled: form.get("giftEnabled") === "on",
+      nominals: nominals.slice(0, 6),
+      customMin: d.giftCustomMin,
+      customMax: d.giftCustomMax,
+      validityDays: d.giftValidityDays,
+    },
   });
   await audit(me.id, "settings.shop", "setting", "site", d);
   revalidatePath("/", "layout");

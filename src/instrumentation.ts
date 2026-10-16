@@ -5,6 +5,7 @@
  *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК;
  *   • каждую минуту — очередная партия писем рассылки;
  *   • каждые 30 минут — напоминания о брошенных корзинах;
+ *   • каждые 2 минуты — подарочные сертификаты: оплата, письма получателям в выбранный день, чеки зачёта;
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании,
  *     напоминание админам о заявках на возврат, срок ответа по которым истекает.
  */
@@ -33,6 +34,11 @@ export async function register() {
   const { processCampaigns } = await import("@/lib/campaigns");
   setTimeout(safe("mailing", processCampaigns), 90_000);
   setInterval(safe("mailing", processCampaigns), 60_000);
+
+  // Подарочные сертификаты
+  const { giftJobs } = await import("@/lib/giftcards");
+  setTimeout(safe("gift", giftJobs), 75_000);
+  setInterval(safe("gift", giftJobs), 2 * 60_000);
 
   // Напоминания о брошенных корзинах — раз в 30 минут (днём по Москве)
   const { remindAbandonedCarts } = await import("@/lib/abandoned");

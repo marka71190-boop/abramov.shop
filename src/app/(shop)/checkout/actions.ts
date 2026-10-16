@@ -27,6 +27,7 @@ const Delivery = z.object({
 const QuoteIn = z.object({
   lines: z.array(Line).max(50),
   promoCode: z.string().trim().max(40).nullish(),
+  giftCode: z.string().trim().max(40).nullish(),
   useBonus: z.boolean().optional(),
   delivery: Delivery.nullish(),
 });

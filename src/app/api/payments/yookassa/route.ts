@@ -7,6 +7,7 @@
  */
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { applyGiftPayment } from "@/lib/giftcards";
 import { applyPayment } from "@/lib/orders";
 import { getPayment, yookassaEnabled } from "@/lib/yookassa";
 
@@ -25,7 +26,12 @@ export async function POST(request: Request) {
   try {
     // Чужие и выдуманные номера платежей не проверяем — сразу отвечаем «принято»
     const known = await db.query.payment.findFirst({ where: eq(s.payment.externalId, String(id).slice(0, 64)), columns: { id: true } });
-    if (!known) return Response.json({ ok: true, skipped: true });
+    if (!known) {
+      const gift = await db.query.giftCard.findFirst({ where: eq(s.giftCard.paymentId, String(id).slice(0, 64)), columns: { id: true } });
+      if (!gift) return Response.json({ ok: true, skipped: true });
+      await applyGiftPayment(await getPayment(id));
+      return Response.json({ ok: true });
+    }
     await applyPayment(await getPayment(id), `webhook:${body.event}`);
     return Response.json({ ok: true });
   } catch (e) {

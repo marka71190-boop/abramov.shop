@@ -365,7 +365,8 @@ export const order = pgTable(
     discount: integer("discount").default(0).notNull(),
     bonusSpent: integer("bonus_spent").default(0).notNull(),
     shippingCost: integer("shipping_cost").default(0).notNull(),
-    total: integer("total").notNull(),
+    total: integer("total").notNull(), // итог заказа; онлайн платится total − giftCardAmount
+    giftCardAmount: integer("gift_card_amount").default(0).notNull(), // оплачено подарочным сертификатом
     bonusAccrued: integer("bonus_accrued").default(0).notNull(),
 
     promoCodeId: text("promo_code_id").references(() => promoCode.id, { onDelete: "set null" }),
@@ -740,6 +741,73 @@ export const campaignRecipient = pgTable(
   ],
 );
 
+// ============================================================
+// Подарочные сертификаты
+// ============================================================
+
+export const giftCardStatusEnum = pgEnum("gift_card_status", [
+  "PENDING", // куплен на сайте, ждём оплату
+  "ACTIVE",
+  "VOID", // не оплачен, аннулирован или деньги возвращены
+]);
+
+export const giftCard = pgTable(
+  "gift_card",
+  {
+    id: id(),
+    code: text("code").notNull().unique(), // XXXX-XXXX-XXXX — вводят при оформлении
+    token: text("token").notNull().unique(), // адрес страницы сертификата /gift/<token>
+    status: giftCardStatusEnum("status").default("PENDING").notNull(),
+    source: text("source").notNull(), // SITE — куплен на сайте, ADMIN — выпущен в админке
+    initialAmount: integer("initial_amount").notNull(), // копейки
+    balance: integer("balance").notNull(), // копейки
+    expiresAt: ts("expires_at"), // null — бессрочно (или ещё не оплачен)
+
+    buyerId: text("buyer_id").references(() => user.id, { onDelete: "set null" }),
+    buyerEmail: text("buyer_email"), // для чека
+    recipientName: text("recipient_name"),
+    recipientEmail: text("recipient_email"), // после отправки письма маскируется
+    senderName: text("sender_name"),
+    message: text("message"),
+    sendAt: ts("send_at"), // когда отправить письмо получателю; null — сразу после оплаты
+    sentAt: ts("sent_at"),
+
+    paymentId: text("payment_id").unique(), // платёж ЮKassa (аванс)
+    paymentStatus: paymentStatusEnum("payment_status"),
+    confirmationUrl: text("confirmation_url"),
+    paidAt: ts("paid_at"),
+    payExpiresAt: ts("pay_expires_at"),
+    refundedAt: ts("refunded_at"),
+
+    note: text("note"), // заметка админа
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("gift_card_buyer_idx").on(t.buyerId), index("gift_card_status_idx").on(t.status)],
+);
+
+/** Списания с сертификата. reversedAt — заказ отменён или возвращён, сумма вернулась на сертификат. */
+export const giftCardUse = pgTable(
+  "gift_card_use",
+  {
+    id: id(),
+    giftCardId: text("gift_card_id")
+      .notNull()
+      .references(() => giftCard.id, { onDelete: "cascade" }),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    reversedAt: ts("reversed_at"),
+    // Чек зачёта аванса в ЮKassa (для сертификатов, купленных на сайте)
+    receiptId: text("receipt_id"),
+    receiptError: text("receipt_error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("gift_card_use_card_idx").on(t.giftCardId), index("gift_card_use_order_idx").on(t.orderId)],
+);
+
 export const auditLog = pgTable(
   "audit_log",
   {
@@ -802,7 +870,19 @@ export const orderRelations = relations(order, ({ one, many }) => ({
   returns: many(returnRequest),
   inspection: one(orderInspection),
   media: many(inspectionMedia),
+  giftUses: many(giftCardUse),
 }));
+
+export const giftCardRelations = relations(giftCard, ({ one, many }) => ({
+  buyer: one(user, { fields: [giftCard.buyerId], references: [user.id] }),
+  uses: many(giftCardUse),
+}));
+
+export const giftCardUseRelations = relations(giftCardUse, ({ one }) => ({
+  giftCard: one(giftCard, { fields: [giftCardUse.giftCardId], references: [giftCard.id] }),
+  order: one(order, { fields: [giftCardUse.orderId], references: [order.id] }),
+}));
+
 
 export const orderInspectionRelations = relations(orderInspection, ({ one }) => ({
   order: one(order, { fields: [orderInspection.orderId], references: [order.id] }),

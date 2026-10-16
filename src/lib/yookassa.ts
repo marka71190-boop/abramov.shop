@@ -65,7 +65,10 @@ export interface ReceiptLine {
   name: string;
   quantity: number;
   price: number; // копейки за 1 шт. — уже со скидкой
-  kind: "commodity" | "service";
+  /** payment — «платёж»: подарочный сертификат (аванс) */
+  kind: "commodity" | "service" | "payment";
+  /** advance — аванс (продажа сертификата); по умолчанию полный расчёт */
+  mode?: "full_payment" | "advance";
 }
 
 export interface ReceiptCustomer {
@@ -82,7 +85,7 @@ function buildReceipt(customer: ReceiptCustomer, lines: ReceiptLine[]) {
       quantity: l.quantity,
       amount: money(l.price),
       vat_code: vat,
-      payment_mode: "full_payment",
+      payment_mode: l.mode ?? "full_payment",
       payment_subject: l.kind,
     })),
   };
@@ -96,27 +99,68 @@ export async function createPayment(p: {
   customer: ReceiptCustomer;
   receipt: ReceiptLine[];
 }): Promise<YkPayment> {
+  return createPaymentFor({
+    key: `order-${p.orderId}`,
+    amount: p.amount,
+    returnUrl: p.returnUrl,
+    description: `Заказ ${p.number} в Abramov Shop`,
+    // Не «orderId»: магазин ЮKassa общий с Kamui, и её обработчик уведомлений не должен принимать наши платежи за свои
+    metadata: { shop: "abramov.shop", asOrderId: p.orderId, number: p.number },
+    customer: p.customer,
+    receipt: p.receipt,
+  });
+}
+
+/** Платёж с чеком; если магазин ЮKassa не принимает чек (или требует его) — повтор с другим вариантом. */
+export async function createPaymentFor(p: {
+  key: string;
+  amount: number;
+  returnUrl: string;
+  description: string;
+  metadata: Record<string, string>;
+  customer: ReceiptCustomer;
+  receipt: ReceiptLine[];
+}): Promise<YkPayment> {
   const body = (withReceipt: boolean): Record<string, unknown> => ({
     amount: money(p.amount),
     capture: true,
     confirmation: { type: "redirect", return_url: p.returnUrl },
-    description: `Заказ ${p.number} в Abramov Shop`.slice(0, 128),
-    // Не «orderId»: магазин ЮKassa общий с Kamui, и её обработчик уведомлений не должен принимать наши платежи за свои
-    metadata: { shop: "abramov.shop", asOrderId: p.orderId, number: p.number },
+    description: p.description.slice(0, 128),
+    metadata: p.metadata,
     ...(withReceipt ? { receipt: buildReceipt(p.customer, p.receipt) } : {}),
   });
   const first = sendReceipt();
   let payment: YkPayment;
   try {
-    payment = await request<YkPayment>("/payments", { method: "POST", body: body(first), idempotenceKey: `order-${p.orderId}` });
+    payment = await request<YkPayment>("/payments", { method: "POST", body: body(first), idempotenceKey: p.key });
   } catch (e) {
     // Магазин требует чек (или, наоборот, чеки не подключены) — пробуем второй вариант
     if (!(e instanceof Error) || !/receipt|чек/i.test(e.message)) throw e;
     console.warn(`[yookassa] ${e.message} — повторяю ${first ? "без чека" : "с чеком"}. Поправьте YOOKASSA_SEND_RECEIPT=${!first}`);
-    payment = await request<YkPayment>("/payments", { method: "POST", body: body(!first), idempotenceKey: `order-${p.orderId}-r` });
+    payment = await request<YkPayment>("/payments", { method: "POST", body: body(!first), idempotenceKey: `${p.key}-r` });
   }
   if (!payment.confirmation?.confirmation_url) throw new Error("ЮKassa не вернула ссылку на оплату");
   return payment;
+}
+
+/**
+ * Чек зачёта аванса: покупатель оплатил заказ подарочным сертификатом, купленным на сайте.
+ * Привязывается к платежу, которым купили сертификат. Без «Чеков от ЮKassa» не отправляется.
+ */
+export async function createPrepaymentReceipt(p: {
+  paymentId: string;
+  amount: number;
+  customer: ReceiptCustomer;
+  lines: ReceiptLine[];
+  idempotenceKey: string;
+}): Promise<{ id: string; status: string } | null> {
+  if (!sendReceipt()) return null;
+  const r = buildReceipt(p.customer, p.lines);
+  return request<{ id: string; status: string }>("/receipts", {
+    method: "POST",
+    body: { type: "payment", payment_id: p.paymentId, send: true, customer: r.customer, items: r.items, settlements: [{ type: "prepayment", amount: money(p.amount) }] },
+    idempotenceKey: p.idempotenceKey,
+  });
 }
 
 export function getPayment(id: string) {

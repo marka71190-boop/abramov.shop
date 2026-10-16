@@ -25,6 +25,7 @@ export function Footer({ pages, telegram, email }: Props) {
           <div className="footer__title">Магазин</div>
           <Link href="/#catalog">Каталог</Link>
           <Link href="/#bonus">Бонусная программа</Link>
+          <Link href="/gift">Подарочные сертификаты</Link>
           <Link href="/account">Личный кабинет</Link>
         </div>
         <div className="footer__col">

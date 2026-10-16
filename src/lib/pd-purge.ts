@@ -8,7 +8,9 @@
  *  - заказы остаются для учёта (товары, суммы, статусы, трек), но имя, телефон, почта, адрес,
  *    индекс и комментарий стираются; ответ ЮKassa в оплате — тоже;
  *  - в заявках на возврат стираются комментарий и фото покупателя;
- *  - в журнале действий админов — IP и подробности по удалённым пользователям.
+ *  - в журнале действий админов — IP и подробности по удалённым пользователям;
+ *  - в подарочных сертификатах — почта покупателя, имена, почта получателя и пожелание
+ *    (сами сертификаты продолжают действовать).
  *
  * Действие необратимо.
  */
@@ -91,6 +93,13 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
         .set({ comment: "", photos: [] })
         .where(inArray(s.returnRequest.id, returnRows.map((r) => r.id)));
     }
+
+    // Подарочные сертификаты остаются действовать (код и баланс — деньги покупателя),
+    // но почта покупателя, имена, почта получателя и пожелание стираются
+    await tx
+      .update(s.giftCard)
+      .set({ buyerEmail: null, recipientName: null, recipientEmail: null, senderName: null, message: null })
+      .where(or(isNull(s.giftCard.buyerId), ne(s.giftCard.buyerId, keepId)));
 
     // Журнал согласий и токены
     const consents = (await tx.delete(s.consent).where(others(s.consent.userId)).returning({ id: s.consent.id })).length;

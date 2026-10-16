@@ -132,6 +132,12 @@ export default async function ReturnAdminPage({ params }: { params: Promise<{ id
               <span>Заплачено за них деньгами (с учётом скидки и бонусов)</span>
               <span>{rub(estimate.money)}</span>
             </div>
+            {estimate.giftBack > 0 && (
+              <div className="summary__row">
+                <span>Оплачено сертификатом — при возврате денег вернётся на сертификат</span>
+                <span>{rub(estimate.giftBack)}</span>
+              </div>
+            )}
             {estimate.bonusBack > 0 && (
               <div className="summary__row">
                 <span>Оплачено бонусами — вернутся на счёт</span>

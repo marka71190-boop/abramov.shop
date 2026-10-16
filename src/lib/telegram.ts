@@ -272,7 +272,10 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
           (o.bonusAccrued ? `\nНачислено <b>${num(o.bonusAccrued / 100)}</b> бонусов.` : "") +
           (reviewBonus > 0 ? `\n\nОставьте отзыв о покупке — подарим ещё ${num(reviewBonus)} бонусов.` : ""),
         cancelled: `Заказ <b>${o.number}</b> отменён${o.cancelReason ? `: ${esc(o.cancelReason.toLowerCase())}` : ""}. Товар вернулся в продажу.`,
-        refunded: `Деньги за заказ <b>${o.number}</b> возвращены — ${rub(o.total)}. Обычно они приходят на карту за 1–3 дня.`,
+        refunded:
+          (o.total > o.giftCardAmount ? `Деньги за заказ <b>${o.number}</b> возвращены — ${rub(o.total - o.giftCardAmount)}. Обычно они приходят на карту за 1–3 дня.` : `Заказ <b>${o.number}</b> возвращён.`) +
+          (o.giftCardAmount > 0 ? `
+${rub(o.giftCardAmount)} вернулись на подарочный сертификат.` : ""),
       };
       await send(u.telegramChatId, msg[event], o.trackNumber && event === "shipped" ? [{ text: "Отследить", url: trackUrl(o.trackNumber) }, link] : [link]).catch(
         (e) => console.error("[telegram] клиенту:", e.message),
@@ -316,7 +319,7 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
         o.email,
         `Заказ ${o.number} оплачен`,
         `Спасибо! Заказ ${o.number} оплачен`,
-        `${items}<br><br>Итого: <b>${rub(o.total)}</b><br>Доставка СДЭК: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>Мы соберём заказ и пришлём трек-номер.` +
+        `${items}<br><br>Итого: <b>${rub(o.total)}</b>${o.giftCardAmount > 0 ? `, из них сертификатом ${rub(o.giftCardAmount)}` : ""}<br>Доставка СДЭК: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>Мы соберём заказ и пришлём трек-номер.` +
           (o.bonusAccrued ? `<br>После получения начислим ${num(o.bonusAccrued / 100)} бонусов.` : ""),
         { text: "Открыть заказ", url },
       );
@@ -329,7 +332,11 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
         o.trackNumber ? { text: "Отследить посылку", url: trackUrl(o.trackNumber) } : { text: "Открыть заказ", url },
       );
     } else {
-      await sendMail(o.email, `Возврат по заказу ${o.number}`, "Деньги возвращены", `Вернули ${rub(o.total)} за заказ ${o.number}. Обычно деньги приходят на карту за 1–3 дня.`, {
+      const cash = o.total - o.giftCardAmount;
+      const text =
+        (cash > 0 ? `Вернули ${rub(cash)} за заказ ${o.number}. Обычно деньги приходят на карту за 1–3 дня.` : `Заказ ${o.number} возвращён.`) +
+        (o.giftCardAmount > 0 ? `<br>${rub(o.giftCardAmount)} вернулись на подарочный сертификат — им снова можно оплатить покупки.` : "");
+      await sendMail(o.email, `Возврат по заказу ${o.number}`, cash > 0 ? "Деньги возвращены" : "Заказ возвращён", text, {
         text: "Открыть заказ",
         url,
       });

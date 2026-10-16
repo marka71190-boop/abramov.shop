@@ -32,6 +32,10 @@ import {
   RETURNS_CHECK_ANCHOR,
   RETURNS_CHECK_SECTION,
   RETURNS_HOWTO_OLD,
+  OFFER_GIFT_ANCHOR,
+  OFFER_GIFT_SECTION,
+  PRIVACY_GIFT_ANCHOR,
+  PRIVACY_GIFT_LINE,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 
@@ -108,6 +112,15 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${PRIVACY_COOKIE_OLD}, ${PRIVACY_COOKIE_NEW})` })
     .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_COOKIE_OLD}%`)));
+  // Подарочные сертификаты: данные получателя в политике и раздел в оферте
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${PRIVACY_GIFT_ANCHOR}, ${PRIVACY_GIFT_ANCHOR + "\n" + PRIVACY_GIFT_LINE})` })
+    .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%подарочного сертификата%'`));
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${OFFER_GIFT_ANCHOR}, ${OFFER_GIFT_SECTION + OFFER_GIFT_ANCHOR})` })
+    .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%## 8.1. Подарочные сертификаты%'`));
   // Текст согласия берётся из текущей редакции в журнале согласий, страница — только «обложка»
   await ensurePage({ slug: "consent", title: CONSENT_PD_TITLE, body: "", visibility: "PUBLISHED", sortOrder: 5 });
   await ensurePage({ slug: "marketing-consent", title: CONSENT_MARKETING_TITLE, body: "", visibility: "PUBLISHED", showInFooter: false, sortOrder: 6 });

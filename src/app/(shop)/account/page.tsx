@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -86,6 +86,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const favRows = await db.query.favorite.findMany({ where: eq(s.favorite.userId, user.id), orderBy: desc(s.favorite.createdAt), limit: 24 });
   const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
   const returns = await listReturns({ userId: user.id });
+  const gifts = await db.query.giftCard.findMany({
+    where: and(eq(s.giftCard.buyerId, user.id), ne(s.giftCard.status, "PENDING")),
+    orderBy: desc(s.giftCard.createdAt),
+    limit: 20,
+  });
   const favRatings = await ratingsFor(favorites.map((f) => f.id));
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
@@ -221,6 +226,37 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <ReturnCard key={r.id} r={r} />
               ))}
             </div>
+          </section>
+        )}
+
+        {gifts.length > 0 && (
+          <section id="gifts" className="panel">
+            <h2>Подарочные сертификаты</h2>
+            <div className="stack" style={{ gap: 8 }}>
+              {gifts.map((g) => (
+                <Link key={g.id} href={`/gift/${g.token}`} className="row-line" style={{ color: "inherit", textDecoration: "none" }}>
+                  <div>
+                    <div>
+                      {rub(g.initialAmount)}
+                      {g.recipientName ? ` · для ${g.recipientName}` : ""}
+                    </div>
+                    <div className="muted small">
+                      {g.status === "VOID"
+                        ? g.refundedAt
+                          ? "деньги возвращены"
+                          : "недействителен"
+                        : g.expiresAt && g.expiresAt <= new Date()
+                          ? `срок истёк ${fmtDate(g.expiresAt)}`
+                          : `осталось ${rub(g.balance)}${g.expiresAt ? ` · до ${fmtDate(g.expiresAt)}` : ""}`}
+                    </div>
+                  </div>
+                  <span className="small gold">Открыть →</span>
+                </Link>
+              ))}
+            </div>
+            <p className="small" style={{ marginBottom: 0 }}>
+              <Link href="/gift">Купить ещё сертификат</Link>
+            </p>
           </section>
         )}
 
