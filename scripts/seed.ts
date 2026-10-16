@@ -34,6 +34,8 @@ import {
   RETURNS_HOWTO_OLD,
   OFFER_GIFT_ANCHOR,
   OFFER_GIFT_FIXES,
+  PRIVACY_SOCIAL_FIXES,
+  CONSENT_PD_VERSION,
   OFFER_GIFT_SECTION,
   PRIVACY_GIFT_ANCHOR,
   PRIVACY_GIFT_LINE,
@@ -45,21 +47,27 @@ const db = drizzle(pool, { schema: s });
 const VERSION = "2026-10-09";
 const sha = (t: string) => createHash("sha256").update(t, "utf8").digest("hex");
 
-async function ensureDoc(kind: "PERSONAL_DATA" | "MARKETING", title: string, body: string) {
+/**
+ * Редакция документа согласия. Новая редакция (версия новее текущей) становится текущей:
+ * новые согласия даются на неё, а уже данные остаются привязаны к своей редакции.
+ */
+async function ensureDoc(kind: "PERSONAL_DATA" | "MARKETING", title: string, body: string, version = VERSION) {
   const existing = await db.query.consentDocument.findFirst({
-    where: and(eq(s.consentDocument.kind, kind), eq(s.consentDocument.version, VERSION)),
+    where: and(eq(s.consentDocument.kind, kind), eq(s.consentDocument.version, version)),
   });
   if (existing) return;
-  const anyCurrent = await db.query.consentDocument.findFirst({
+  const current = await db.query.consentDocument.findFirst({
     where: and(eq(s.consentDocument.kind, kind), eq(s.consentDocument.isCurrent, true)),
   });
+  const newer = !current || current.version < version;
+  if (current && newer) await db.update(s.consentDocument).set({ isCurrent: false }).where(eq(s.consentDocument.id, current.id));
   await db.insert(s.consentDocument).values({
     kind,
-    version: VERSION,
+    version,
     title,
     body,
     sha256: sha(body),
-    isCurrent: !anyCurrent,
+    isCurrent: newer,
   });
 }
 
@@ -71,7 +79,7 @@ async function ensurePage(p: { slug: string; title: string; body: string; visibi
 }
 
 async function main() {
-  await ensureDoc("PERSONAL_DATA", CONSENT_PD_TITLE, CONSENT_PD_BODY);
+  await ensureDoc("PERSONAL_DATA", CONSENT_PD_TITLE, CONSENT_PD_BODY, CONSENT_PD_VERSION);
   await ensureDoc("MARKETING", CONSENT_MARKETING_TITLE, CONSENT_MARKETING_BODY);
 
   await ensurePage({ slug: "delivery", title: DRAFT_PAGES[1].title, body: DRAFT_PAGES[1].body, visibility: "PUBLISHED", sortOrder: 1 });
@@ -122,6 +130,13 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${OFFER_GIFT_ANCHOR}, ${OFFER_GIFT_SECTION + OFFER_GIFT_ANCHOR})` })
     .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%## 8.1. Подарочные сертификаты%'`));
+  // Вход через Google и VK ID в политике
+  for (const [from, to] of PRIVACY_SOCIAL_FIXES) {
+    await db
+      .update(s.page)
+      .set({ body: sql`replace(${s.page.body}, ${from}, ${to})` })
+      .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${from}%`)));
+  }
   for (const [from, to] of OFFER_GIFT_FIXES) {
     await db
       .update(s.page)
