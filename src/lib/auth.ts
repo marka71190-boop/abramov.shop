@@ -9,7 +9,9 @@ import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/c
 import { normalizePhone } from "@/lib/format";
 import { isPlaceholderEmail, placeholderEmail, SITE } from "@/lib/site";
 
-const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+// Вход покупателей через Google — только если явно включён (GOOGLE_LOGIN=true). Ключи GOOGLE_CLIENT_ID/SECRET
+// нужны и для Google Диска (фото проверки), а вход через Google — это отдельная передача данных, её включаем осознанно
+const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_LOGIN === "true");
 const vkEnabled = Boolean(process.env.VK_CLIENT_ID && process.env.VK_CLIENT_SECRET);
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase() || null;
 
