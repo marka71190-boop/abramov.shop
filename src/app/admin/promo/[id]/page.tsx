@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { fmtDateTime, rub } from "@/lib/format";
 import { PromoForm } from "../PromoForm";
+import { requireAdmin } from "@/lib/viewer";
 
 export default async function PromoEdit({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin("OWNER");
   const { id } = await params;
   const p = await db.query.promoCode.findFirst({ where: eq(s.promoCode.id, id) });
   if (!p) notFound();

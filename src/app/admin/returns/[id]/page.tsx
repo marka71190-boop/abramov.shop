@@ -14,7 +14,7 @@ import { driveStatus } from "@/lib/gdrive";
 import { loadInspection } from "@/lib/inspection";
 
 export default async function ReturnAdminPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const { id } = await params;
   const data = await loadForAdmin(id).catch((e) => {
     if (e instanceof ReturnError) return null;
@@ -176,6 +176,7 @@ export default async function ReturnAdminPage({ params }: { params: Promise<{ id
           suggested={estimate.money / 100}
           max={estimate.hasPayment ? estimate.left / 100 : null}
           hasBonuses={estimate.bonusBack > 0 || estimate.accruedBack > 0}
+          canRefund={me.role === "OWNER"}
         />
       </div>
     </>

@@ -11,6 +11,7 @@ import { InspectionPanel } from "./InspectionPanel";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { driveStatus } from "@/lib/gdrive";
 import { CHECKLIST, loadInspection } from "@/lib/inspection";
+import { requireAdmin } from "@/lib/viewer";
 
 const PAY = { PENDING: "ожидает", WAITING_FOR_CAPTURE: "ждёт подтверждения", SUCCEEDED: "оплачен", CANCELED: "отменён", REFUNDED: "возвращён" } as const;
 const EVENTS: Record<string, string> = {
@@ -23,6 +24,7 @@ const EVENTS: Record<string, string> = {
 };
 
 export default async function AdminOrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const me = await requireAdmin();
   const { id } = await params;
   const o = await db.query.order.findFirst({
     where: eq(s.order.id, id),
@@ -70,6 +72,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         cdek={{ enabled: cdekEnabled(), uuid: o.cdekOrderUuid, canCreate: !!o.cdekCityCode }}
         testPay={!yookassaEnabled()}
         paid={paid}
+        owner={me.role === "OWNER"}
       />
 
       <div className="grid-2">

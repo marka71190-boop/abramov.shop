@@ -4,8 +4,11 @@ import { db, schema as s } from "@/db";
 import { num, rub } from "@/lib/format";
 import { openReturnsCount } from "@/lib/returns";
 import { getSettings } from "@/lib/settings";
+import { requireAdmin } from "@/lib/viewer";
 
 export default async function AdminHome() {
+  const me = await requireAdmin();
+  const owner = me.role === "OWNER";
   const dayAgo = new Date(Date.now() - 24 * 3600_000);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600_000);
   const PAID_STATES = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"] as const;
@@ -32,16 +35,17 @@ export default async function AdminHome() {
   const orderStats = [
     { label: "Отправить", value: num(toShip), href: "/admin/orders?status=PAID" },
     { label: "Оплачено за сутки", value: num(paidToday), href: "/admin/orders" },
-    { label: "Выручка за 30 дней", value: rub(revenue.sum), href: "/admin/orders" },
+    // Выручку видит только владелец
+    ...(owner ? [{ label: "Выручка за 30 дней", value: rub(revenue.sum), href: "/admin/analytics" }] : []),
     { label: "Ждут оплату", value: num(awaiting), href: "/admin/orders?status=AWAITING_PAYMENT" },
     { label: "Заявки на возврат", value: num(returnsOpen), href: "/admin/returns" },
   ];
   const stats = [
     { label: "Клиентов", value: users, href: "/admin/customers" },
     { label: "Новых за сутки", value: usersToday, href: "/admin/customers" },
-    { label: "Согласий за сутки", value: consentsToday, href: "/admin/consents" },
+    ...(owner ? [{ label: "Согласий за сутки", value: consentsToday, href: "/admin/consents" }] : []),
     { label: "Заблокировано", value: banned, href: "/admin/customers?status=banned" },
-    { label: "Скрытых страниц", value: hiddenPages, href: "/admin/pages" },
+    ...(owner ? [{ label: "Скрытых страниц", value: hiddenPages, href: "/admin/pages" }] : []),
     { label: "Скрытых категорий", value: hiddenCats, href: "/admin/catalog" },
   ];
 

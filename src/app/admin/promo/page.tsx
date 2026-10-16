@@ -4,8 +4,10 @@ import { db, schema as s } from "@/db";
 import { fmtDate, rub } from "@/lib/format";
 import { togglePromo } from "../shop-actions";
 import { PromoForm, PromoToggle } from "./PromoForm";
+import { requireAdmin } from "@/lib/viewer";
 
 export default async function PromoPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
+  await requireAdmin("OWNER");
   const { saved } = await searchParams;
   const [promos, categories] = await Promise.all([
     db.query.promoCode.findMany({ orderBy: desc(s.promoCode.createdAt) }),

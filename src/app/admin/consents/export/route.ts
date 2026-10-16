@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { CONSENT_KIND_LABEL, CONSENT_SOURCE_LABEL, consentRows, consentWhere } from "@/lib/consent-query";
 import { fmtDateTime } from "@/lib/format";
-import { getViewer, isAdmin } from "@/lib/viewer";
+import { getViewer } from "@/lib/viewer";
 
 /** Выгрузка журнала согласий. CSV с «;» и BOM — Excel открывает кириллицу без танцев. */
 export async function GET(req: Request) {
   const me = await getViewer();
-  if (!me || !isAdmin(me)) return new NextResponse("Нет доступа", { status: 403 });
+  if (me?.role !== "OWNER") return new NextResponse("Нет доступа", { status: 403 });
 
   const sp = Object.fromEntries(new URL(req.url).searchParams);
   const rows = await consentRows(consentWhere(sp));

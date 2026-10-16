@@ -5,8 +5,8 @@ import { requireAdmin } from "@/lib/viewer";
 
 export type ReturnActionState = { error?: string; ok?: string };
 
-async function run(id: string, fn: (actorId: string) => Promise<unknown>, ok: string): Promise<ReturnActionState> {
-  const me = await requireAdmin();
+async function run(id: string, fn: (actorId: string) => Promise<unknown>, ok: string, level: "MANAGER" | "OWNER" = "MANAGER"): Promise<ReturnActionState> {
+  const me = await requireAdmin(level);
   try {
     await fn(me.id);
   } catch (e) {
@@ -30,7 +30,7 @@ export async function receiveAction(id: string, restock: boolean) {
 }
 export async function refundAction(id: string, rubles: number, restock: boolean, returnBonuses: boolean, answer: string) {
   if (!Number.isFinite(rubles) || rubles < 0) return { error: "Укажите сумму в рублях" };
-  return run(id, (a) => refundReturn(id, a, { amount: Math.round(rubles * 100), restock, returnBonuses, answer }), "Деньги возвращены, заявка завершена");
+  return run(id, (a) => refundReturn(id, a, { amount: Math.round(rubles * 100), restock, returnBonuses, answer }), "Деньги возвращены, заявка завершена", "OWNER");
 }
 export async function conclusionAction(id: string, text: string) {
   return run(id, (a) => saveConclusion(id, a, text), "Заключение сохранено — покупатель увидит его в кабинете");

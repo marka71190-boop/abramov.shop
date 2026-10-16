@@ -2,11 +2,13 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { CONSENT_KIND_LABEL, CONSENT_SOURCE_LABEL, consentRows, consentWhere } from "@/lib/consent-query";
 import { fmtDate, fmtDateTime, num, prettyPhone } from "@/lib/format";
+import { requireAdmin } from "@/lib/viewer";
 
 const PER_PAGE = 50;
 type SP = { q?: string; kind?: string; status?: string; from?: string; to?: string; page?: string };
 
 export default async function ConsentsPage({ searchParams }: { searchParams: Promise<SP> }) {
+  await requireAdmin("OWNER");
   const sp = await searchParams;
   const pageNum = Math.max(1, Number(sp.page) || 1);
   const where = consentWhere(sp);

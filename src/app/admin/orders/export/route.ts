@@ -2,7 +2,7 @@
 import { and, desc, gte } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { ORDER_STATUS } from "@/lib/order-status";
-import { getViewer, isAdmin } from "@/lib/viewer";
+import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,8 @@ const money = (k: number) => (k / 100).toFixed(2).replace(".", ",");
 const msk = (d: Date | null) => (d ? new Date(+d + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ") : "");
 
 export async function GET(request: Request) {
-  if (!isAdmin(await getViewer())) return new Response("Нет доступа", { status: 403 });
+  // Выгрузка всех заказов с телефонами и адресами — только владелец
+  if ((await getViewer())?.role !== "OWNER") return new Response("Нет доступа", { status: 403 });
   const days = Math.min(3650, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
   const from = new Date(Date.now() - days * 86400_000);
   const rows = await db.query.order.findMany({

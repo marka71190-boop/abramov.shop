@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { num, rub } from "@/lib/format";
 import { BarChart } from "./BarChart";
+import { requireAdmin } from "@/lib/viewer";
 
 const PAID = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"] as const;
 const PERIODS = [7, 30, 90, 365];
@@ -16,6 +17,7 @@ function days(n: number) {
 }
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
+  await requireAdmin("OWNER");
   const sp = await searchParams;
   const period = PERIODS.includes(Number(sp.days)) ? Number(sp.days) : 30;
   const list = days(period);

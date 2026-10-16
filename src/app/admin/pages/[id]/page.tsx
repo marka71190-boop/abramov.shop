@@ -8,7 +8,7 @@ import { PageForm } from "./PageForm";
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> };
 
 export default async function EditPage({ params, searchParams }: Props) {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const [{ id }, { saved }] = await Promise.all([params, searchParams]);
   const page = id === "new" ? null : await db.query.page.findFirst({ where: eq(s.page.id, id) });
   if (id !== "new" && !page) notFound();

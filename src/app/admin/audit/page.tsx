@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDateTime } from "@/lib/format";
+import { requireAdmin } from "@/lib/viewer";
 
 const ACTION: Record<string, string> = {
   "user.ban": "Заблокировал клиента",
@@ -19,6 +20,7 @@ const ACTION: Record<string, string> = {
 };
 
 export default async function AuditPage() {
+  await requireAdmin("OWNER");
   const rows = await db
     .select({ log: s.auditLog, actorName: s.user.name, actorEmail: s.user.email })
     .from(s.auditLog)

@@ -11,7 +11,7 @@ import { requireAdmin } from "@/lib/viewer";
 import { CAMPAIGN_STATUS } from "./status";
 
 export default async function MailingPage() {
-  await requireAdmin();
+  await requireAdmin("OWNER");
   const [campaigns, subs, quota, ab, settings] = await Promise.all([
     db.query.campaign.findMany({ orderBy: desc(s.campaign.createdAt), limit: 100, with: { promo: { columns: { code: true } } } }),
     subscriberStats(),

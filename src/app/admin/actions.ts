@@ -82,7 +82,7 @@ const BonusInput = z.object({
 });
 
 export async function adjustBonus(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const p = BonusInput.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
   const { userId, amount, comment } = p.data;
@@ -121,7 +121,8 @@ const Vis = z.enum(["DRAFT", "HIDDEN", "PUBLISHED"]);
 const TABLES = { page: s.page, category: s.category, product: s.product } as const;
 
 export async function setVisibility(entity: keyof typeof TABLES, id: string, visibility: string) {
-  const me = await requireAdmin();
+  // Страницы (оферта, политика) — только владелец; каталог — и менеджер
+  const me = await requireAdmin(entity === "page" ? "OWNER" : "MANAGER");
   const v = Vis.parse(visibility);
   const t = TABLES[entity];
   await db.update(t).set({ visibility: v }).where(eq(t.id, id));
@@ -150,7 +151,7 @@ const PageInput = z.object({
 });
 
 export async function savePage(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const p = PageInput.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
   const d = p.data;

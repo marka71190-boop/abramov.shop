@@ -13,7 +13,7 @@ import { DraftControls, MailingForm, RunControls, type PromoOption } from "../Ma
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> };
 
 export default async function CampaignPage({ params, searchParams }: Props) {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const [{ id }, { saved }] = await Promise.all([params, searchParams]);
   const c = id === "new" ? null : await db.query.campaign.findFirst({ where: eq(s.campaign.id, id) });
   if (id !== "new" && !c) notFound();

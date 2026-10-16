@@ -9,6 +9,8 @@ interface Props {
   cdek: { enabled: boolean; uuid: string | null; canCreate: boolean };
   testPay: boolean;
   paid: boolean;
+  /** Возврат денег и тестовая оплата — только владелец */
+  owner: boolean;
 }
 
 function Op({ op, label, tone = "line", confirmText, extra }: { op: string; label: string; tone?: "gold" | "line" | "danger"; confirmText?: string; extra?: React.ReactNode }) {
@@ -28,7 +30,7 @@ function Op({ op, label, tone = "line", confirmText, extra }: { op: string; labe
   );
 }
 
-export function OrderControls({ id, status, track, cdek, testPay, paid }: Props) {
+export function OrderControls({ id, status, track, cdek, testPay, paid, owner }: Props) {
   const [state, action, pending] = useActionState(orderAction, {});
   const [refundOpen, setRefundOpen] = useState(false);
   const form = (children: React.ReactNode, key: string) => (
@@ -46,7 +48,7 @@ export function OrderControls({ id, status, track, cdek, testPay, paid }: Props)
 
       {status === "AWAITING_PAYMENT" && (
         <div className="row">
-          {testPay && form(<Op op="testpay" label="Отметить оплаченным (тест)" tone="gold" />, "tp")}
+          {testPay && owner && form(<Op op="testpay" label="Отметить оплаченным (тест)" tone="gold" />, "tp")}
           {form(<Op op="cancel" label="Отменить заказ" tone="danger" confirmText="Отменить заказ? Товар и бонусы вернутся." />, "c")}
         </div>
       )}
@@ -89,7 +91,8 @@ export function OrderControls({ id, status, track, cdek, testPay, paid }: Props)
         <div className="row">{form(<Op op="delivered" label="Клиент получил (самовывоз)" confirmText="Отметить заказ полученным? Клиенту начислятся бонусы." />, "dl2")}</div>
       )}
 
-      {paid && (
+      {paid && !owner && <p className="muted small" style={{ margin: 0 }}>Вернуть деньги может только владелец магазина.</p>}
+      {paid && owner && (
         <div className="stack" style={{ gap: 10, borderTop: "1px solid var(--c-line)", paddingTop: 16 }}>
           {!refundOpen ? (
             <div>

@@ -26,7 +26,7 @@ const CampaignIn = z.object({
 });
 
 export async function saveCampaign(_: MailingState, form: FormData): Promise<MailingState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const p = CampaignIn.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
   const d = p.data;
@@ -71,7 +71,7 @@ async function draft(id: string) {
 }
 
 export async function testCampaign(id: string): Promise<MailingState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   try {
     const done = await sendTest(await draft(id), me);
     if (!done.length) return { error: "Некуда отправить тест: у вас не указана почта или не подключён Telegram" };
@@ -82,7 +82,7 @@ export async function testCampaign(id: string): Promise<MailingState> {
 }
 
 export async function launchCampaign(id: string): Promise<MailingState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const c = await draft(id);
   if (c.status !== "DRAFT") return { error: "Рассылка уже запущена" };
   try {
@@ -99,7 +99,7 @@ export async function launchCampaign(id: string): Promise<MailingState> {
 }
 
 export async function stopCampaign(id: string): Promise<MailingState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   await cancelCampaign(id);
   await audit(me.id, "campaign.stop", "campaign", id);
   revalidatePath(`/admin/mailing/${id}`);
@@ -107,7 +107,7 @@ export async function stopCampaign(id: string): Promise<MailingState> {
 }
 
 export async function deleteCampaign(id: string) {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   await db.delete(s.campaign).where(and(eq(s.campaign.id, id), eq(s.campaign.status, "DRAFT")));
   await audit(me.id, "campaign.delete", "campaign", id);
   redirect("/admin/mailing");
@@ -115,7 +115,7 @@ export async function deleteCampaign(id: string) {
 
 /** Копия любой рассылки в новый черновик — чтобы повторить или поправить запущенную. */
 export async function copyCampaign(id: string) {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const c = await draft(id);
   const [row] = await db
     .insert(s.campaign)

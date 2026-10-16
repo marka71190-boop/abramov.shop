@@ -3,8 +3,10 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDateTime } from "@/lib/format";
 import { VisibilitySelect } from "../VisibilitySelect";
+import { requireAdmin } from "@/lib/viewer";
 
 export default async function PagesAdmin() {
+  await requireAdmin("OWNER");
   const pages = await db.select().from(s.page).orderBy(asc(s.page.sortOrder), asc(s.page.title));
   return (
     <>

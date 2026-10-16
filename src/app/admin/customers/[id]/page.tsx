@@ -57,7 +57,7 @@ export default async function CustomerPage({ params }: Props) {
           <div>
             <span className="muted">Реферальный код:</span> {u.referralCode ?? "—"}
           </div>
-          <BirthdayAdminForm userId={u.id} value={u.birthday} />
+          {me.role === "OWNER" && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
           {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} />}
         </div>
 
@@ -86,7 +86,7 @@ export default async function CustomerPage({ params }: Props) {
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Бонусы</h2>
-        <BonusForm userId={u.id} />
+        {me.role === "OWNER" && <BonusForm userId={u.id} />}
         {bonuses.length > 0 && (
           <div className="table-wrap">
             <table className="table">

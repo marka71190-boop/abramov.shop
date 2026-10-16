@@ -6,17 +6,17 @@ const LINKS = [
   { href: "/admin", label: "Обзор", exact: true },
   { href: "/admin/orders", label: "Заказы" },
   { href: "/admin/returns", label: "Возвраты" },
-  { href: "/admin/analytics", label: "Аналитика" },
+  { href: "/admin/analytics", label: "Аналитика", owner: true },
   { href: "/admin/customers", label: "Клиенты" },
-  { href: "/admin/consents", label: "Журнал согласий" },
-  { href: "/admin/pages", label: "Страницы" },
+  { href: "/admin/consents", label: "Журнал согласий", owner: true },
+  { href: "/admin/pages", label: "Страницы", owner: true },
   { href: "/admin/catalog", label: "Каталог" },
-  { href: "/admin/promo", label: "Промокоды" },
-  { href: "/admin/mailing", label: "Рассылки" },
+  { href: "/admin/promo", label: "Промокоды", owner: true },
+  { href: "/admin/mailing", label: "Рассылки", owner: true },
   { href: "/admin/reviews", label: "Отзывы" },
   { href: "/admin/settings", label: "Настройки", owner: true },
   { href: "/admin/backup", label: "Резервные копии", owner: true },
-  { href: "/admin/audit", label: "Журнал действий" },
+  { href: "/admin/audit", label: "Журнал действий", owner: true },
 ];
 
 export function AdminNav({ owner }: { owner: boolean }) {

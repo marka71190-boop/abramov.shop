@@ -12,6 +12,8 @@ interface Props {
   suggested: number; // рубли
   max: number | null;
   hasBonuses: boolean;
+  /** Вернуть деньги может только владелец */
+  canRefund: boolean;
 }
 
 export function ReturnControls(p: Props) {
@@ -70,6 +72,8 @@ export function ReturnControls(p: Props) {
 
       {(p.status === "APPROVED" || p.status === "RECEIVED") && (
         <>
+          {!p.canRefund && <div className="panel muted small">Вернуть деньги может только владелец магазина — передайте ему заявку.</div>}
+          {p.canRefund && (
           <div className="panel stack">
             <strong>{p.resolution === "DISCOUNT" ? "Вернуть часть денег (скидка)" : "Вернуть деньги"}</strong>
             <label className="field">
@@ -106,6 +110,7 @@ export function ReturnControls(p: Props) {
               </button>
             </div>
           </div>
+          )}
           <div className="panel stack">
             <strong>Завершить без возврата денег</strong>
             <div className="muted small">Например, обмен: отправили покупателю такой же товар.</div>

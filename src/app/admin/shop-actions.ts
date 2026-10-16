@@ -46,10 +46,12 @@ export async function orderAction(_: ActionState, form: FormData): Promise<Actio
         await cancelOrder(id, String(form.get("reason") || "Отменён магазином"), me.id);
         break;
       case "testpay":
+        if (me.role !== "OWNER") return { error: "Только владелец" };
         if (yookassaEnabled()) return { error: "ЮKassa подключена — тестовая оплата выключена" };
         await markPaid(id, `admin:${me.id}`);
         break;
       case "refund":
+        if (me.role !== "OWNER") return { error: "Вернуть деньги может только владелец" };
         await refundOrder(id, me.id, { restock: form.get("restock") === "on", reason: String(form.get("reason") || "Возврат денег") });
         break;
       case "cdek":
@@ -96,7 +98,7 @@ const PromoIn = z.object({
 });
 
 export async function savePromo(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const p = PromoIn.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
   const d = p.data;
@@ -142,7 +144,7 @@ export async function savePromo(_: ActionState, form: FormData): Promise<ActionS
 }
 
 export async function togglePromo(id: string, isActive: boolean) {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   await db.update(s.promoCode).set({ isActive }).where(eq(s.promoCode.id, id));
   await audit(me.id, "promo.toggle", "promo", id, { isActive });
   revalidatePath("/admin/promo");
@@ -452,7 +454,7 @@ export async function mailTest(): Promise<ActionState> {
 
 /** Поддержка меняет дату рождения клиента (клиент сам указывает её один раз). */
 export async function adminSetBirthday(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireAdmin();
+  const me = await requireAdmin("OWNER");
   const userId = String(form.get("userId") || "");
   const v = String(form.get("birthday") || "");
   if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: "Проверьте дату" };
