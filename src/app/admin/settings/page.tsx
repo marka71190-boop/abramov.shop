@@ -149,6 +149,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </div>
         <div className="row-line">
           <div>
+            <div>Товарный фид для Яндекса</div>
+            <div className="muted small">
+              Ссылка для Яндекс Бизнеса, Яндекс Товаров и Директа: <code>{SITE.url}/feed/yandex.xml</code>. Обновляется сама раз в час — только
+              опубликованные товары, без данных покупателей.{" "}
+              <a href="/feed/yandex.xml" target="_blank" rel="noreferrer">
+                Открыть
+              </a>
+            </div>
+          </div>
+          <span className="pill pill--ok">готов</span>
+        </div>
+        <div className="row-line">
+          <div>
             <div>Яндекс Метрика{metrika ? ` · счётчик ${metrika}` : ""}</div>
             <div className="muted small">
               {metrika ? (
