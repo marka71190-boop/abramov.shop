@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { rub } from "@/lib/format";
-import { goal } from "@/lib/track";
+import { ecommerce, goal } from "@/lib/track";
 import { useCart } from "./CartProvider";
 import { cartUpsellAction } from "./upsell-action";
 
@@ -48,6 +48,7 @@ export function CartUpsell() {
                     onClick={() => {
                       cart.add(it.variantId!, 1);
                       goal("add_to_cart", { from: "upsell" });
+                      ecommerce("add", [{ id: it.trackId, name: it.name, price: it.price / 100, quantity: 1 }]);
                     }}
                   >
                     + В корзину

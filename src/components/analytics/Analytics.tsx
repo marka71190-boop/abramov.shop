@@ -13,6 +13,25 @@ export function readConsent(): string | null {
   }
 }
 
+/**
+ * Страницы, открытые по секретной ссылке из письма (сброс пароля, отписка, подарочный сертификат):
+ * сами по себе Метрику не запускаем, чтобы ссылка с ключом не попала в статистику.
+ */
+const SECRET_PAGE = /^\/(reset-password|unsubscribe|gift\/[^/]+)\/?$/;
+const SECRET_PARAMS = ["token", "t", "u", "preview", "code"];
+
+/** Адрес для Метрики — без ключей доступа и без кода сертификата. */
+export function safeUrl(href: string) {
+  try {
+    const u = new URL(href);
+    if (/^\/gift\/[^/]+/.test(u.pathname)) u.pathname = "/gift/certificate";
+    for (const k of SECRET_PARAMS) u.searchParams.delete(k);
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
 function loadMetrika(id: number) {
   if (window.__ymId) return;
   window.__ymId = id;
@@ -54,12 +73,13 @@ export function Analytics({ metrikaId }: { metrikaId: number | null }) {
   }, []);
 
   useEffect(() => {
-    if (allowed && metrikaId) loadMetrika(metrikaId);
-  }, [allowed, metrikaId]);
+    if (allowed && metrikaId && !SECRET_PAGE.test(window.location.pathname)) loadMetrika(metrikaId);
+  }, [allowed, metrikaId, path]);
 
   useEffect(() => {
     if (!allowed || !metrikaId || !window.ym) return;
-    window.ym(metrikaId, "hit", window.location.href, { referer: document.referrer, title: document.title });
+    if (SECRET_PAGE.test(window.location.pathname)) return;
+    window.ym(metrikaId, "hit", safeUrl(window.location.href), { referer: safeUrl(document.referrer), title: document.title });
   }, [allowed, metrikaId, path, search]);
 
   return null;

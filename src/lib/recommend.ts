@@ -79,6 +79,7 @@ export async function suggestForCart(variantIds: string[], limit = 4) {
       return {
         id: c.id,
         slug: c.slug,
+        trackId: c.sku ?? c.slug, // код товара для Метрики — как в карточке
         name: c.name,
         price: Math.min(...c.variants.map((v) => v.price)),
         oldPrice: c.oldPrice,

@@ -29,7 +29,7 @@ export default async function CheckoutPage() {
   const saved = await listAddresses(user.id);
   if (settings.pdPause && !isAdmin(user)) {
     return (
-      <section className="container page-pad">
+      <section className="container page-pad ym-hide-content">
         <h1 className="h2" style={{ marginBottom: 28 }}>
           Оформление
         </h1>
@@ -43,7 +43,7 @@ export default async function CheckoutPage() {
   const payments = yookassaEnabled();
 
   return (
-    <section className="container page-pad">
+    <section className="container page-pad ym-hide-content">
       <h1 className="h2" style={{ marginBottom: 28 }}>
         Оформление
       </h1>

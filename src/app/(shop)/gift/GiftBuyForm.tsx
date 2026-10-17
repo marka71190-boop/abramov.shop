@@ -81,7 +81,7 @@ export function GiftBuyForm(p: Props) {
           )}
         </fieldset>
 
-        <fieldset className="panel stack" disabled={pending}>
+        <fieldset className="panel stack ym-hide-content" disabled={pending}>
           <legend className="step">
             <span>2</span> Кому и от кого
           </legend>
@@ -102,7 +102,7 @@ export function GiftBuyForm(p: Props) {
           </label>
         </fieldset>
 
-        <fieldset className="panel stack" disabled={pending}>
+        <fieldset className="panel stack ym-hide-content" disabled={pending}>
           <legend className="step">
             <span>3</span> Как подарить
           </legend>

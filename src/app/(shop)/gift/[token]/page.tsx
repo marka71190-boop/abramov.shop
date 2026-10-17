@@ -30,7 +30,7 @@ export default async function GiftCardPage({ params, searchParams }: Props) {
   if (card.status === "PENDING") {
     const canPay = card.confirmationUrl && card.payExpiresAt && card.payExpiresAt > new Date();
     return (
-      <section className="container page-pad gift-page">
+      <section className="container page-pad gift-page ym-hide-content">
         {from === "pay" && <WaitPayment />}
         <h1 className="h2">Сертификат на {rub(card.initialAmount)}</h1>
         <div className="notice notice--muted">
@@ -49,7 +49,7 @@ export default async function GiftCardPage({ params, searchParams }: Props) {
 
   if (card.status === "VOID") {
     return (
-      <section className="container page-pad gift-page">
+      <section className="container page-pad gift-page ym-hide-content">
         <h1 className="h2">Сертификат недействителен</h1>
         <p className="muted">
           {card.refundedAt ? "Деньги за этот сертификат возвращены покупателю." : card.paidAt ? "Сертификат аннулирован." : "Сертификат не был оплачен."} Если это ошибка —

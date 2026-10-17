@@ -23,7 +23,7 @@ export default async function ReturnPage({ params }: { params: Promise<{ number:
   });
 
   return (
-    <section className="container page-pad" style={{ maxWidth: 820 }}>
+    <section className="container page-pad ym-hide-content" style={{ maxWidth: 820 }}>
       <p className="small" style={{ margin: "0 0 16px" }}>
         <Link href={`/order/${o.number}`}>← Заказ {o.number}</Link>
       </p>

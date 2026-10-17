@@ -100,7 +100,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const firstName = user.name.split(" ")[0] || user.name;
 
   return (
-    <div className="container account">
+    <div className="container account ym-hide-content">
       <nav className="account__nav" aria-label="Разделы кабинета">
         <Link href="/account" aria-current="page">
           Обзор

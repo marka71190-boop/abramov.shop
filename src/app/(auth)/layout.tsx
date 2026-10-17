@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </aside>
-      <main className="auth__main">{children}</main>
+      <main className="auth__main ym-hide-content">{children}</main>
     </div>
   );
 }

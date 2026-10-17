@@ -53,7 +53,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const justPaid = from === "pay" && o.status === "PAID";
 
   return (
-    <section className="container page-pad order-page">
+    <section className="container page-pad order-page ym-hide-content">
       <p className="small" style={{ margin: "0 0 16px" }}>
         <Link href="/account#orders">← Мои заказы</Link>
       </p>
