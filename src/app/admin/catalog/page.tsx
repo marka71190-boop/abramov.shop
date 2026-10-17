@@ -35,7 +35,17 @@ export default async function CatalogAdmin() {
 
   return (
     <>
-      <h1>Каталог</h1>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ margin: 0 }}>Каталог</h1>
+        <div className="row">
+          <Link className="btn btn--line btn--sm" href="/admin/catalog/import">
+            Загрузить из Excel
+          </Link>
+          <a className="btn btn--line btn--sm" href="/admin/catalog/export">
+            Выгрузить в Excel
+          </a>
+        </div>
+      </div>
       <p className="muted" style={{ margin: 0 }}>
         Скрытые категории и товары покупатели не видят. Наполните раздел и переключите на «Опубликовано» — он сразу появится на
         главной.
