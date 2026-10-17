@@ -1,0 +1,1 @@
+ALTER TABLE "product_variant" ADD COLUMN "low_stock_notified_at" timestamp with time zone;

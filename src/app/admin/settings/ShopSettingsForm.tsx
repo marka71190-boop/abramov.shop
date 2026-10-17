@@ -69,6 +69,10 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
         Объявление на странице оформления (например, «Отправка после 15 октября»)
         <input className="input" name="notice" defaultValue={s.checkout.notice} maxLength={500} />
       </label>
+      <label className="field" style={{ maxWidth: 420 }} id="stock-settings">
+        Предупреждать в Telegram, когда остаток варианта не больше, шт (0 — не предупреждать)
+        <input className="input" name="lowStock" type="number" min={0} defaultValue={s.stock.lowThreshold} />
+      </label>
       <h2 style={{ margin: "12px 0 0" }} id="gift-settings">
         Подарочные сертификаты
       </h2>

@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/admin/home", label: "Главная страница", owner: true },
   { href: "/admin/pages", label: "Страницы", owner: true },
   { href: "/admin/catalog", label: "Каталог" },
+  { href: "/admin/stock", label: "Остатки" },
   { href: "/admin/promo", label: "Промокоды", owner: true },
   { href: "/admin/gift-cards", label: "Сертификаты", owner: true },
   { href: "/admin/mailing", label: "Рассылки", owner: true },

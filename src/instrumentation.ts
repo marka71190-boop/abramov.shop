@@ -7,7 +7,8 @@
  *   • каждые 30 минут — напоминания о брошенных корзинах;
  *   • каждые 2 минуты — подарочные сертификаты: оплата, письма получателям в выбранный день;
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании,
- *     напоминание админам о заявках на возврат, срок ответа по которым истекает.
+ *     напоминание админам о заявках на возврат, срок ответа по которым истекает,
+ *     проверка «заканчивается товар».
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.DISABLE_JOBS === "true") return;
@@ -54,6 +55,8 @@ export async function register() {
     await bonuses.remindExpiring();
     const { remindReturnDeadlines } = await import("@/lib/returns");
     await remindReturnDeadlines();
+    const { checkLowStock } = await import("@/lib/low-stock");
+    await checkLowStock();
   };
   setTimeout(safe("bonuses", hourly), 3 * 60_000);
   setInterval(safe("bonuses", hourly), 60 * 60_000);

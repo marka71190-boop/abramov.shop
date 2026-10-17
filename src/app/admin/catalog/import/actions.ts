@@ -14,6 +14,8 @@ export async function applyImportAction(raw: unknown): Promise<{ results?: Apply
   for (const item of p.data) results.push(await applyProduct(item, me.id));
   const { notifyBackInStock } = await import("@/lib/stock-alerts");
   for (const r of results) if (r.backInStock && r.productId) await notifyBackInStock(r.productId).catch(() => 0);
+  const { checkLowStock } = await import("@/lib/low-stock");
+  await checkLowStock().catch(() => 0);
   return { results };
 }
 

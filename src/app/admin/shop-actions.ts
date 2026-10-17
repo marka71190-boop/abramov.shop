@@ -302,6 +302,9 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     throw e;
   }
   await audit(me.id, d.id ? "product.update" : "product.create", "product", productId, { slug: d.slug, visibility: d.visibility });
+  // Пополнили остаток — снова предупредим, когда будет заканчиваться
+  const ids = (await db.select({ id: s.productVariant.id }).from(s.productVariant).where(eq(s.productVariant.productId, productId!))).map((v) => v.id);
+  await import("@/lib/low-stock").then((m) => m.checkLowStock(ids)).catch(() => 0);
   // Был ноль, стал остаток — сообщаем тем, кто ждал
   let notified = 0;
   if (d.id && stockBefore === 0 && d.visibility === "PUBLISHED" && (await productStock(d.id)) > 0) notified = await notifyBackInStock(d.id);
@@ -393,6 +396,7 @@ const ShopSettingsIn = z.object({
   giftCustomMin: z.coerce.number().int().min(0).max(1_000_000),
   giftCustomMax: z.coerce.number().int().min(0).max(1_000_000),
   giftValidityDays: z.coerce.number().int().min(0).max(3650),
+  lowStock: z.coerce.number().int().min(0).max(10_000),
 });
 
 export async function updateShopSettings(_: ActionState, form: FormData): Promise<ActionState> {
@@ -422,6 +426,7 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
       flatCourier: d.flatCourier,
     },
     checkout: { paymentMinutes: d.paymentMinutes, maxQtyPerItem: d.maxQtyPerItem, notice: d.notice, abandonedHours: d.abandonedHours },
+    stock: { lowThreshold: d.lowStock },
     giftCards: {
       enabled: form.get("giftEnabled") === "on",
       nominals: nominals.slice(0, 6),

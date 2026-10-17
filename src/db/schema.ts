@@ -286,6 +286,7 @@ export const productVariant = pgTable("product_variant", {
   stock: integer("stock").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
+  lowStockNotifiedAt: ts("low_stock_notified_at"), // уже предупредили админов, что заканчивается
 });
 
 export const productImage = pgTable("product_image", {

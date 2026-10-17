@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { num, rub } from "@/lib/format";
 import { openReturnsCount } from "@/lib/returns";
+import { lowStockCount } from "@/lib/low-stock";
 import { getSettings } from "@/lib/settings";
 import { requireAdmin } from "@/lib/viewer";
 
@@ -12,7 +13,7 @@ export default async function AdminHome() {
   const dayAgo = new Date(Date.now() - 24 * 3600_000);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600_000);
   const PAID_STATES = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"] as const;
-  const [toShip, paidToday, [revenue], awaiting, returnsOpen] = await Promise.all([
+  const [toShip, paidToday, [revenue], awaiting, returnsOpen, lowStock] = await Promise.all([
     db.$count(s.order, inArray(s.order.status, ["PAID", "ASSEMBLING"])),
     db.$count(s.order, and(inArray(s.order.status, [...PAID_STATES]), gte(s.order.paidAt, dayAgo))),
     db
@@ -21,6 +22,7 @@ export default async function AdminHome() {
       .where(and(inArray(s.order.status, [...PAID_STATES]), gte(s.order.paidAt, monthAgo))),
     db.$count(s.order, eq(s.order.status, "AWAITING_PAYMENT")),
     openReturnsCount(),
+    lowStockCount(),
   ]);
   const [users, usersToday, consentsToday, banned, hiddenPages, hiddenCats, settings] = await Promise.all([
     db.$count(s.user),
@@ -39,6 +41,7 @@ export default async function AdminHome() {
     ...(owner ? [{ label: "Выручка за 30 дней", value: rub(revenue.sum), href: "/admin/analytics" }] : []),
     { label: "Ждут оплату", value: num(awaiting), href: "/admin/orders?status=AWAITING_PAYMENT" },
     { label: "Заявки на возврат", value: num(returnsOpen), href: "/admin/returns" },
+    { label: "Заканчивается товаров", value: num(lowStock), href: "/admin/stock?f=low" },
   ];
   const stats = [
     { label: "Клиентов", value: users, href: "/admin/customers" },

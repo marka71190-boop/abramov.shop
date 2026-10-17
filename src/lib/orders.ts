@@ -212,6 +212,9 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
     return o;
   });
 
+  // Остатки: предупредить админов, если что-то заканчивается (не задерживает покупателя)
+  void import("@/lib/low-stock").then((m) => m.checkLowStock(quote.lines.map((l) => l.variantId))).catch((e) => console.error("[stock] low:", e));
+
   // 6. Платёж. Сертификат покрыл всё — платить онлайн нечего
   const payable = order.total - order.giftCardAmount;
   if (payable <= 0) {

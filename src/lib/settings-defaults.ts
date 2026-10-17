@@ -41,6 +41,9 @@ export interface SiteSettings {
     notice: string; // объявление на странице оформления
     abandonedHours: number; // через сколько часов напомнить о брошенной корзине; 0 — не напоминать
   };
+  stock: {
+    lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
+  };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
     nominals: number[]; // ₽
@@ -89,6 +92,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     notice: "",
     abandonedHours: 3,
   },
+  stock: {
+    lowThreshold: 3,
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -110,6 +116,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     delivery: { ...d.delivery, ...(s.delivery ?? {}) },
     checkout: { ...d.checkout, ...(s.checkout ?? {}) },
     giftCards: { ...d.giftCards, ...(s.giftCards ?? {}) },
+    stock: { ...d.stock, ...(s.stock ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,
