@@ -39,7 +39,7 @@ export function ReviewForm({ productId, initial }: { productId: string; initial?
       }}
     >
       <h3 className="h3" style={{ margin: 0, fontSize: 22 }}>
-        {initial ? "Изменить отзыв" : "Ваш отзыв"}
+        {initial?.text ? "Изменить отзыв" : "Ваш отзыв"}
       </h3>
       <div className="star-input" role="radiogroup" aria-label="Оценка" onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map((n) => (

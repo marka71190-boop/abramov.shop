@@ -49,6 +49,8 @@ export interface MailExtra {
   footerHtml?: string;
   /** Дополнительные заголовки (List-Unsubscribe для рассылок) */
   headers?: Record<string, string>;
+  /** Свой текст для версии письма без оформления (иначе — собираем из HTML) */
+  text?: string;
 }
 
 const toText = (html: string) =>
@@ -81,6 +83,7 @@ export async function sendMail(
   if (!mailEnabled() || isPlaceholderEmail(to)) return false;
   const from = process.env.SMTP_FROM || `Abramov Shop <${process.env.SMTP_USER}>`;
   const text =
+    extra.text ??
     `${title}\n\n${toText(bodyHtml)}${button ? `\n\n${button.text}: ${button.url}` : ""}` + (extra.footerHtml ? `\n\n---\n${toText(extra.footerHtml)}` : "");
   await getTransport().sendMail({ from, to, subject, html: layout(title, bodyHtml, button, extra.footerHtml), text, headers: extra.headers });
   return true;

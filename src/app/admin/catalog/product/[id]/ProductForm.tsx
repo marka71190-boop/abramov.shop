@@ -42,6 +42,91 @@ export interface ProductData {
   images: { url: string; alt: string; variantId: string | null }[];
 }
 
+type Brief = { id: string; name: string; sku: string | null; visibility: "DRAFT" | "HIDDEN" | "PUBLISHED" };
+
+/** «С этим покупают»: ручная подборка; пусто — подбираем сами по покупкам и категории */
+function RelatedPicker({ all, value, onChange }: { all: Brief[]; value: string[]; onChange: (v: string[]) => void }) {
+  const [q, setQ] = useState("");
+  const byId = new Map(all.map((p) => [p.id, p]));
+  const needle = q.trim().toLowerCase();
+  const found = needle
+    ? all.filter((p) => !value.includes(p.id) && (p.name.toLowerCase().includes(needle) || (p.sku ?? "").toLowerCase().includes(needle))).slice(0, 8)
+    : [];
+  const shift = (i: number, d: number) => {
+    const a = [...value];
+    const j = i + d;
+    if (j < 0 || j >= a.length) return;
+    [a[i], a[j]] = [a[j], a[i]];
+    onChange(a);
+  };
+  return (
+    <div className="panel stack">
+      <h2 style={{ marginBottom: 0 }}>С этим покупают</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Эти товары покажем первыми в карточке и в корзине. Не выбрано — подберём сами: что чаще берут вместе, затем популярное из той же категории. Черновики и скрытые покупателям не видны.
+      </p>
+      {value.length > 0 && (
+        <ol className="stack" style={{ gap: 6, margin: 0, paddingLeft: 20 }}>
+          {value.map((id, i) => {
+            const p = byId.get(id);
+            return (
+              <li key={id}>
+                <div className="row" style={{ gap: 8, justifyContent: "space-between" }}>
+                  <span>
+                    {p?.name ?? "Удалённый товар"}
+                    {p && p.visibility !== "PUBLISHED" && <span className="muted small"> · {p.visibility === "DRAFT" ? "черновик" : "скрыт"}</span>}
+                  </span>
+                  <span className="row" style={{ gap: 4 }}>
+                    <button type="button" className="btn btn--line btn--sm" onClick={() => shift(i, -1)} disabled={i === 0} aria-label="Выше">
+                      ↑
+                    </button>
+                    <button type="button" className="btn btn--line btn--sm" onClick={() => shift(i, 1)} disabled={i === value.length - 1} aria-label="Ниже">
+                      ↓
+                    </button>
+                    <button type="button" className="btn btn--line btn--sm" onClick={() => onChange(value.filter((x) => x !== id))} aria-label="Убрать">
+                      ×
+                    </button>
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {value.length < 12 ? (
+        <label className="field">
+          Добавить товар
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название или артикул" />
+        </label>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          Выбрано максимум — 12 товаров.
+        </p>
+      )}
+      {found.length > 0 && (
+        <div className="stack" style={{ gap: 4 }}>
+          {found.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="btn btn--line btn--sm"
+              style={{ justifyContent: "flex-start" }}
+              onClick={() => {
+                onChange([...value, p.id]);
+                setQ("");
+              }}
+            >
+              + {p.name}
+              {p.sku ? <span className="muted"> · {p.sku}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+      {needle && !found.length && <p className="small muted" style={{ margin: 0 }}>Ничего не нашли</p>}
+    </div>
+  );
+}
+
 const newKey = () => `new-${Math.random().toString(36).slice(2, 10)}`;
 const toLocal = (d: Date | null) => (d ? new Date(+new Date(d) + 3 * 3600_000).toISOString().slice(0, 16) : "");
 const rubStr = (k: number | null | undefined) => (k == null ? "" : String(k / 100));
@@ -51,12 +136,17 @@ export function ProductForm({
   categories,
   saved,
   canDelete,
+  allProducts,
+  related: relatedInit,
 }: {
   product: ProductData | null;
   categories: { id: string; name: string }[];
   saved: boolean;
   canDelete: boolean;
+  allProducts: Brief[];
+  related: string[];
 }) {
+  const [related, setRelated] = useState<string[]>(relatedInit);
   const [state, action, pending] = useActionState(saveProduct, saved ? { ok: "Товар создан" } : {});
   const [name, setName] = useState(product?.name ?? "");
   const [slug, setSlug] = useState(product?.slug ?? "");
@@ -108,6 +198,7 @@ export function ProductForm({
       {product && <input type="hidden" name="id" value={product.id} />}
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
       <input type="hidden" name="images" value={JSON.stringify(images)} />
+      <input type="hidden" name="related" value={JSON.stringify(related)} />
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Основное</h2>
@@ -317,6 +408,8 @@ export function ProductForm({
           </button>
         </div>
       </div>
+
+      <RelatedPicker all={allProducts} value={related} onChange={setRelated} />
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Для расчёта доставки СДЭК</h2>

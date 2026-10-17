@@ -289,6 +289,21 @@ export const productVariant = pgTable("product_variant", {
   lowStockNotifiedAt: ts("low_stock_notified_at"), // уже предупредили админов, что заканчивается
 });
 
+/** «С этим покупают» — подборка, заданная вручную в карточке товара */
+export const productRelated = pgTable(
+  "product_related",
+  {
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    relatedId: text("related_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.relatedId] })],
+);
+
 export const productImage = pgTable("product_image", {
   id: id(),
   productId: text("product_id")
@@ -386,6 +401,7 @@ export const order = pgTable(
     trackNumber: text("track_number"),
 
     bonusCredited: boolean("bonus_credited").default(false).notNull(), // бонусы за заказ уже начислены
+    reviewRequestedAt: ts("review_requested_at"), // письмо «оцените покупку» отправлено
     cancelReason: text("cancel_reason"),
     expiresAt: ts("expires_at"), // до какого времени ждём оплату
 

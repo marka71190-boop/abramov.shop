@@ -44,6 +44,9 @@ export interface SiteSettings {
   stock: {
     lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
   };
+  reviews: {
+    requestDays: number; // через сколько дней после получения попросить отзыв письмом; 0 — не просить
+  };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
     nominals: number[]; // ₽
@@ -95,6 +98,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   stock: {
     lowThreshold: 3,
   },
+  reviews: {
+    requestDays: 5,
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -117,6 +123,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     checkout: { ...d.checkout, ...(s.checkout ?? {}) },
     giftCards: { ...d.giftCards, ...(s.giftCards ?? {}) },
     stock: { ...d.stock, ...(s.stock ?? {}) },
+    reviews: { ...d.reviews, ...(s.reviews ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

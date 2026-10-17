@@ -73,6 +73,10 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
         Предупреждать в Telegram, когда остаток варианта не больше, шт (0 — не предупреждать)
         <input className="input" name="lowStock" type="number" min={0} defaultValue={s.stock.lowThreshold} />
       </label>
+      <label className="field" style={{ maxWidth: 420 }} id="review-settings">
+        Попросить оценить покупку письмом через, дней после получения (0 — не просить)
+        <input className="input" name="reviewRequestDays" type="number" min={0} max={29} defaultValue={s.reviews.requestDays} />
+      </label>
       <h2 style={{ margin: "12px 0 0" }} id="gift-settings">
         Подарочные сертификаты
       </h2>

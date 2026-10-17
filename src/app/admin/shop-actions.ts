@@ -1,6 +1,6 @@
 "use server";
 /** Действия админки: заказы, промокоды, товары, категории, настройки доставки. */
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -191,6 +191,7 @@ const ProductIn = z.object({
   sortOrder: z.coerce.number().int().default(0),
   variants: z.string(),
   images: z.string(),
+  related: z.string().max(5000).optional(),
 });
 
 /** «Джос, джосс,  jos, джос» → «Джос, джосс, jos»: без пустых и повторов (без учёта регистра) */
@@ -217,6 +218,13 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
   if (!variants.success) return { error: variants.error.issues[0]?.message };
   const images = z.array(ImageIn).max(30).safeParse(JSON.parse(d.images || "[]"));
   if (!images.success) return { error: "Ошибка в списке фото" };
+  // «С этим покупают» вручную: до 12 товаров, без самого себя и повторов
+  let related: string[] | null = null;
+  if (d.related !== undefined) {
+    const r = z.array(z.string().max(64)).max(50).safeParse(JSON.parse(d.related || "[]"));
+    if (!r.success) return { error: "Ошибка в списке «С этим покупают»" };
+    related = [...new Set(r.data)].filter((x) => x !== d.id).slice(0, 12);
+  }
 
   const price = rubToKop(d.price);
   if (!(price >= 100)) return { error: "Укажите цену в рублях" };
@@ -276,6 +284,15 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
           const [created] = await tx.insert(s.productVariant).values({ ...row, productId: productId! }).returning({ id: s.productVariant.id });
           if (v.key) keyToId.set(v.key, created.id);
         }
+      }
+
+      if (related) {
+        await tx.delete(s.productRelated).where(eq(s.productRelated.productId, productId!));
+        const exist = related.length
+          ? new Set((await tx.select({ id: s.product.id }).from(s.product).where(inArray(s.product.id, related))).map((x) => x.id))
+          : new Set<string>();
+        const rows = related.filter((x) => exist.has(x) && x !== productId).map((relatedId, i) => ({ productId: productId!, relatedId, sortOrder: i }));
+        if (rows.length) await tx.insert(s.productRelated).values(rows);
       }
 
       // Фото: порядок — как в списке
@@ -397,6 +414,7 @@ const ShopSettingsIn = z.object({
   giftCustomMax: z.coerce.number().int().min(0).max(1_000_000),
   giftValidityDays: z.coerce.number().int().min(0).max(3650),
   lowStock: z.coerce.number().int().min(0).max(10_000),
+  reviewRequestDays: z.coerce.number().int().min(0).max(29, "Просить отзыв — не позже чем через 29 дней"),
 });
 
 export async function updateShopSettings(_: ActionState, form: FormData): Promise<ActionState> {
@@ -427,6 +445,7 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
     },
     checkout: { paymentMinutes: d.paymentMinutes, maxQtyPerItem: d.maxQtyPerItem, notice: d.notice, abandonedHours: d.abandonedHours },
     stock: { lowThreshold: d.lowStock },
+    reviews: { ...cur.reviews, requestDays: d.reviewRequestDays },
     giftCards: {
       enabled: form.get("giftEnabled") === "on",
       nominals: nominals.slice(0, 6),

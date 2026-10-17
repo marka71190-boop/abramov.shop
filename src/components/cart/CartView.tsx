@@ -4,6 +4,7 @@ import { rub } from "@/lib/format";
 import { QtyStepper } from "./AddToCart";
 import { useCart } from "./CartProvider";
 import { useQuote } from "./useQuote";
+import { CartUpsell } from "./CartUpsell";
 
 export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerItem: number }) {
   const cart = useCart();
@@ -64,6 +65,7 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
                 </button>
               </div>
             ))}
+        <CartUpsell />
       </div>
 
       <aside className="summary" aria-busy={loading}>

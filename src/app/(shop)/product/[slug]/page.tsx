@@ -6,7 +6,9 @@ import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
 import { Stars } from "@/components/product/Stars";
 import { StockAlert } from "@/components/product/StockAlert";
-import { approvedReviews, isFavorite, isSubscribed, myReview, ratingsFor, reviewableOrder, shortName } from "@/lib/reviews";
+import { approvedReviews, favoriteIds, isFavorite, isSubscribed, myReview, ratingsFor, reviewableOrder, shortName } from "@/lib/reviews";
+import { ProductCard } from "@/components/product/ProductCard";
+import { recommendFor } from "@/lib/recommend";
 import { SITE } from "@/lib/site";
 import { breadcrumbs, ldJson, og, shareImage, snippet } from "@/lib/seo";
 import { KeepBeta } from "@/components/RichText";
@@ -18,7 +20,7 @@ import { getSettings } from "@/lib/settings";
 import { getViewer, isAdmin } from "@/lib/viewer";
 import { canView, isPublic } from "@/lib/visibility";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string; v?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string; v?: string; review?: string }> };
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const [{ slug }, { v }] = await Promise.all([params, searchParams]);
@@ -49,7 +51,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 }
 
 export default async function ProductPage({ params, searchParams }: Props) {
-  const [{ slug }, { preview, v: wanted }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { preview, v: wanted, review: reviewParam }] = await Promise.all([params, searchParams]);
+  // Пришли из письма «Как вам покупка?» — оценка уже выбрана
+  const presetRating = Math.min(5, Math.max(0, Math.trunc(Number(reviewParam) || 0)));
   const p = await getProductBySlug(slug);
   const viewer = await getViewer();
   const admin = isAdmin(viewer);
@@ -73,6 +77,11 @@ export default async function ProductPage({ params, searchParams }: Props) {
     viewer ? myReview(viewer.id, p.id) : null,
   ]);
   const rating = ratings.get(p.id);
+  const related = await recommendFor([p.id], { limit: 8 });
+  const [relRatings, relFavs] = await Promise.all([
+    ratingsFor(related.map((r) => r.id)),
+    viewer ? favoriteIds(viewer.id) : Promise.resolve(new Set<string>()),
+  ]);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -161,6 +170,18 @@ export default async function ProductPage({ params, searchParams }: Props) {
             </>
           }
         />
+        {related.length > 0 && (
+          <div className="related">
+            <div className="section-head" style={{ marginBottom: 20 }}>
+              <h2 className="h3">С этим покупают</h2>
+            </div>
+            <div className="products products--rail">
+              {related.map((r) => (
+                <ProductCard key={r.id} p={r} rating={relRatings.get(r.id)} favorite={relFavs.has(r.id)} />
+              ))}
+            </div>
+          </div>
+        )}
         <div id="reviews" className="reviews">
           <div className="section-head" style={{ marginBottom: 20 }}>
             <h2 className="h3">Отзывы{rating ? ` · ${rating.avg.toFixed(1)}` : ""}</h2>
@@ -172,10 +193,18 @@ export default async function ProductPage({ params, searchParams }: Props) {
                 Ваш отзыв на проверке — скоро появится здесь.
               </div>
             ) : (
-              <ReviewForm productId={p.id} initial={mine ? { rating: mine.rating, text: mine.text, photos: mine.photos } : null} />
+              <ReviewForm
+                productId={p.id}
+                initial={mine ? { rating: mine.rating, text: mine.text, photos: mine.photos } : presetRating ? { rating: presetRating, text: "", photos: [] } : null}
+              />
             )
           )}
           {!canReview && viewer && !reviews.length && <p className="muted">Пока нет отзывов. Оставить отзыв можно после получения заказа.</p>}
+          {!viewer && presetRating > 0 && (
+            <div className="notice notice--muted" style={{ margin: "0 0 16px" }}>
+              Чтобы оставить отзыв, <Link href={`/login?next=${encodeURIComponent(`/product/${p.slug}?review=${presetRating}#reviews`)}`}>войдите в аккаунт</Link>, в котором оформляли заказ.
+            </div>
+          )}
           {!viewer && !reviews.length && <p className="muted">Пока нет отзывов.</p>}
           <div className="review-list">
             {reviews.map((r) => (
