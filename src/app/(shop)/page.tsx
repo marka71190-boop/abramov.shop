@@ -9,11 +9,27 @@ import { getHits, getLatestReviews, getNewArrivals } from "@/lib/catalog-search"
 import { num, rub } from "@/lib/format";
 import { favoriteIds, ratingsFor, shortName } from "@/lib/reviews";
 import { getSettings } from "@/lib/settings";
+import { getHomeContent } from "@/lib/home-content";
 import { getViewer } from "@/lib/viewer";
 import { ldJson } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 
 type Card = Awaited<ReturnType<typeof getNewArrivals>>[number];
+
+/** Текст из админки: переносы строк — как в поле */
+function Lines({ text }: { text: string }) {
+  const parts = text.split("\n");
+  return (
+    <>
+      {parts.map((line, i) => (
+        <span key={i}>
+          {line}
+          {i < parts.length - 1 && <br />}
+        </span>
+      ))}
+    </>
+  );
+}
 
 function Rail({
   id,
@@ -46,7 +62,7 @@ function Rail({
 }
 
 export default async function HomePage() {
-  const [categories, drop, settings, hits, fresh, reviews, viewer] = await Promise.all([
+  const [categories, drop, settings, hits, fresh, reviews, viewer, home] = await Promise.all([
     getPublicCategories(),
     getFeaturedLimited(),
     getSettings(),
@@ -54,6 +70,7 @@ export default async function HomePage() {
     getNewArrivals(),
     getLatestReviews(),
     getViewer(),
+    getHomeContent(),
   ]);
   // Новинки не повторяют хиты
   const hitIds = new Set(hits.map((p) => p.id));
@@ -69,23 +86,19 @@ export default async function HomePage() {
       <section id="top" className="hero">
         <div className="container hero__grid">
           <div className="hero__copy">
-            <div className="eyebrow">Abramov Shop</div>
+            <div className="eyebrow">{home.heroEyebrow}</div>
             <h1 className="h1">
-              Экипировка
+              <Lines text={home.heroTitle} />
               <br />
-              для тех, кто
-              <br />
-              <span className="gold">играет на победу</span>
+              <span className="gold">{home.heroAccent}</span>
             </h1>
-            <p className="hero__lead">
-              Всё для бильярда в одном месте. Доставка СДЭК по всей России, удобная оплата и бонусы с каждой покупки.
-            </p>
+            <p className="hero__lead">{home.heroLead}</p>
             <div className="hero__actions">
               <Link href="#catalog" className="btn btn--gold btn--cut">
-                В каталог <IconArrow size={18} />
+                {home.heroButton} <IconArrow size={18} />
               </Link>
               <Link href="#bonus" className="btn btn--line">
-                Бонусная программа
+                {home.heroButton2}
               </Link>
             </div>
           </div>
@@ -99,22 +112,22 @@ export default async function HomePage() {
           <div className="feature">
             <IconTruck size={28} />
             <div>
-              <div className="feature__title">Доставка СДЭК</div>
-              <div className="feature__text">Курьер или пункт выдачи по всей России</div>
+              <div className="feature__title">{home.feat1Title}</div>
+              <div className="feature__text">{home.feat1Text}</div>
             </div>
           </div>
           <div className="feature">
             <IconCard size={28} />
             <div>
-              <div className="feature__title">Оплата ЮKassa</div>
-              <div className="feature__text">Банковские карты и СБП, чек на почту</div>
+              <div className="feature__title">{home.feat2Title}</div>
+              <div className="feature__text">{home.feat2Text}</div>
             </div>
           </div>
           <div className="feature">
             <IconStar size={28} />
             <div>
-              <div className="feature__title">Бонусы</div>
-              <div className="feature__text">Начисляем с каждого заказа, оплачивайте ими покупки</div>
+              <div className="feature__title">{home.feat3Title}</div>
+              <div className="feature__text">{home.feat3Text}</div>
             </div>
           </div>
         </div>
@@ -123,7 +136,7 @@ export default async function HomePage() {
       {categories.length > 0 && (
         <section id="catalog" className="container section">
           <div className="section-head">
-            <h2 className="h2">Каталог</h2>
+            <h2 className="h2">{home.catalogTitle}</h2>
             <Link href="/catalog" className="link-caps">
               Все товары <IconArrow size={16} />
             </Link>
@@ -145,8 +158,8 @@ export default async function HomePage() {
         </section>
       )}
 
-      {hits.length > 0 && <Rail id="hits" title="Хиты продаж" items={hits} ratings={ratings} favs={favs} />}
-      {newOnes.length >= 2 && <Rail id="new" title="Новинки" items={newOnes} ratings={ratings} favs={favs} />}
+      {hits.length > 0 && <Rail id="hits" title={home.hitsTitle} items={hits} ratings={ratings} favs={favs} />}
+      {newOnes.length >= 2 && <Rail id="new" title={home.newTitle} items={newOnes} ratings={ratings} favs={favs} />}
 
       {drop && (
         <section id="drop" className="container section">
@@ -156,7 +169,7 @@ export default async function HomePage() {
               <span className="tag">Limited</span>
             </div>
             <div className="drop__body">
-              <div className="eyebrow">Лимитированная серия</div>
+              <div className="eyebrow">{home.dropEyebrow}</div>
               <h2 className="h2" style={{ fontSize: "clamp(34px, 4vw, 56px)" }}>
                 <KeepBeta text={drop.name} />
               </h2>
@@ -191,8 +204,8 @@ export default async function HomePage() {
       {reviews.length >= 2 && (
         <section id="reviews" className="container section section--tight">
           <div className="section-head">
-            <h2 className="h2">Отзывы покупателей</h2>
-            <p>Оставить отзыв можно после получения заказа — за него начисляем бонусы.</p>
+            <h2 className="h2">{home.reviewsTitle}</h2>
+            <p>{home.reviewsText}</p>
           </div>
           <div className="hreviews">
             {reviews.map((r) => (
@@ -214,14 +227,9 @@ export default async function HomePage() {
       <section id="bonus" className="container section">
         <div className="section-head">
           <h2 className="h2">
-            Бонусная
-            <br />
-            программа
+            <Lines text={home.bonusTitle} />
           </h2>
-          <p>
-            Чем больше покупаете, тем выше уровень и тем больше бонусов возвращается. Бонусами можно оплатить до{" "}
-            {settings.loyalty.maxSpendPercent}% следующего заказа.
-          </p>
+          <p>{home.bonusText.replace(/\{процент\}/g, String(settings.loyalty.maxSpendPercent))}</p>
         </div>
         <div className="tiers">
           <div className="tier tier--silver">
@@ -270,9 +278,9 @@ export default async function HomePage() {
           <div className="stripe" aria-hidden />
           <div style={{ position: "relative", maxWidth: 640 }}>
             <h2 className="h2" style={{ fontSize: "clamp(32px, 4vw, 54px)" }}>
-              Есть вопрос?
+              {home.supportTitle}
             </h2>
-            <p>Поможем с выбором, заказом и доставкой. Пишите в Telegram.</p>
+            <p>{home.supportText}</p>
           </div>
           <a className="btn btn--dark" style={{ position: "relative" }} href={`https://t.me/${settings.supportTelegram}`}>
             <IconTelegram size={22} className="gold" />@{settings.supportTelegram}
