@@ -15,7 +15,7 @@ import { SITE, isPlaceholderEmail } from "@/lib/site";
 import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
 
-const Line = z.object({ variantId: z.string().max(64), qty: z.coerce.number().int().min(1).max(999) });
+const Line = z.object({ variantId: z.string().max(400), qty: z.coerce.number().int().min(1).max(999) });
 const Delivery = z.object({
   type: z.enum(["PVZ", "COURIER"]),
   cityCode: z.number().int().positive().nullish(),

@@ -102,7 +102,10 @@ export default async function PrintOrders({ searchParams }: Props) {
                     {o.items.map((i) => (
                       <tr key={i.id}>
                         <td>{i.product?.images[0] ? <img src={i.product.images[0].url} alt="" /> : null}</td>
-                        <td>{i.name}</td>
+                        <td>
+                          {i.name}
+                          {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}
+                        </td>
                         <td>{variants.find((v) => v.id === i.variantId)?.sku ?? i.product?.sku ?? "—"}</td>
                         <td className="sheet__qty">{i.quantity}</td>
                         <td>

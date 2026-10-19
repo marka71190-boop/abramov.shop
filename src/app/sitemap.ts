@@ -7,15 +7,17 @@ export const dynamic = "force-dynamic";
 
 /** В карту сайта попадает только открытое — скрытые страницы, категории и товары не светятся в поиске. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [pages, cats, products] = await Promise.all([
+  const [pages, cats, products, cue] = await Promise.all([
     db.select({ slug: s.page.slug, updatedAt: s.page.updatedAt }).from(s.page).where(publicWhere(s.page)),
     db.select({ slug: s.category.slug, updatedAt: s.category.updatedAt }).from(s.category).where(publicWhere(s.category)),
     db.select({ slug: s.product.slug, updatedAt: s.product.updatedAt }).from(s.product).where(publicWhere(s.product)),
+    import("@/lib/cue").then((m) => m.getCueConfig()),
   ]);
   return [
     { url: SITE.url, changeFrequency: "daily", priority: 1 },
     { url: `${SITE.url}/catalog`, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE.url}/gift`, changeFrequency: "monthly", priority: 0.5 },
+    ...(cue.enabled ? [{ url: `${SITE.url}/cue`, changeFrequency: "monthly" as const, priority: 0.7 }] : []),
     ...cats.map((c) => ({ url: `${SITE.url}/catalog/${c.slug}`, lastModified: c.updatedAt })),
     ...products.map((p) => ({ url: `${SITE.url}/product/${p.slug}`, lastModified: p.updatedAt })),
     ...pages.map((p) => ({ url: `${SITE.url}/p/${p.slug}`, lastModified: p.updatedAt })),

@@ -97,6 +97,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   const order = await db.transaction(async (tx) => {
     // 1. Резервируем товар: остаток не может уйти в минус
     for (const l of quote.lines) {
+      if (l.spec) continue; // кий на заказ — делаем под покупателя, остатка нет
       const r = await tx
         .update(s.productVariant)
         .set({ stock: sql`${s.productVariant.stock} - ${l.qty}` })
@@ -180,10 +181,11 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
       quote.lines.map((l) => ({
         orderId: o.id,
         productId: l.productId,
-        variantId: l.variantId,
+        variantId: l.spec ? null : l.variantId,
         name: l.variantName ? `${l.name} · ${l.variantName}` : l.name,
         price: l.price,
         quantity: l.qty,
+        spec: l.spec ?? null,
       })),
     );
     if (promoId) await tx.insert(s.promoUsage).values({ promoId, userId: user.id, orderId: o.id });
@@ -213,7 +215,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   });
 
   // Остатки: предупредить админов, если что-то заканчивается (не задерживает покупателя)
-  void import("@/lib/low-stock").then((m) => m.checkLowStock(quote.lines.map((l) => l.variantId))).catch((e) => console.error("[stock] low:", e));
+  void import("@/lib/low-stock").then((m) => m.checkLowStock(quote.lines.filter((l) => !l.spec).map((l) => l.variantId))).catch((e) => console.error("[stock] low:", e));
 
   // 6. Платёж. Сертификат покрыл всё — платить онлайн нечего
   const payable = order.total - order.giftCardAmount;

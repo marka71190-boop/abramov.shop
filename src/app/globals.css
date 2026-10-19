@@ -3427,3 +3427,60 @@ button.addr-card[aria-checked="true"] strong {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ── Конструктор кия «Чемпион» ── */
+.cue-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 20px clamp(20px, 3vw, 40px);
+  align-items: start;
+}
+.cue-preview {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 84px;
+  z-index: 5;
+  padding: 18px 20px 12px;
+  background: linear-gradient(180deg, #17171a, #101012);
+}
+.cue-preview__svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--c-text);
+}
+.cue-preview__legend {
+  margin-top: 8px;
+}
+.cue-summary {
+  position: sticky;
+  top: 200px;
+  flex: none;
+}
+.seg--cue {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.seg--cue strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.swatch {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+@media (max-width: 900px) {
+  .cue-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cue-preview {
+    top: 64px;
+    padding: 12px;
+  }
+  .cue-summary {
+    position: static;
+  }
+}

@@ -313,13 +313,19 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
     const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true } });
     if (!o) return;
     const url = `${SITE.url}/order/${o.number}`;
-    const items = o.items.map((i) => `${esc(i.name)} × ${i.quantity} — ${rub(i.price * i.quantity)}`).join("<br>");
+    const items = o.items
+      .map(
+        (i) =>
+          `${esc(i.name)} × ${i.quantity} — ${rub(i.price * i.quantity)}` +
+          (i.spec ? `<br><span style="color:#a3a3a8;font-size:13px">${esc(i.spec).replace(/\n/g, "<br>")}</span><br>` : ""),
+      )
+      .join("<br>");
     if (event === "paid") {
       await sendMail(
         o.email,
         `Заказ ${o.number} оплачен`,
         `Спасибо! Заказ ${o.number} оплачен`,
-        `${items}<br><br>Итого: <b>${rub(o.total)}</b>${o.giftCardAmount > 0 ? `, из них сертификатом ${rub(o.giftCardAmount)}` : ""}<br>Доставка СДЭК: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>Мы соберём заказ и пришлём трек-номер.` +
+        `${items}<br><br>Итого: <b>${rub(o.total)}</b>${o.giftCardAmount > 0 ? `, из них сертификатом ${rub(o.giftCardAmount)}` : ""}<br>Доставка СДЭК: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>${o.items.some((i) => i.spec) ? `Кий изготовим за ${(await import("@/lib/cue").then((m) => m.getCueConfig())).leadDays} дн., затем отправим СДЭК и пришлём трек-номер.` : "Мы соберём заказ и пришлём трек-номер."}` +
           (o.bonusAccrued ? `<br>После получения начислим ${num(o.bonusAccrued / 100)} бонусов.` : ""),
         { text: "Открыть заказ", url },
       );

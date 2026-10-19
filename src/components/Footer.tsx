@@ -5,9 +5,10 @@ interface Props {
   pages: { slug: string; title: string }[];
   telegram: string;
   email: string;
+  cue?: boolean;
 }
 
-export function Footer({ pages, telegram, email }: Props) {
+export function Footer({ pages, telegram, email, cue = false }: Props) {
   return (
     <footer className="footer">
       <div className="container footer__grid">
@@ -25,6 +26,7 @@ export function Footer({ pages, telegram, email }: Props) {
           <div className="footer__title">Магазин</div>
           <Link href="/#catalog">Каталог</Link>
           <Link href="/#bonus">Бонусная программа</Link>
+          {cue && <Link href="/cue">Кий «Чемпион» на заказ</Link>}
           <Link href="/gift">Подарочные сертификаты</Link>
           <Link href="/account">Личный кабинет</Link>
         </div>

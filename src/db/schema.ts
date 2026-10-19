@@ -428,6 +428,7 @@ export const orderItem = pgTable("order_item", {
   name: text("name").notNull(), // название на момент покупки
   price: integer("price").notNull(), // копейки за 1 шт.
   quantity: integer("quantity").notNull(),
+  spec: text("spec"), // кий на заказ: параметры сборки, по строке «Группа: значение»
 });
 
 export const payment = pgTable("payment", {

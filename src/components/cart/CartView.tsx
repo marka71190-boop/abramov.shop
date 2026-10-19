@@ -43,15 +43,16 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
           ? cart.items.map((i) => <div key={i.variantId} className="cart-line cart-line--ghost" />)
           : lines.map((l) => (
               <div key={l.variantId} className="cart-line">
-                <Link href={`/product/${l.slug}`} className="cart-line__img">
+                <Link href={l.href ?? `/product/${l.slug}`} className="cart-line__img">
                   {l.image ? <img src={l.image} alt="" /> : null}
                 </Link>
                 <div className="cart-line__info">
-                  <Link href={`/product/${l.slug}`} className="cart-line__name">
+                  <Link href={l.href ?? `/product/${l.slug}`} className="cart-line__name">
                     {l.name}
                   </Link>
                   {l.variantName && <div className="muted small">{l.variantName}</div>}
                   <div className="muted small">{rub(l.price)} за шт.</div>
+                  {l.madeToOrder ? <div className="small gold">Изготовим за {l.madeToOrder} дн. после оплаты</div> : null}
                 </div>
                 <QtyStepper
                   size="sm"

@@ -130,14 +130,15 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <div key={i.id} className="order-item">
               {i.product?.images[0] ? <img src={i.product.images[0].url} alt="" /> : <span />}
               <div style={{ flex: 1 }}>
-                {i.product ? <Link href={`/product/${i.product.slug}`}>{i.name}</Link> : i.name}
+                {i.product && !i.spec ? <Link href={`/product/${i.product.slug}`}>{i.name}</Link> : i.name}
+                {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}
                 <div className="muted small">
                   {i.quantity} × {rub(i.price)}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 {rub(i.price * i.quantity)}
-                {o.status === "DELIVERED" && i.product && o.userId === user.id && (
+                {o.status === "DELIVERED" && i.product && !i.spec && o.userId === user.id && (
                   <div>
                     <Link href={`/product/${i.product.slug}#reviews`} className="small">
                       Оставить отзыв

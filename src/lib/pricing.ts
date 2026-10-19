@@ -14,6 +14,8 @@ import { getSettings } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import type { UserRow } from "@/lib/viewer";
 import { isPublic } from "@/lib/visibility";
+import { isCueKey } from "@/lib/cue-config";
+import { cueLine } from "@/lib/cue";
 
 export interface CartLineInput {
   variantId: string;
@@ -56,6 +58,11 @@ export interface QuoteLine {
   lengthCm: number;
   widthCm: number;
   heightCm: number;
+  /** Ссылка на позицию (по умолчанию — страница товара) */
+  href?: string;
+  /** Кий на заказ: спецификация для мастерской и срок изготовления, дней */
+  spec?: string;
+  madeToOrder?: number;
 }
 
 export interface Quote {
@@ -90,10 +97,26 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
     const q = Math.trunc(Number(l.qty));
     if (typeof l.variantId === "string" && q > 0) wanted.set(l.variantId, (wanted.get(l.variantId) ?? 0) + q);
   }
-  const ids = [...wanted.keys()];
   const removed: Quote["removed"] = [];
   const adjusted: Quote["adjusted"] = [];
-  if (!ids.length) return { lines: [] as QuoteLine[], removed, adjusted };
+  // Кий «Чемпион» на заказ: цена по сборке, без остатков
+  const cueLines: QuoteLine[] = [];
+  for (const key of [...wanted.keys()].filter(isCueKey)) {
+    let qty = wanted.get(key)!;
+    wanted.delete(key);
+    const r = await cueLine(key, qty);
+    if ("error" in r) {
+      removed.push({ variantId: key, reason: r.error! });
+      continue;
+    }
+    if (qty > settings.checkout.maxQtyPerItem) {
+      qty = settings.checkout.maxQtyPerItem;
+      adjusted.push({ variantId: key, name: r.line.name, qty });
+    }
+    cueLines.push({ ...r.line, qty, lineTotal: r.line.price * qty });
+  }
+  const ids = [...wanted.keys()];
+  if (!ids.length) return { lines: cueLines, removed, adjusted };
 
   const rows = await db.query.productVariant.findMany({
     where: inArray(s.productVariant.id, ids),
@@ -110,7 +133,7 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
         .groupBy(s.productVariant.productId)
     : [];
 
-  const lines: QuoteLine[] = [];
+  const lines: QuoteLine[] = [...cueLines];
   for (const id of ids) {
     const v = rows.find((r) => r.id === id);
     const p = v?.product;

@@ -8,9 +8,11 @@ export function Header({
   signedIn,
   admin,
   categories,
+  cue = false,
 }: {
   signedIn: boolean;
   admin: boolean;
+  cue?: boolean;
   categories: { slug: string; name: string }[];
 }) {
   return (
@@ -22,6 +24,7 @@ export function Header({
         </Link>
         <nav className="nav" aria-label="Основное меню">
           <Link href="/catalog">Каталог</Link>
+          {cue && <Link href="/cue">Кий на заказ</Link>}
           <Link href="/#drop">Коллекции</Link>
           <Link href="/#bonus">Бонусы</Link>
           <Link href="/gift">Сертификаты</Link>

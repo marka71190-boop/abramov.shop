@@ -144,7 +144,10 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
             <tbody>
               {o.items.map((i) => (
                 <tr key={i.id}>
-                  <td>{i.name}</td>
+                  <td>
+                    {i.name}
+                    {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}
+                  </td>
                   <td>{rub(i.price)}</td>
                   <td>{i.quantity}</td>
                   <td>{rub(i.price * i.quantity)}</td>

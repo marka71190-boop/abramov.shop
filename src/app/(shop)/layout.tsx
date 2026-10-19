@@ -38,6 +38,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
     );
   }
 
+  const cueOn = (await import("@/lib/cue").then((m) => m.getCueConfig())).enabled;
   const [footerPages, categories] = await Promise.all([
     db
       .select({ slug: s.page.slug, title: s.page.title })
@@ -72,9 +73,9 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           <div className="notice">{settings.pdPauseMessage}</div>
         ))}
       <div className="ban-shell" inert={ban ? true : undefined}>
-        <Header signedIn={!!viewer} admin={admin} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
+        <Header signedIn={!!viewer} admin={admin} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
-        <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} />
+        <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>
       {ban && <BanModal reason={ban.reason} until={ban.until} ticket={ban.ticket} telegram={settings.supportTelegram} />}
     </CartProvider>
