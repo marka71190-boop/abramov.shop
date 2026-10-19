@@ -6,7 +6,9 @@ WORKDIR /app
 # Секрет-заглушка нужен только чтобы сборка не ругалась; настоящий задаётся в панели Timeweb
 ENV NEXT_TELEMETRY_DISABLED=1 BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# Если основной npm-реестр недоступен из сети Timeweb — ставим из зеркала (те же пакеты, сверяются по package-lock)
+RUN npm ci --no-audit --no-fund --fetch-retries=5 \
+ || npm ci --no-audit --no-fund --fetch-retries=5 --registry=https://registry.npmmirror.com
 COPY . .
 # Сайт и скрипт начального наполнения базы (в один файл, без TypeScript на сервере)
 RUN npm run build \
