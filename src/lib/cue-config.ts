@@ -6,7 +6,7 @@
  * Цену по ней всегда пересчитывает сервер по текущему прайсу.
  */
 
-export type CueGroupId = "b" | "s" | "l" | "w" | "t" | "c" | "j" | "i" | "r" | "x" | "k" | "e";
+export type CueGroupId = "b" | "s" | "l" | "w" | "t" | "c" | "j" | "i" | "n" | "p" | "m" | "r" | "x" | "k" | "e";
 
 export interface CueOption {
   id: string;
@@ -45,7 +45,10 @@ export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?:
   { id: "t", title: "Диаметр наклейки", color: false },
   { id: "c", title: "Конструкция", color: false },
   { id: "j", title: "Соединение", color: true },
-  { id: "i", title: "Вставки на турняке", color: true },
+  { id: "i", title: "Запилы на турняке (порода)", color: true },
+  { id: "n", title: "Запилы на турняке (количество)", color: false },
+  { id: "p", title: "Запилы на шафте (порода)", color: true },
+  { id: "m", title: "Запилы на шафте (количество)", color: false },
   { id: "r", title: "Кольца", color: true },
   { id: "x", title: "Удлинитель", color: false },
   { id: "k", title: "Тубус или чехол", color: false },
@@ -69,7 +72,10 @@ export const CUE_DEFAULT: CueConfig = {
     { id: "t", title: "Диаметр наклейки", options: [o("125", "12,5 мм", 0), o("130", "13 мм", 0), o("135", "13,5 мм", 0)] },
     { id: "c", title: "Конструкция", help: "Где кий разбирается", options: [o("12", "Разборный 1/2", 0), o("34", "Разборный 3/4", 4000)] },
     { id: "j", title: "Соединение", options: [o("br", "Латунь", 0, "#c9a54a"), o("st", "Нержавеющая сталь", 2000, "#b8bec4")] },
-    { id: "i", title: "Вставки на турняке", options: [o("no", "Без вставок", 0), o("kl", "Клён", 4000, "#ecd9b4"), o("br", "Латунь", 5000, "#c9a54a"), o("pm", "Перламутр", 7000, "#e8e4f0")] },
+    { id: "i", title: "Запилы на турняке", help: "Клинья другой породы, вклеенные в турняк", options: [o("eb", "Эбен", 0, "#1c1512"), o("bb", "Бубинга", 0, "#7a2e1f"), o("pl", "Палисандр", 0, "#4a2a1c"), o("kl", "Клён", 0, "#ecd9b4"), o("no", "Без запилов", 0)] },
+    { id: "n", title: "Сколько запилов на турняке", options: [o("4", "4 запила", 0), o("6", "6 запилов", 3000), o("8", "8 запилов", 6000)] },
+    { id: "p", title: "Запилы на шафте", help: "Клинья у соединения, на верхней части кия", options: [o("eb", "Эбен", 0, "#1c1512"), o("bb", "Бубинга", 0, "#7a2e1f"), o("pl", "Палисандр", 0, "#4a2a1c"), o("gr", "Граб", 0, "#b8875a"), o("no", "Без запилов", 0)] },
+    { id: "m", title: "Сколько запилов на шафте", options: [o("4", "4 запила", 0), o("6", "6 запилов", 3000), o("8", "8 запилов", 6000)] },
     { id: "r", title: "Кольца", options: [o("no", "Без колец", 0), o("br", "Латунные", 1500, "#c9a54a"), o("sv", "Серебристые", 1500, "#cfd4d8")] },
     { id: "x", title: "Удлинитель", options: [o("no", "Не нужен", 0), o("ye", "Нужен", 3500)] },
     { id: "k", title: "Тубус или чехол", options: [o("no", "Без тубуса", 0), o("tb", "Тубус", 4000), o("lc", "Кожаный чехол", 6500)] },
@@ -151,13 +157,18 @@ export function parseCueKey(key: string): CueSelection | null {
   return sel;
 }
 
+/** «6 запилов» → 6 (для схемы); без числа — как по умолчанию */
+const countOf = (name: string | undefined, def: number) => Math.min(12, Math.max(2, Number(/\d+/.exec(name ?? "")?.[0]) || def));
+
 export interface CueResolved {
   price: number;
   /** Строки для заказа и мастерской: «Турняк: Бубинга» */
   spec: { group: string; value: string; price: number }[];
   /** Коротко для корзины и чека */
   summary: string;
-  colors: { butt: string; shaft: string; joint: string; inlay: string | null; rings: string | null };
+  colors: { butt: string; shaft: string; joint: string; inlay: string | null; shaftInlay: string | null; rings: string | null };
+  /** Сколько запилов: на турняке и на шафте */
+  points: { butt: number; shaft: number };
   joint34: boolean;
   extension: boolean;
   engraving: string | null;
@@ -198,9 +209,11 @@ export function resolveCue(c: CueConfig, sel: CueSelection): CueResolved | strin
       shaft: pick.s?.color ?? "#e2c9a0",
       joint: pick.j?.color ?? "#c9a54a",
       inlay: pick.i?.color ?? null,
+      shaftInlay: pick.p?.color ?? null,
       rings: pick.r?.color ?? null,
     },
     joint34: /3\s*\/\s*4/.test(pick.c?.name ?? ""),
+    points: { butt: countOf(pick.n?.name, 4), shaft: countOf(pick.m?.name, 4) },
     // «Не нужен» / «Без …» — удлинителя нет
     extension: !!pick.x && pick.x.id !== "no" && !/^(не|без)(\s|$)/i.test(pick.x.name.trim()),
     engraving,
@@ -224,7 +237,7 @@ function shade(hex: string, k: number) {
  * Схема кия (SVG). Горизонтально: слева торец турняка, справа наклейка.
  * thumb — квадратная миниатюра для корзины (кий по диагонали).
  */
-export function cueSvg(r: Pick<CueResolved, "colors" | "joint34" | "extension" | "engraving">, opts: { thumb?: boolean; id?: string } = {}) {
+export function cueSvg(r: Pick<CueResolved, "colors" | "joint34" | "extension" | "engraving" | "points">, opts: { thumb?: boolean; id?: string } = {}) {
   const id = (opts.id ?? "c").replace(/[^a-z0-9]/gi, "");
   const W = 1000;
   const x0 = 20; // торец
@@ -235,30 +248,37 @@ export function cueSvg(r: Pick<CueResolved, "colors" | "joint34" | "extension" |
   const buttX = x0 + (x1 - x0) * 0.5;
   const jointX = r.joint34 ? x0 + (x1 - x0) * 0.27 : buttX;
   const seg = (a: number, b: number) => `M${a},${cy - half(a)} L${b},${cy - half(b)} L${b},${cy + half(b)} L${a},${cy + half(a)} Z`;
-  const { butt, shaft, joint, inlay, rings } = r.colors;
+  const { butt, shaft, joint, inlay, shaftInlay, rings } = r.colors;
   const buttEnd = x0 + 14; // резиновый торец
   const wrapA = x0 + 70;
   const wrapB = x0 + 250; // зона хвата
   const ferrule = x1 - 14;
   const g = (name: string, color: string) =>
     `<linearGradient id="${id}${name}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(color, 0.35)}"/><stop offset=".45" stop-color="${color}"/><stop offset="1" stop-color="${shade(color, -0.45)}"/></linearGradient>`;
+  const grainS = `<pattern id="${id}grainS" width="60" height="5" patternUnits="userSpaceOnUse"><path d="M0,1.5 C15,0.8 35,2.6 60,1.4" stroke="#5a3a1a" stroke-opacity=".28" fill="none" stroke-width=".7"/><path d="M0,3.8 C20,3.2 38,4.6 60,3.5" stroke="#7a5228" stroke-opacity=".2" fill="none" stroke-width=".6"/></pattern>`;
   const grain = `<pattern id="${id}grain" width="46" height="6" patternUnits="userSpaceOnUse"><path d="M0,2 C12,1 22,4 46,2.5" stroke="#000" stroke-opacity=".14" fill="none" stroke-width=".8"/><path d="M0,5 C18,4.2 30,5.8 46,4.6" stroke="#fff" stroke-opacity=".08" fill="none" stroke-width=".7"/></pattern>`;
   const shine = `<linearGradient id="${id}shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>`;
 
-  // Вставки: «пики» от зоны хвата к соединению
-  let points = "";
-  if (inlay) {
-    const n = 4;
-    const from = wrapB + 10;
-    const to = buttX - 30;
-    if (to - from > 60) {
-      for (let k = 0; k < n; k++) {
-        const y = k % 2 ? cy + half(from) * 0.35 : cy - half(from) * 0.35;
-        const tipX = from + (to - from) * (0.55 + 0.1 * (k % 2));
-        points += `<path d="M${from},${y - 3.2} L${tipX},${y} L${from},${y + 3.2} Z" fill="${inlay}" opacity=".95"/>`;
-      }
+  // Запилы: N клиньев по окружности, видны те, что смотрят на нас (проекция цилиндра)
+  const splice = (a: number, b: number, n: number, color: string) => {
+    if (b - a < 40) return "";
+    const d = (Math.PI / n) * 0.9;
+    const yAt = (x: number, ang: number) => cy - half(x) * Math.sin(Math.max(-Math.PI / 2, Math.min(Math.PI / 2, ang)));
+    let out = "";
+    for (let k = 0; k < n; k++) {
+      const th = (2 * Math.PI * k) / n;
+      const front = Math.cos(th);
+      if (front < 0.05) continue;
+      const ang = Math.atan2(Math.sin(th), front);
+      const tipX = b;
+      const path = `M${a},${yAt(a, ang - d).toFixed(2)} L${tipX},${yAt(tipX, ang).toFixed(2)} L${a},${yAt(a, ang + d).toFixed(2)} Z`;
+      out += `<path d="${path}" fill="${color}" stroke="${shade(color, color === "#1c1512" ? 0.5 : -0.35)}" stroke-width=".7" stroke-opacity=".8"/>`;
     }
-  }
+    return out;
+  };
+  const buttPoints = inlay ? splice(wrapB + 6, buttX - 14, r.points.butt, inlay) : "";
+  const shaftA = buttX + 8;
+  const shaftPoints = shaftInlay ? splice(shaftA, shaftA + (ferrule - shaftA) * 0.3, r.points.shaft, shaftInlay) : "";
   const ring = (x: number, w = 4) => (rings ? `<rect x="${x}" y="${cy - half(x) - 0.3}" width="${w}" height="${2 * half(x) + 0.6}" fill="${rings}"/>` : "");
   const text = r.engraving
     ? `<text x="${(wrapA + wrapB) / 2}" y="${cy + 3.6}" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="10" fill="#e8d3a0" fill-opacity=".9">${esc(r.engraving)}</text>`
@@ -268,13 +288,13 @@ export function cueSvg(r: Pick<CueResolved, "colors" | "joint34" | "extension" |
     : "";
 
   const body = `
-<defs>${g("butt", butt)}${g("shaft", shaft)}${grain}${shine}</defs>
+<defs>${g("butt", butt)}${g("shaft", shaft)}${grain}${grainS}${shine}</defs>
 <path d="${seg(buttEnd, buttX)}" fill="url(#${id}butt)"/>
 <path d="${seg(buttEnd, buttX)}" fill="url(#${id}grain)"/>
 <path d="${seg(buttX, ferrule)}" fill="url(#${id}shaft)"/>
-<path d="${seg(buttX, ferrule)}" fill="url(#${id}grain)" opacity=".6"/>
+<path d="${seg(buttX, ferrule)}" fill="url(#${id}grainS)"/>
 <path d="${seg(wrapA, wrapB)}" fill="#000" fill-opacity=".18"/>
-${points}
+${buttPoints}${shaftPoints}
 ${ring(wrapA - 6)}${ring(wrapB + 2)}${ring(buttX - 6)}
 <rect x="${jointX - 3}" y="${cy - half(jointX) - 0.6}" width="9" height="${2 * half(jointX) + 1.2}" fill="${joint}"/>
 <path d="${seg(x0, buttEnd)}" fill="#141414"/>
