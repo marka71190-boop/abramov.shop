@@ -6,13 +6,28 @@
  * Цену по ней всегда пересчитывает сервер по текущему прайсу.
  */
 
-export type CueGroupId = "b" | "s" | "l" | "w" | "t" | "c" | "j" | "i" | "n" | "p" | "m" | "r" | "x" | "k" | "e";
+export type CueGroupId = "b" | "s" | "l" | "w" | "t" | "c" | "j" | "i" | "v" | "n" | "p" | "u" | "m" | "g" | "r" | "x" | "k" | "e";
+
+/** Рисунок запила на схеме */
+export const SPLICE_PATTERNS = {
+  classic: "Классика (венский, ёлочка)",
+  crown: "Корона",
+  tulip: "Тюльпан",
+  saturn: "Сатурн",
+  web: "Паутина",
+  parrot: "Попугай (Марс)",
+  dovetail: "Ласточкин хвост",
+  spike: "Колосок",
+  flower: "Цветок",
+} as const;
+export type SplicePattern = keyof typeof SPLICE_PATTERNS;
 
 export interface CueOption {
   id: string;
   name: string;
   price: number; // доплата, копейки
   color?: string; // #rrggbb — для схемы (дерево, металл, вставки, кольца)
+  pattern?: SplicePattern; // вид запила — как рисовать
   hidden?: boolean;
 }
 
@@ -37,7 +52,7 @@ export interface CueConfig {
 }
 
 /** Что рисует каждая группа и нужен ли цвет у вариантов */
-export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?: boolean }[] = [
+export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?: boolean; pattern?: boolean }[] = [
   { id: "b", title: "Турняк (порода дерева)", color: true },
   { id: "s", title: "Древко (порода дерева)", color: true },
   { id: "l", title: "Длина", color: false },
@@ -46,9 +61,12 @@ export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?:
   { id: "c", title: "Конструкция", color: false },
   { id: "j", title: "Соединение", color: true },
   { id: "i", title: "Запилы на турняке (порода)", color: true },
+  { id: "v", title: "Запилы на турняке (вид)", color: false, pattern: true },
   { id: "n", title: "Запилы на турняке (количество)", color: false },
   { id: "p", title: "Запилы на шафте (порода)", color: true },
+  { id: "u", title: "Запилы на шафте (вид)", color: false, pattern: true },
   { id: "m", title: "Запилы на шафте (количество)", color: false },
+  { id: "g", title: "Длина запилов", color: false },
   { id: "r", title: "Кольца", color: true },
   { id: "x", title: "Удлинитель", color: false },
   { id: "k", title: "Тубус или чехол", color: false },
@@ -56,6 +74,9 @@ export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?:
 ];
 
 const o = (id: string, name: string, rub: number, color?: string): CueOption => ({ id, name, price: rub * 100, ...(color ? { color } : {}) });
+const sp = (pattern: SplicePattern, rub: number): CueOption => ({ id: pattern.slice(0, 8), name: SPLICE_PATTERNS[pattern], price: rub * 100, pattern });
+const styles = (k: number) => [sp("classic", 0), sp("crown", 8000 * k), sp("tulip", 6000 * k), sp("saturn", 7000 * k), sp("web", 6000 * k), sp("parrot", 6000 * k), sp("dovetail", 5000 * k), sp("spike", 5000 * k), sp("flower", 7000 * k)];
+const counts = (k: number) => [4, 5, 6, 8, 10, 12, 17, 22].map((n) => o(String(n), `${n} ${n % 10 === 1 && n !== 11 ? "запил" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n) ? "запила" : "запилов"}`, n <= 4 ? 0 : (n - 4) * 1000 * k));
 
 /** Пример прайса — владелец меняет всё в админке перед включением */
 export const CUE_DEFAULT: CueConfig = {
@@ -73,9 +94,12 @@ export const CUE_DEFAULT: CueConfig = {
     { id: "c", title: "Конструкция", help: "Где кий разбирается", options: [o("12", "Разборный 1/2", 0), o("34", "Разборный 3/4", 4000)] },
     { id: "j", title: "Соединение", options: [o("br", "Латунь", 0, "#c9a54a"), o("st", "Нержавеющая сталь", 2000, "#b8bec4")] },
     { id: "i", title: "Запилы на турняке", help: "Клинья другой породы, вклеенные в турняк", options: [o("eb", "Эбен", 0, "#1c1512"), o("bb", "Бубинга", 0, "#7a2e1f"), o("pl", "Палисандр", 0, "#4a2a1c"), o("kl", "Клён", 0, "#ecd9b4"), o("no", "Без запилов", 0)] },
-    { id: "n", title: "Сколько запилов на турняке", options: [o("4", "4 запила", 0), o("6", "6 запилов", 3000), o("8", "8 запилов", 6000)] },
+    { id: "v", title: "Вид запила на турняке", help: "Рисунок на схеме примерный", options: styles(1) },
+    { id: "n", title: "Сколько запилов на турняке", options: counts(1) },
     { id: "p", title: "Запилы на шафте", help: "Клинья у соединения, на верхней части кия", options: [o("eb", "Эбен", 0, "#1c1512"), o("bb", "Бубинга", 0, "#7a2e1f"), o("pl", "Палисандр", 0, "#4a2a1c"), o("gr", "Граб", 0, "#b8875a"), o("no", "Без запилов", 0)] },
-    { id: "m", title: "Сколько запилов на шафте", options: [o("4", "4 запила", 0), o("6", "6 запилов", 3000), o("8", "8 запилов", 6000)] },
+    { id: "u", title: "Вид запила на шафте", options: styles(0.5) },
+    { id: "m", title: "Сколько запилов на шафте", options: counts(0.5) },
+    { id: "g", title: "Длина запилов", options: [o("no", "Обычные", 0), o("ln", "Длинные", 4000)] },
     { id: "r", title: "Кольца", options: [o("no", "Без колец", 0), o("br", "Латунные", 1500, "#c9a54a"), o("sv", "Серебристые", 1500, "#cfd4d8")] },
     { id: "x", title: "Удлинитель", options: [o("no", "Не нужен", 0), o("ye", "Нужен", 3500)] },
     { id: "k", title: "Тубус или чехол", options: [o("no", "Без тубуса", 0), o("tb", "Тубус", 4000), o("lc", "Кожаный чехол", 6500)] },
@@ -158,7 +182,7 @@ export function parseCueKey(key: string): CueSelection | null {
 }
 
 /** «6 запилов» → 6 (для схемы); без числа — как по умолчанию */
-const countOf = (name: string | undefined, def: number) => Math.min(12, Math.max(2, Number(/\d+/.exec(name ?? "")?.[0]) || def));
+const countOf = (name: string | undefined, def: number) => Math.min(24, Math.max(2, Number(/\d+/.exec(name ?? "")?.[0]) || def));
 
 export interface CueResolved {
   price: number;
@@ -167,8 +191,8 @@ export interface CueResolved {
   /** Коротко для корзины и чека */
   summary: string;
   colors: { butt: string; shaft: string; joint: string; inlay: string | null; shaftInlay: string | null; rings: string | null };
-  /** Сколько запилов: на турняке и на шафте */
-  points: { butt: number; shaft: number };
+  /** Запилы: сколько, какой рисунок, длинные или обычные */
+  points: { butt: number; shaft: number; buttStyle: SplicePattern; shaftStyle: SplicePattern; long: boolean };
   joint34: boolean;
   extension: boolean;
   engraving: string | null;
@@ -213,11 +237,66 @@ export function resolveCue(c: CueConfig, sel: CueSelection): CueResolved | strin
       rings: pick.r?.color ?? null,
     },
     joint34: /3\s*\/\s*4/.test(pick.c?.name ?? ""),
-    points: { butt: countOf(pick.n?.name, 4), shaft: countOf(pick.m?.name, 4) },
+    points: {
+      butt: countOf(pick.n?.name, 4),
+      shaft: countOf(pick.m?.name, 4),
+      buttStyle: pick.v?.pattern ?? "classic",
+      shaftStyle: pick.u?.pattern ?? "classic",
+      long: !!pick.g && /длин/i.test(pick.g.name),
+    },
     // «Не нужен» / «Без …» — удлинителя нет
     extension: !!pick.x && pick.x.id !== "no" && !/^(не|без)(\s|$)/i.test(pick.x.name.trim()),
     engraving,
   };
+}
+
+type Pt = [number, number];
+export const spliceShapes = (style: SplicePattern): { fill: Pt[][]; lines?: Pt[][]; band?: boolean } => {
+  const curve = (f: (u: number) => number, steps = 14): Pt[] => {
+    const left: Pt[] = [];
+    const right: Pt[] = [];
+    for (let k = 0; k <= steps; k++) {
+      const u = k / steps;
+      const w = Math.max(0, Math.min(1, f(u)));
+      left.push([u, -w]);
+      right.unshift([u, w]);
+    }
+    return [...left, ...right];
+  };
+  switch (style) {
+    case "crown":
+      return { fill: [0, 1, 2].map((j) => { const c = 0.18 + 0.3 * j; const w = 0.85 - 0.22 * j; return [[c - 0.15, 0], [c, -w], [c + 0.15, 0], [c, w]] as Pt[]; }) };
+    case "tulip":
+      return { fill: [curve((u) => (1 - u) ** 0.7 * (1 + 0.55 * Math.sin(Math.PI * u * 0.95)))] };
+    case "saturn":
+      return { fill: [curve((u) => (1 - u) ** 0.7 * (1 + 0.55 * Math.sin(Math.PI * u * 0.95)))], band: true };
+    case "web":
+      return { fill: [[[0, -1], [0.3, 0], [0, 1]]], lines: [0.15, 0.35, 0.55, 0.75].map((u0) => [[u0, -1], [u0 + 0.25, 0], [u0, 1]] as Pt[]) };
+    case "parrot":
+      return { fill: [[...Array.from({ length: 13 }, (_, k): Pt => [k / 12, -1 + k / 12]), ...Array.from({ length: 13 }, (_, k): Pt => { const u = 1 - k / 12; return [u, 1 - Math.sqrt(u)]; })]] };
+    case "dovetail":
+      return { fill: [[[0, -0.35], [0.62, -0.35], [1, -0.95], [1, 0.95], [0.62, 0.35], [0, 0.35]]] };
+    case "spike":
+      return { fill: [0, 1, 2, 3, 4].map((j) => { const u0 = 0.04 + 0.19 * j; return [[u0, -0.85], [u0 + 0.17, 0], [u0, 0.85], [u0 + 0.07, 0]] as Pt[]; }) };
+    case "flower":
+      return { fill: [curve((u) => 0.95 * Math.sin(Math.PI * Math.min(1, u * 1.05)) ** 0.6), [[0.55, -0.12], [1, 0], [0.55, 0.12]]] };
+    default: // классика (венский): клин и «ёлочка» из шпона внутри
+      return { fill: [[[0, -1], [1, 0], [0, 1]]], lines: [[[0, -0.55], [0.55, 0], [0, 0.55]]] };
+  }
+};
+
+/** Маленькая картинка вида запила для кнопки выбора: три дольки на плоской полосе дерева */
+export function spliceIcon(style: SplicePattern, color = "#1c1512", wood = "#c9a27a") {
+  const sh = spliceShapes(style);
+  const W = 72, H = 26;
+  const P = (row: number, [u, s]: Pt) => `${(6 + u * (W - 12)).toFixed(1)},${(H / 2 + (row + s * 0.46) * (H / 3)).toFixed(1)}`;
+  let out = "";
+  for (const row of [-1, 0, 1]) {
+    for (const poly of sh.fill) out += `<path d="M${poly.map((q) => P(row, q)).join(" L")} Z" fill="${color}"/>`;
+    for (const line of sh.lines ?? []) out += `<path d="M${line.map((q) => P(row, q)).join(" L")}" fill="none" stroke="${style === "web" ? color : wood}" stroke-width=".8"/>`;
+  }
+  if (sh.band) out += `<rect x="6" y="0" width="3" height="${H}" fill="${color}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" rx="3" fill="${wood}"/>${out}</svg>`;
 }
 
 /** Спецификация одним текстом — для заказа, письма и мастерской */
@@ -259,26 +338,35 @@ export function cueSvg(r: Pick<CueResolved, "colors" | "joint34" | "extension" |
   const grain = `<pattern id="${id}grain" width="46" height="6" patternUnits="userSpaceOnUse"><path d="M0,2 C12,1 22,4 46,2.5" stroke="#000" stroke-opacity=".14" fill="none" stroke-width=".8"/><path d="M0,5 C18,4.2 30,5.8 46,4.6" stroke="#fff" stroke-opacity=".08" fill="none" stroke-width=".7"/></pattern>`;
   const shine = `<linearGradient id="${id}shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>`;
 
-  // Запилы: N клиньев по окружности, видны те, что смотрят на нас (проекция цилиндра)
-  const splice = (a: number, b: number, n: number, color: string) => {
+  // Запилы: N клиньев по окружности. Фигура задаётся в координатах «дольки»: u — от основания (0) к острию (1),
+  // s — поперёк дольки (−1…1). Видны дольки, что смотрят на нас; поперечная координата — проекция цилиндра.
+  const splice = (a: number, b: number, n: number, color: string, style: SplicePattern, base: string) => {
     if (b - a < 40) return "";
-    const d = (Math.PI / n) * 0.9;
-    const yAt = (x: number, ang: number) => cy - half(x) * Math.sin(Math.max(-Math.PI / 2, Math.min(Math.PI / 2, ang)));
+    const slot = Math.PI / n;
+    const edge = shade(color, color === "#1c1512" || /^#[0-3]/.test(color) ? 0.5 : -0.35);
+    const sh = spliceShapes(style);
     let out = "";
+    const P = (th: number, [u, s]: Pt) => {
+      const x = a + u * (b - a);
+      const ang = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, th + s * slot * 0.92));
+      return `${x.toFixed(1)},${(cy - half(x) * Math.sin(ang)).toFixed(2)}`;
+    };
     for (let k = 0; k < n; k++) {
-      const th = (2 * Math.PI * k) / n;
-      const front = Math.cos(th);
-      if (front < 0.05) continue;
-      const ang = Math.atan2(Math.sin(th), front);
-      const tipX = b;
-      const path = `M${a},${yAt(a, ang - d).toFixed(2)} L${tipX},${yAt(tipX, ang).toFixed(2)} L${a},${yAt(a, ang + d).toFixed(2)} Z`;
-      out += `<path d="${path}" fill="${color}" stroke="${shade(color, color === "#1c1512" ? 0.5 : -0.35)}" stroke-width=".7" stroke-opacity=".8"/>`;
+      // При 4, 8, 12… запилах разворачиваем на полдольки — так видны симметричные пары, как на настоящем кие
+      const th0 = (2 * Math.PI * k) / n + (n % 4 === 0 ? Math.PI / n : 0);
+      if (Math.cos(th0) < 0.05) continue;
+      const th = Math.atan2(Math.sin(th0), Math.cos(th0));
+      for (const poly of sh.fill) out += `<path d="M${poly.map((q) => P(th, q)).join(" L")} Z" fill="${color}" stroke="${edge}" stroke-width=".7" stroke-opacity=".8"/>`;
+      for (const line of sh.lines ?? []) out += `<path d="M${line.map((q) => P(th, q)).join(" L")}" fill="none" stroke="${style === "web" ? color : base}" stroke-width="${style === "web" ? 1.1 : 0.9}" stroke-opacity=".9"/>`;
     }
+    if (sh.band) out += `<path d="${seg(a, a + 7)}" fill="${color}"/>`;
     return out;
   };
-  const buttPoints = inlay ? splice(wrapB + 6, buttX - 14, r.points.butt, inlay) : "";
+  const len = (a: number, b: number) => a + (b - a) * (r.points.long ? 1 : 0.62);
+  const buttA = wrapB + 6;
+  const buttPoints = inlay ? splice(buttA, len(buttA, buttX - 12), r.points.butt, inlay, r.points.buttStyle, butt) : "";
   const shaftA = buttX + 8;
-  const shaftPoints = shaftInlay ? splice(shaftA, shaftA + (ferrule - shaftA) * 0.3, r.points.shaft, shaftInlay) : "";
+  const shaftPoints = shaftInlay ? splice(shaftA, len(shaftA, shaftA + (ferrule - shaftA) * 0.42), r.points.shaft, shaftInlay, r.points.shaftStyle, shaft) : "";
   const ring = (x: number, w = 4) => (rings ? `<rect x="${x}" y="${cy - half(x) - 0.3}" width="${w}" height="${2 * half(x) + 0.6}" fill="${rings}"/>` : "");
   const text = r.engraving
     ? `<text x="${(wrapA + wrapB) / 2}" y="${cy + 3.6}" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="10" fill="#e8d3a0" fill-opacity=".9">${esc(r.engraving)}</text>`

@@ -1,9 +1,9 @@
 "use client";
 import { useActionState, useState } from "react";
-import type { CueConfig, CueGroupId } from "@/lib/cue-config";
+import { SPLICE_PATTERNS, type CueConfig, type CueGroupId, type SplicePattern } from "@/lib/cue-config";
 import { saveCueAction } from "./actions";
 
-type OptF = { id: string; name: string; price: string; color: string; hidden: boolean };
+type OptF = { id: string; name: string; price: string; color: string; pattern?: SplicePattern; hidden: boolean };
 type GroupF = { id: CueGroupId; title: string; help: string; hidden: boolean; options: OptF[]; price: string; maxLength: string };
 
 const rubStr = (k: number | undefined) => (k == null ? "" : String(k / 100));
@@ -15,7 +15,7 @@ const newId = (taken: string[]) => {
   }
 };
 
-export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: CueGroupId; title: string; color: boolean; text?: boolean }[] }) {
+export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: CueGroupId; title: string; color: boolean; text?: boolean; pattern?: boolean }[] }) {
   const [state, action, pending] = useActionState(saveCueAction, {});
   const [enabled, setEnabled] = useState(initial.enabled);
   const [title, setTitle] = useState(initial.title);
@@ -30,7 +30,7 @@ export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: Cue
       hidden: !!g.hidden,
       price: rubStr(g.price),
       maxLength: String(g.maxLength ?? 24),
-      options: g.options.map((o) => ({ id: o.id, name: o.name, price: rubStr(o.price), color: o.color ?? "", hidden: !!o.hidden })),
+      options: g.options.map((o) => ({ id: o.id, name: o.name, price: rubStr(o.price), color: o.color ?? "", pattern: o.pattern, hidden: !!o.hidden })),
     })),
   );
 
@@ -61,7 +61,7 @@ export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: Cue
       help: g.help,
       hidden: g.hidden,
       ...(g.id === "e" ? { price: num(g.price), maxLength: Math.trunc(num(g.maxLength)) } : {}),
-      options: g.id === "e" ? [] : g.options.map((o) => ({ id: o.id, name: o.name, price: num(o.price), color: o.color, hidden: o.hidden })),
+      options: g.id === "e" ? [] : g.options.map((o) => ({ id: o.id, name: o.name, price: num(o.price), color: o.color, ...(o.pattern ? { pattern: o.pattern } : {}), hidden: o.hidden })),
     })),
   });
 
@@ -138,8 +138,9 @@ export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: Cue
                         <th>Вариант</th>
                         <th style={{ width: 130 }}>Доплата, ₽</th>
                         {m.color && <th style={{ width: 70 }}>Цвет</th>}
+                        {m.pattern && <th style={{ width: 210 }}>Рисунок на схеме</th>}
                         <th style={{ width: 90 }}>Виден</th>
-                        <th style={{ width: 150 }} />
+                        <th style={{ width: 160 }} />
                       </tr>
                     </thead>
                     <tbody>
@@ -162,11 +163,22 @@ export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: Cue
                               />
                             </td>
                           )}
+                          {m.pattern && (
+                            <td>
+                              <select className="select" value={o.pattern ?? "classic"} onChange={(e) => setO(gi, oi, { pattern: e.target.value as SplicePattern })} style={{ minHeight: 40 }}>
+                                {Object.entries(SPLICE_PATTERNS).map(([k, v]) => (
+                                  <option key={k} value={k}>
+                                    {v}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          )}
                           <td>
                             <input type="checkbox" checked={!o.hidden} onChange={(e) => setO(gi, oi, { hidden: !e.target.checked })} aria-label="Показывать вариант" />
                           </td>
                           <td>
-                            <div className="row" style={{ gap: 4 }}>
+                            <div className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
                               <button type="button" className="btn btn--line btn--sm" onClick={() => moveO(gi, oi, -1)} disabled={oi === 0} aria-label="Выше">
                                 ↑
                               </button>
@@ -192,7 +204,7 @@ export function CueForm({ initial, meta }: { initial: CueConfig; meta: { id: Cue
                   <button
                     type="button"
                     className="btn btn--line btn--sm"
-                    onClick={() => setG(gi, { options: [...g.options, { id: newId(g.options.map((x) => x.id)), name: "", price: "0", color: m.color ? "#b08a5a" : "", hidden: false }] })}
+                    onClick={() => setG(gi, { options: [...g.options, { id: newId(g.options.map((x) => x.id)), name: "", price: "0", color: m.color ? "#b08a5a" : "", ...(m.pattern ? { pattern: "classic" as SplicePattern } : {}), hidden: false }] })}
                   >
                     + Вариант
                   </button>

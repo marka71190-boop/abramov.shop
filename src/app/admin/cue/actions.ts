@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
-import { CUE_GROUPS, mergeCue, visibleGroups, visibleOptions, type CueConfig } from "@/lib/cue-config";
+import { CUE_GROUPS, SPLICE_PATTERNS, mergeCue, visibleGroups, visibleOptions, type CueConfig } from "@/lib/cue-config";
 import { cueProduct, saveCueConfig } from "@/lib/cue";
 import { requireAdmin } from "@/lib/viewer";
 import type { ActionState } from "../actions";
@@ -22,6 +22,7 @@ const Option = z.object({
     .regex(/^#[0-9a-f]{6}$/i)
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  pattern: z.enum(Object.keys(SPLICE_PATTERNS) as [string, ...string[]]).optional(),
   hidden: z.boolean().optional(),
 });
 

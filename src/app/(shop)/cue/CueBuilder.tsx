@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
-import { cleanEngraving, cueKey, cueSvg, resolveCue, type CueConfig, type CueSelection } from "@/lib/cue-config";
+import { cleanEngraving, cueKey, cueSvg, resolveCue, spliceIcon, type CueConfig, type CueSelection } from "@/lib/cue-config";
 import { rub } from "@/lib/format";
 import { ecommerce, goal } from "@/lib/track";
 
@@ -15,6 +15,7 @@ export function CueBuilder({ config, initial }: { config: CueConfig; initial: Cu
   const r = useMemo(() => resolveCue(config, sel), [config, sel]);
   const svg = useMemo(() => (typeof r === "string" ? "" : cueSvg(r, { id: "b" })), [r]);
   const engr = config.groups.find((g) => g.id === "e");
+  const colorOf = (gid: keyof CueSelection) => config.groups.find((g) => g.id === gid)?.options.find((o) => o.id === sel[gid])?.color;
 
   const set = (id: keyof CueSelection, v: string) => {
     setAdded(false);
@@ -65,6 +66,15 @@ export function CueBuilder({ config, initial }: { config: CueConfig; initial: Cu
               <div className="seg seg--cue" role="radiogroup" aria-label={g.title}>
                 {g.options.map((o) => (
                   <button key={o.id} type="button" role="radio" aria-checked={sel[g.id] === o.id} onClick={() => set(g.id, o.id)}>
+                    {o.pattern && (
+                      <i
+                        className="splice-icon"
+                        aria-hidden
+                        dangerouslySetInnerHTML={{
+                          __html: spliceIcon(o.pattern, colorOf(g.id === "v" ? "i" : "p") ?? "#1c1512", colorOf(g.id === "v" ? "b" : "s") ?? "#c9a27a"),
+                        }}
+                      />
+                    )}
                     <strong>
                       {o.color && <i className="swatch" style={{ background: o.color }} aria-hidden />}
                       {o.name}

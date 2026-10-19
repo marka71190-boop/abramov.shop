@@ -3484,3 +3484,12 @@ button.addr-card[aria-checked="true"] strong {
     position: static;
   }
 }
+.splice-icon {
+  display: block;
+  line-height: 0;
+  margin-bottom: 6px;
+}
+.splice-icon svg {
+  width: 72px;
+  height: 26px;
+}
