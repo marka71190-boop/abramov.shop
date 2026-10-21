@@ -62,6 +62,8 @@ export interface QuoteLine {
   href?: string;
   /** Кий на заказ: спецификация для мастерской и срок изготовления, дней */
   spec?: string;
+  /** Лимитированный товар */
+  limited?: boolean;
   madeToOrder?: number;
 }
 
@@ -171,6 +173,7 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
       lengthCm: p.lengthCm,
       widthCm: p.widthCm,
       heightCm: p.heightCm,
+      limited: p.isLimited,
     });
   }
   return { lines, removed, adjusted };
@@ -224,8 +227,10 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
     const r = await checkPromo(input.promoCode, user, subtotal);
     if (typeof r === "string") promoError = r;
     else {
-      const eligible = r.categoryId ? lines.filter((l) => l.categoryId === r.categoryId).reduce((a, l) => a + l.lineTotal, 0) : subtotal;
+      const fits = (l: QuoteLine) => (!r.categoryId || l.categoryId === r.categoryId) && !(r.excludeSpecial && (l.limited || l.spec));
+      const eligible = lines.filter(fits).reduce((a, l) => a + l.lineTotal, 0);
       if (r.categoryId && eligible === 0) promoError = "Промокод не действует на товары в корзине";
+      else if (r.excludeSpecial && eligible === 0 && r.type !== "FREE_SHIPPING") promoError = "Промокод не действует на лимитированные товары и кий на заказ";
       else {
         promoRow = r;
         if (r.type === "PERCENT") discount = floorRub((eligible * Math.min(100, r.value)) / 100);

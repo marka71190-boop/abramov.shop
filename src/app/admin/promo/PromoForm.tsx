@@ -19,6 +19,7 @@ export interface PromoRow {
   note: string | null;
   personalHours?: number | null;
   usedCount?: number;
+  excludeSpecial?: boolean;
 }
 
 /** Дата и время по Москве для поля datetime-local */
@@ -115,6 +116,10 @@ export function PromoForm({ promo, categories, saved }: { promo: PromoRow | null
         <label className="check">
           <input type="checkbox" name="firstOrderOnly" defaultChecked={promo?.firstOrderOnly ?? false} />
           <span>Только на первый заказ</span>
+        </label>
+        <label className="check">
+          <input type="checkbox" name="excludeSpecial" defaultChecked={promo?.excludeSpecial ?? false} />
+          <span>Не действует на лимитки и кий на заказ</span>
         </label>
       </div>
       {state.error && <div className="form-error">{state.error}</div>}

@@ -363,6 +363,8 @@ export const promoCode = pgTable("promo_code", {
   personalHours: integer("personal_hours"),
   /** Персональный промокод — подходит только этому покупателю (например, за брошенную корзину) */
   ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "cascade" }),
+  /** Скидка не действует на лимитированные товары и кий на заказ */
+  excludeSpecial: boolean("exclude_special").default(false).notNull(),
   note: text("note"),
   createdAt: createdAt(),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "promo_code" ADD COLUMN "exclude_special" boolean DEFAULT false NOT NULL;

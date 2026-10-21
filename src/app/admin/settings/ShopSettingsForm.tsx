@@ -78,9 +78,18 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
           Промокод действует, часов
           <input className="input" name="abandonedPromoValidHours" type="number" min={1} max={336} defaultValue={s.checkout.abandonedPromoValidHours} />
         </label>
+        <label className="field">
+          Товаров со скидкой меньше чем на, ₽ — вместо скидки бесплатная доставка (0 — всегда скидка)
+          <input className="input" name="abandonedPromoFreeShipBelow" type="number" min={0} defaultValue={s.checkout.abandonedPromoFreeShipBelow} />
+        </label>
+        <label className="field">
+          Не присылать тем, кто покупал за последние, дней (0 — всем)
+          <input className="input" name="abandonedPromoSkipBuyersDays" type="number" min={0} max={365} defaultValue={s.checkout.abandonedPromoSkipBuyersDays} />
+        </label>
       </div>
       <p className="muted small" style={{ margin: 0 }}>
         Промокод персональный: только этому покупателю, на один заказ. Приходит подписчикам на рассылку, днём, не чаще раза в 30 дней на человека.
+        Скидка не действует на лимитированные товары и кий на заказ; если в корзине только они — письмо со скидкой не приходит.
       </p>
       <label className="field">
         Объявление на странице оформления (например, «Отправка после 15 октября»)

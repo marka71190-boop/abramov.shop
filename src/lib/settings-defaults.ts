@@ -43,6 +43,8 @@ export interface SiteSettings {
     abandonedPromoHours: number; // через сколько часов прислать персональный промокод на корзину; 0 — не присылать
     abandonedPromoPercent: number; // скидка по нему, %
     abandonedPromoValidHours: number; // сколько часов он действует
+    abandonedPromoFreeShipBelow: number; // ₽: корзина меньше — вместо скидки бесплатная доставка; 0 — всегда скидка
+    abandonedPromoSkipBuyersDays: number; // не давать скидку тем, кто покупал за столько дней; 0 — давать всем
   };
   stock: {
     lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
@@ -100,6 +102,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     abandonedPromoHours: 24,
     abandonedPromoPercent: 10,
     abandonedPromoValidHours: 48,
+    abandonedPromoFreeShipBelow: 3000,
+    abandonedPromoSkipBuyersDays: 30,
   },
   stock: {
     lowThreshold: 3,

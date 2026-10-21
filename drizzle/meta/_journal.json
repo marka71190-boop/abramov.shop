@@ -134,6 +134,13 @@
       "when": 1792608467354,
       "tag": "0018_abandoned_promo",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792610771784,
+      "tag": "0019_promo_exclude_special",
+      "breakpoints": true
     }
   ]
 }

@@ -154,6 +154,10 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
         sql`exists (select 1 from ${s.consent} c where c.user_id = ${s.user.id} and c.kind = 'MARKETING' and c.revoked_at is null)`,
         sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`,
         sql`not exists (select 1 from ${s.order} o where o.user_id = ${s.user.id} and o.created_at > ${s.savedCart.updatedAt})`,
+        // Постоянные покупатели и так вернутся — скидку даём тем, кто давно не покупал (или ещё не покупал)
+        st.abandonedPromoSkipBuyersDays > 0
+          ? sql`not exists (select 1 from ${s.order} o where o.user_id = ${s.user.id} and o.paid_at > now() - make_interval(days => ${st.abandonedPromoSkipBuyersDays}))`
+          : undefined,
       ),
     )
     .limit(30);
@@ -169,25 +173,49 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
       const canTg = !canMail && telegramEnabled() && !!user.telegramChatId;
       if (!canMail && !canTg) continue;
 
+      // Лимитки и кий на заказ — без скидки; если в корзине только они, скидку не присылаем
+      const special = (l: (typeof quote.lines)[number]) => !!(l.limited || l.spec);
+      const regular = quote.lines.filter((l) => !special(l));
+      if (!regular.length) continue;
+      const hasSpecial = regular.length < quote.lines.length;
+      // Маленькая корзина — бесплатная доставка вместо процента (дешевле для магазина, а выглядит щедро)
+      // (считаем по товарам, на которые скидка действует: если в корзине в основном лимитка — 10% от остального мало)
+      const regularSum = regular.reduce((a, l) => a + l.lineTotal, 0);
+      const freeShip = st.abandonedPromoFreeShipBelow > 0 && regularSum < st.abandonedPromoFreeShipBelow * 100;
+      const gift = freeShip ? "бесплатную доставку" : `скидку ${percent}%`;
+      const giftTitle = freeShip ? "Бесплатная доставка" : `Скидка ${percent}%`;
+
       const endsAt = new Date(now + st.abandonedPromoValidHours * 3600_000);
       let code = "";
       for (let i = 0; i < 5 && !code; i++) {
         const c = "CART" + Array.from({ length: 5 }, () => ABC[Math.floor(Math.random() * ABC.length)]).join("");
         const r = await db
           .insert(s.promoCode)
-          .values({ code: c, type: "PERCENT", value: percent, maxUses: 1, maxUsesPerUser: 1, endsAt, ownerUserId: user.id, isActive: true, note: "Брошенная корзина" })
+          .values({
+            code: c,
+            type: freeShip ? "FREE_SHIPPING" : "PERCENT",
+            value: freeShip ? 0 : percent,
+            maxUses: 1,
+            maxUsesPerUser: 1,
+            endsAt,
+            ownerUserId: user.id,
+            excludeSpecial: true,
+            isActive: true,
+            note: "Брошенная корзина",
+          })
           .onConflictDoNothing()
           .returning({ id: s.promoCode.id });
         if (r.length) code = c;
       }
       if (!code) continue;
 
-      const { mskUntil } = await import("@/lib/promo-timer");
+      const { mskUntil, untilShort } = await import("@/lib/promo-timer");
       const until = mskUntil(endsAt);
       // «23 октября в 21:49 по Москве» или «в 21:49 по Москве»
       const when = until.includes(",") ? until.replace(", ", " в ") : `в ${until}`;
       const link = `${SITE.url}/cart?promo=${code}&utm_source=__CH__&utm_medium=trigger&utm_campaign=abandoned_promo`;
       const unsub = unsubscribeUrl(user.id);
+      const note = hasSpecial && !freeShip ? "Скидка не действует на лимитированные товары и кий на заказ." : "";
       if (canMail) {
         const first = user.name.trim().split(/\s+/)[0];
         const rowsHtml = quote.lines
@@ -203,27 +231,39 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
           `${first ? `Здравствуйте, ${escHtml(first)}!<br><br>` : ""}Нам тут одна ласточка нашептала, что у вас в корзине завалялись товары:` +
           `<table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 8px;border-top:1px solid #2a2a2a;border-bottom:1px solid #2a2a2a">${rowsHtml}</table>` +
           `<div style="margin:20px 0 6px;padding:20px 16px;border:1px dashed #dcbf83;text-align:center">
-<div style="font-size:15px;color:#f3f2ef;margin-bottom:12px">Так вот — ласточка прилетела не одна. Забирайте промокод на скидку ${percent}%:</div>
+<div style="font-size:15px;color:#f3f2ef;margin-bottom:12px">Так вот — ласточка прилетела не одна. Забирайте промокод на ${gift}:</div>
 <div style="font-size:12px;letter-spacing:3px;color:#a3a3a8;text-transform:uppercase">Ваш промокод</div>
 <div style="font-size:30px;font-weight:bold;letter-spacing:5px;color:#dcbf83;margin:8px 0">${code}</div>
-<div style="font-size:15px;color:#f3f2ef;font-weight:bold">Скидка ${percent}%</div>
+<div style="font-size:15px;color:#f3f2ef;font-weight:bold">${giftTitle}</div>
 <div style="font-size:15px;color:#dcbf83;margin-top:10px">⏱ Ласточки — птицы быстрые: промокод улетит ${escHtml(when)}</div>
-<div style="font-size:12px;color:#7a7a80;margin-top:10px">Только для вас, на один заказ. Нажмите кнопку — промокод подставится сам</div>
+<div style="font-size:12px;color:#7a7a80;margin-top:10px">Только для вас, на один заказ. Нажмите кнопку — промокод подставится сам.${note ? ` ${note}` : ""}</div>
 </div>` +
-          `<div style="color:#a3a3a8;font-size:13px;margin-top:12px">Цены и наличие — на момент письма. Товары не забронированы.</div>`;
-        await sendMail(user.email, `🕊 Ласточка принесла вам скидку ${percent}%`, "Ласточка прилетела не одна", body, { text: "Забрать скидку", url: link.replace("__CH__", "email") }, {
-          footerHtml: `Вы получили письмо, потому что подписались на новости и акции Abramov Shop. <a href="${unsub}" style="color:#a3a3a8">Отписаться</a>`,
-          headers: {
-            "List-Unsubscribe": `<${SITE.url}/api/unsubscribe?u=${encodeURIComponent(user.id)}&t=${unsub.split("&t=")[1]}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          `<div style="color:#a3a3a8;font-size:13px;margin-top:12px">Цены и наличие — на момент письма. Товары не забронированы.</div>` +
+          `<div style="margin-top:20px">Ваш Abramov Shop 🕊</div>`;
+        await sendMail(
+          user.email,
+          `🕊 Ласточка принесла ${freeShip ? "бесплатную доставку" : `скидку ${percent}%`} — ${untilShort(endsAt)}`,
+          "Ласточка прилетела не одна",
+          body,
+          { text: freeShip ? "Забрать доставку" : "Забрать скидку", url: link.replace("__CH__", "email") },
+          {
+            footerHtml: `Вы получили письмо, потому что подписались на новости и акции Abramov Shop. <a href="${unsub}" style="color:#a3a3a8">Отписаться</a>`,
+            headers: {
+              "List-Unsubscribe": `<${SITE.url}/api/unsubscribe?u=${encodeURIComponent(user.id)}&t=${unsub.split("&t=")[1]}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
           },
-        });
+        );
       } else {
         // В Telegram — без имени и без списка товаров: только промокод и срок
-        await tgSend(user.telegramChatId!, `🕊 <b>Ласточка прилетела не одна</b>\n\nНам тут одна ласточка нашептала, что у вас в корзине завалялись товары. Так вот — забирайте промокод <code>${code}</code> на скидку ${percent}%. Только для вас, на один заказ.\n\n⏱ Ласточки — птицы быстрые: промокод улетит ${tgEsc(when)}.`, [
-          { text: "Забрать скидку", url: link.replace("__CH__", "telegram") },
-          { text: "Отписаться от напоминаний", url: unsub },
-        ]);
+        await tgSend(
+          user.telegramChatId!,
+          `🕊 <b>Ласточка прилетела не одна</b>\n\nНам тут одна ласточка нашептала, что у вас в корзине завалялись товары. Так вот — забирайте промокод <code>${code}</code> на ${gift}. Только для вас, на один заказ.${note ? ` ${note}` : ""}\n\n⏱ Ласточки — птицы быстрые: промокод улетит ${tgEsc(when)}.\n\nВаш Abramov Shop`,
+          [
+            { text: freeShip ? "Забрать доставку" : "Забрать скидку", url: link.replace("__CH__", "telegram") },
+            { text: "Отписаться от напоминаний", url: unsub },
+          ],
+        );
       }
       sent++;
     } catch (e) {
