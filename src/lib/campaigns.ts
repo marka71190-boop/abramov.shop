@@ -17,6 +17,10 @@ import { fmtDate, rub } from "@/lib/format";
 import { escHtml, mailEnabled, sendMail, type MailExtra } from "@/lib/mail";
 import { isPlaceholderEmail, PLACEHOLDER_DOMAIN, SITE } from "@/lib/site";
 import { send as tgSend, esc as tgEsc, notifyAdmins, telegramEnabled } from "@/lib/telegram";
+import { mskUntil } from "@/lib/promo-timer";
+
+/** Акция по таймеру: до какого момента промокод действует для того, кому письмо уходит прямо сейчас */
+const timerUntil = (p: Promo | null) => (p?.personalHours ? new Date(Date.now() + p.personalHours * 3600_000) : null);
 
 export const MAIL_PER_MINUTE = Math.max(1, Number(process.env.MAIL_PER_MINUTE) || 20);
 export const MAIL_DAILY_LIMIT = Math.max(1, Number(process.env.MAIL_DAILY_LIMIT) || 450);
@@ -55,13 +59,14 @@ export function promoHeadline(p: Pick<Promo, "type" | "value">) {
   return p.type === "PERCENT" ? `Скидка ${p.value}%` : p.type === "FIXED" ? `Скидка ${rub(p.value)}` : "Бесплатная доставка";
 }
 
-export function promoConditions(p: Promo, categoryName?: string | null) {
+export function promoConditions(p: Promo, categoryName?: string | null, until?: Date | null) {
   return [
+    until ? `действует ${p.personalHours} ч — до ${mskUntil(until)}` : null,
     p.minOrder ? `при заказе от ${rub(p.minOrder)}` : null,
     categoryName ? `на категорию «${categoryName}»` : null,
     p.firstOrderOnly ? "на первый заказ" : null,
     !p.combinableWithBonus ? "не суммируется с бонусами" : null,
-    p.endsAt ? `до ${fmtDate(p.endsAt)} включительно` : null,
+    !until && p.endsAt ? `до ${fmtDate(p.endsAt)} включительно` : null,
   ].filter(Boolean) as string[];
 }
 
@@ -148,13 +153,15 @@ export async function loadPromo(c: Pick<Campaign, "promoCodeId">) {
 
 export function renderEmail(c: Campaign, promo: Promo | null, categoryName: string | null, user: { id: string; name: string | null }) {
   const hi = firstName(user.name);
+  const until = timerUntil(promo);
   const paragraphs = escHtml(c.body.trim()).replace(/\r?\n/g, "<br>");
   const promoBlock = promo
     ? `<div style="margin:22px 0 6px;padding:20px 16px;border:1px dashed #dcbf83;text-align:center">
 <div style="font-size:12px;letter-spacing:3px;color:#a3a3a8;text-transform:uppercase">Промокод</div>
 <div style="font-size:30px;font-weight:bold;letter-spacing:5px;color:#dcbf83;margin:8px 0">${escHtml(promo.code)}</div>
 <div style="font-size:15px;color:#f3f2ef;font-weight:bold">${escHtml(promoHeadline(promo))}</div>
-${promoConditions(promo, categoryName).length ? `<div style="font-size:13px;color:#a3a3a8;margin-top:6px">${escHtml(promoConditions(promo, categoryName).join(" · "))}</div>` : ""}
+${until ? `<div style="font-size:15px;color:#dcbf83;margin-top:10px">⏱ Действует ${promo.personalHours} ч — до ${escHtml(mskUntil(until))}</div>` : ""}
+${promoConditions(promo, categoryName).filter((x) => !x.startsWith("действует")).length ? `<div style="font-size:13px;color:#a3a3a8;margin-top:6px">${escHtml(promoConditions(promo, categoryName).join(" · "))}</div>` : ""}
 <div style="font-size:12px;color:#7a7a80;margin-top:10px">Введите код в корзине при оформлении — или нажмите кнопку ниже, он подставится сам</div>
 </div>`
     : "";
@@ -175,7 +182,7 @@ ${promoConditions(promo, categoryName).length ? `<div style="font-size:13px;colo
 function renderTelegram(c: Campaign, promo: Promo | null, categoryName: string | null, user: { id: string }) {
   const lines = [`<b>${tgEsc(c.title)}</b>`, "", tgEsc(c.body.trim())];
   if (promo) {
-    const cond = promoConditions(promo, categoryName);
+    const cond = promoConditions(promo, categoryName, timerUntil(promo));
     lines.push("", `🎟 Промокод <code>${tgEsc(promo.code)}</code> — ${tgEsc(promoHeadline(promo))}${cond.length ? ` (${tgEsc(cond.join(", "))})` : ""}`);
   }
   const buttons = [

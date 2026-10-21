@@ -47,6 +47,7 @@ export default async function PromoPage({ searchParams }: { searchParams: Promis
                       p.firstOrderOnly ? "первый заказ" : null,
                       p.categoryId ? `категория: ${categories.find((c) => c.id === p.categoryId)?.name}` : null,
                       !p.combinableWithBonus ? "без бонусов" : null,
+                      p.personalHours ? `⏱ ${p.personalHours} ч после письма` : null,
                       p.endsAt ? `до ${fmtDate(p.endsAt)}` : null,
                     ]
                       .filter(Boolean)

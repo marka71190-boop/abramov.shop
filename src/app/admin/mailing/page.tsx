@@ -9,6 +9,7 @@ import { mailEnabled } from "@/lib/mail";
 import { telegramEnabled } from "@/lib/telegram";
 import { requireAdmin } from "@/lib/viewer";
 import { CAMPAIGN_STATUS } from "./status";
+import { FlashForm } from "./FlashForm";
 
 export default async function MailingPage() {
   await requireAdmin("OWNER");
@@ -68,6 +69,8 @@ export default async function MailingPage() {
         {!mailEnabled() && <div className="form-error">Почта на сайте не настроена — можно отправлять только в Telegram.</div>}
         {!telegramEnabled() && !mailEnabled() && <div className="form-error">Ни почта, ни Telegram-бот не подключены — отправлять некуда.</div>}
       </div>
+
+      {(mailEnabled() || telegramEnabled()) && <FlashForm telegram={telegramEnabled()} />}
 
       {campaigns.length === 0 ? (
         <p className="muted">Рассылок пока не было.</p>

@@ -26,6 +26,7 @@ export default async function CampaignPage({ params, searchParams }: Props) {
     value: p.value,
     minOrder: p.minOrder,
     endsAt: p.endsAt ? fmtDate(p.endsAt) : null,
+    personalHours: p.personalHours,
     problem: promoProblem(p),
   }));
 

@@ -17,9 +17,12 @@ export interface PromoRow {
   categoryId: string | null;
   combinableWithBonus: boolean;
   note: string | null;
+  personalHours?: number | null;
+  usedCount?: number;
 }
 
-const day = (d: Date | null) => (d ? new Date(+new Date(d) + 3 * 3600_000).toISOString().slice(0, 10) : "");
+/** Дата и время по Москве для поля datetime-local */
+const mskLocal = (d: Date | null) => (d ? new Date(+new Date(d) + 3 * 3600_000).toISOString().slice(0, 16) : "");
 
 export function PromoForm({ promo, categories, saved }: { promo: PromoRow | null; categories: { id: string; name: string }[]; saved?: boolean }) {
   const [state, action, pending] = useActionState(savePromo, saved ? { ok: "Промокод создан" } : {});
@@ -60,18 +63,29 @@ export function PromoForm({ promo, categories, saved }: { promo: PromoRow | null
         <label className="field">
           Всего применений
           <input className="input" name="maxUses" type="number" min={1} defaultValue={promo?.maxUses ?? ""} placeholder="без ограничения" />
+          <span className="muted small">
+            Пусто — без ограничений.
+            {promo ? ` Уже применили: ${promo.usedCount ?? 0}${promo.maxUses ? `, осталось ${Math.max(0, promo.maxUses - (promo.usedCount ?? 0))}` : ""}.` : ""}
+          </span>
         </label>
         <label className="field">
           Раз на одного клиента
           <input className="input" name="maxUsesPerUser" type="number" min={1} defaultValue={promo ? (promo.maxUsesPerUser ?? "") : 1} placeholder="без ограничения" />
         </label>
         <label className="field">
-          Действует с
-          <input className="input" name="startsAt" type="date" defaultValue={day(promo?.startsAt ?? null)} />
+          Действует с (время московское)
+          <input className="input" name="startsAt" type="datetime-local" defaultValue={mskLocal(promo?.startsAt ?? null)} />
         </label>
         <label className="field">
-          Действует по (включительно)
-          <input className="input" name="endsAt" type="date" defaultValue={day(promo?.endsAt ?? null)} />
+          Действует до (время московское)
+          <input className="input" name="endsAt" type="datetime-local" defaultValue={mskLocal(promo?.endsAt ?? null)} />
+        </label>
+        <label className="field">
+          Акция по таймеру: часов после письма
+          <input className="input" name="personalHours" type="number" min={1} max={720} defaultValue={promo?.personalHours ?? ""} placeholder="нет" />
+          <span className="muted small">
+            Если указать — промокод работает только у получателей рассылки с этим промокодом и только столько часов с момента, как им пришло письмо.
+          </span>
         </label>
         <label className="field">
           Только на категорию

@@ -188,6 +188,12 @@ export async function checkPromo(code: string, user: UserRow | null, subtotal: n
   if (p.maxUses != null && p.usedCount >= p.maxUses) return "Промокод уже использовали максимальное число раз";
   if (p.minOrder && subtotal < p.minOrder) return `Промокод действует от ${Math.ceil(p.minOrder / 100)} ₽`;
   if (!user) return "Войдите, чтобы применить промокод";
+  if (p.personalHours) {
+    const { personalDeadline } = await import("@/lib/promo-timer");
+    const until = await personalDeadline(p, user.id);
+    if (!until) return "Этот промокод — для получателей рассылки: войдите в аккаунт, на почту которого пришло письмо";
+    if (until < now) return "Время акции закончилось — промокод больше не действует";
+  }
   if (p.maxUsesPerUser != null) {
     const [{ n }] = await db
       .select({ n: count() })

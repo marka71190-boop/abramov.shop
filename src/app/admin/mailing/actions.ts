@@ -134,3 +134,85 @@ export async function copyCampaign(id: string) {
     .returning({ id: s.campaign.id });
   redirect(`/admin/mailing/${row.id}`);
 }
+
+// ---------- Акция по таймеру: промокод на N часов + черновик рассылки одной кнопкой
+
+const hoursWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? "час" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "часа" : "часов");
+const rubles = (kop: number) => `${Math.round(kop / 100).toLocaleString("ru-RU")} ₽`;
+
+const FlashIn = z.object({
+  type: z.enum(["FREE_SHIPPING", "PERCENT", "FIXED"]),
+  value: z.string().optional(),
+  hours: z.coerce.number().int().min(1, "Время акции — от 1 часа").max(72, "Время акции — до 72 часов"),
+  maxUses: z.string().optional(),
+  minOrder: z.string().optional(),
+});
+
+export async function createFlashAction(_: MailingState, form: FormData): Promise<MailingState> {
+  const me = await requireAdmin("OWNER");
+  const p = FlashIn.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const d = p.data;
+  const toNum = (v?: string) => Number(String(v ?? "").replace(",", ".").replace(/\s/g, ""));
+  let value = 0;
+  if (d.type === "PERCENT") {
+    value = Math.trunc(toNum(d.value));
+    if (!(value >= 1 && value <= 90)) return { error: "Скидка — от 1 до 90 %" };
+  } else if (d.type === "FIXED") {
+    value = Math.round(toNum(d.value) * 100);
+    if (!(value >= 100)) return { error: "Укажите скидку в рублях" };
+  }
+  const maxUses = d.maxUses?.trim() ? Math.trunc(toNum(d.maxUses)) : null;
+  if (maxUses != null && !(maxUses >= 1)) return { error: "Лимит применений — целое число от 1, или оставьте пустым" };
+  const minOrder = d.minOrder?.trim() ? Math.round(toNum(d.minOrder) * 100) : null;
+  if (minOrder != null && !(minOrder >= 0)) return { error: "Минимальная сумма — числом" };
+
+  // Код: FAST + 5 символов без похожих букв и цифр
+  const ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let promoId: string | null = null;
+  let code = "";
+  for (let i = 0; i < 5 && !promoId; i++) {
+    code = "FAST" + Array.from({ length: 5 }, () => ABC[Math.floor(Math.random() * ABC.length)]).join("");
+    const [row] = await db
+      .insert(s.promoCode)
+      .values({
+        code,
+        type: d.type,
+        value,
+        minOrder,
+        maxUses,
+        maxUsesPerUser: 1,
+        personalHours: d.hours,
+        isActive: true,
+        note: `Акция по таймеру: ${d.hours} ${hoursWord(d.hours)} после письма`,
+      })
+      .onConflictDoNothing()
+      .returning({ id: s.promoCode.id });
+    promoId = row?.id ?? null;
+  }
+  if (!promoId) return { error: "Не удалось создать промокод — попробуйте ещё раз" };
+
+  const h = `${d.hours} ${hoursWord(d.hours)}`;
+  const from = minOrder ? ` при заказе от ${rubles(minOrder)}` : "";
+  const what = d.type === "FREE_SHIPPING" ? "Бесплатная доставка" : d.type === "PERCENT" ? `Скидка ${value}%` : `Скидка ${rubles(value)}`;
+  const text =
+    d.type === "FREE_SHIPPING"
+      ? `Только для подписчиков: доставим заказ бесплатно — СДЭК по всей России, в пункт выдачи или курьером${from}.`
+      : `Только для подписчиков: ${what.toLowerCase()} на заказ${from}.`;
+  const [c] = await db
+    .insert(s.campaign)
+    .values({
+      subject: `${what} — только ${h}`,
+      title: `${what}: ${h}`,
+      body: `${text}\nПромокод действует ${h} с момента, как пришло это письмо. Успейте оформить заказ!`,
+      promoCodeId: promoId,
+      buttonText: "Выбрать товары",
+      buttonUrl: "/catalog",
+      channelEmail: true,
+      channelTelegram: form.get("channelTelegram") === "on",
+      createdById: me.id,
+    })
+    .returning({ id: s.campaign.id });
+  await audit(me.id, "campaign.flash", "campaign", c.id, { code, hours: d.hours, type: d.type, maxUses });
+  redirect(`/admin/mailing/${c.id}?saved=1`);
+}

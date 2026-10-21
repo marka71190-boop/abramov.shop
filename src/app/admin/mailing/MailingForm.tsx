@@ -10,6 +10,7 @@ export interface PromoOption {
   value: number; // % или копейки
   minOrder: number | null;
   endsAt: string | null; // «31.10.2026»
+  personalHours?: number | null; // акция по таймеру
   problem: string | null;
 }
 
@@ -30,7 +31,7 @@ const rubles = (kop: number) => `${Math.round(kop / 100).toLocaleString("ru-RU")
 
 /** Готовый текст под промокод — подставляется при выборе, дальше можно править. */
 function template(p: PromoOption) {
-  const until = p.endsAt ? ` до ${p.endsAt}` : "";
+  const until = p.personalHours ? ` ${p.personalHours} ч с момента, как пришло это письмо` : p.endsAt ? ` до ${p.endsAt}` : "";
   const from = p.minOrder ? ` при заказе от ${rubles(p.minOrder)}` : "";
   if (p.type === "FREE_SHIPPING")
     return {

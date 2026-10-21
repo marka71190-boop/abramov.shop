@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { BanModal } from "@/components/BanModal";
 import { CartProvider, RefCatcher } from "@/components/cart/CartProvider";
+import { PromoTimer } from "@/components/cart/PromoTimer";
 import { Analytics } from "@/components/analytics/Analytics";
 import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { Suspense } from "react";
@@ -55,6 +56,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   return (
     <CartProvider signedIn={!!viewer}>
       <RefCatcher />
+      <PromoTimer />
       <Suspense fallback={null}>
         <Analytics metrikaId={metrikaId} />
       </Suspense>

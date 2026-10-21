@@ -91,6 +91,7 @@ const PromoIn = z.object({
   minOrder: z.string().optional(),
   maxUses: z.string().optional(),
   maxUsesPerUser: z.string().optional(),
+  personalHours: z.string().optional(),
   startsAt: z.string().optional(),
   endsAt: z.string().optional(),
   categoryId: z.string().optional(),
@@ -118,6 +119,7 @@ export async function savePromo(_: ActionState, form: FormData): Promise<ActionS
     minOrder: d.minOrder?.trim() ? rubToKop(d.minOrder) : null,
     maxUses: num(d.maxUses),
     maxUsesPerUser: num(d.maxUsesPerUser),
+    personalHours: num(d.personalHours),
     startsAt: mskDate(d.startsAt),
     endsAt: d.endsAt ? mskDate(`${d.endsAt}`.length === 10 ? `${d.endsAt}T23:59` : d.endsAt) : null,
     categoryId: d.categoryId || null,
@@ -126,6 +128,8 @@ export async function savePromo(_: ActionState, form: FormData): Promise<ActionS
     combinableWithBonus: form.get("combinableWithBonus") === "on",
     note: d.note?.trim() || null,
   };
+  if (values.personalHours != null && (values.personalHours < 1 || values.personalHours > 720)) return { error: "Акция по таймеру — от 1 до 720 часов" };
+  if (values.startsAt && values.endsAt && values.endsAt <= values.startsAt) return { error: "Окончание акции должно быть позже начала" };
   try {
     if (d.id) {
       await db.update(s.promoCode).set(values).where(eq(s.promoCode.id, d.id));

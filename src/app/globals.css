@@ -3510,3 +3510,49 @@ button.addr-card[aria-checked="true"] strong {
     height: 320px;
   }
 }
+
+/* ── Акция по таймеру ── */
+.promo-timer {
+  background: linear-gradient(90deg, #2a2112, #3a2c12 50%, #2a2112);
+  border-bottom: 1px solid rgba(220, 191, 131, 0.35);
+  color: var(--c-text);
+  font-size: 14px;
+}
+.promo-timer__inner {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  position: relative;
+  padding-right: 40px;
+}
+.promo-timer code {
+  color: var(--c-gold);
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+.promo-timer__clock b {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-gold);
+  font-size: 16px;
+}
+.promo-timer__cta {
+  color: var(--c-gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.promo-timer__x {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 0;
+  color: var(--c-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+}

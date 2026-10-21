@@ -359,6 +359,8 @@ export const promoCode = pgTable("promo_code", {
   firstOrderOnly: boolean("first_order_only").default(false).notNull(),
   categoryId: text("category_id").references(() => category.id, { onDelete: "set null" }),
   combinableWithBonus: boolean("combinable_with_bonus").default(true).notNull(),
+  /** Акция по таймеру: действует столько часов с момента, когда письмо рассылки пришло покупателю, и только получателям */
+  personalHours: integer("personal_hours"),
   note: text("note"),
   createdAt: createdAt(),
 });

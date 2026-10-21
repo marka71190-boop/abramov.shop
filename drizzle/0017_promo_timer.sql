@@ -1,0 +1,1 @@
+ALTER TABLE "promo_code" ADD COLUMN "personal_hours" integer;
