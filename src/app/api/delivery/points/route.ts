@@ -14,7 +14,8 @@ export async function GET(request: Request) {
   const city = Number(new URL(request.url).searchParams.get("city"));
   if (!Number.isInteger(city) || city <= 0) return Response.json({ ok: false, error: "Не выбран город" }, { status: 400 });
   try {
-    return Response.json({ ok: true, points: await getPickupPoints(city) });
+    // Ключ Яндекс Карт — публичный (ограничен адресом сайта в кабинете разработчика), нужен браузеру для карты
+    return Response.json({ ok: true, points: await getPickupPoints(city), mapKey: process.env.YANDEX_MAPS_KEY || null });
   } catch (e) {
     console.error("[cdek] points:", e);
     return Response.json({ ok: false, error: "СДЭК временно не отвечает" }, { status: 502 });

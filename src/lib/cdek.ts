@@ -75,6 +75,9 @@ export interface CdekPoint {
   address: string;
   workTime: string;
   postalCode: string | null;
+  /** Координаты — для карты */
+  lat: number | null;
+  lon: number | null;
 }
 
 const pointsCache = new Map<number, { at: number; points: CdekPoint[] }>();
@@ -88,7 +91,7 @@ export async function getPickupPoints(cityCode: number): Promise<CdekPoint[]> {
       code: string;
       name: string;
       work_time?: string;
-      location: { address_full?: string; address?: string; postal_code?: string };
+      location: { address_full?: string; address?: string; postal_code?: string; latitude?: number; longitude?: number };
     }>
   >(`/deliverypoints?${q}`);
   const points = list
@@ -98,6 +101,8 @@ export async function getPickupPoints(cityCode: number): Promise<CdekPoint[]> {
       address: p.location.address ?? p.location.address_full ?? "",
       workTime: p.work_time ?? "",
       postalCode: p.location.postal_code ?? null,
+      lat: typeof p.location.latitude === "number" ? p.location.latitude : null,
+      lon: typeof p.location.longitude === "number" ? p.location.longitude : null,
     }))
     .sort((a, b) => a.address.localeCompare(b.address, "ru"));
   pointsCache.set(cityCode, { at: Date.now(), points });

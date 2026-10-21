@@ -3493,3 +3493,20 @@ button.addr-card[aria-checked="true"] strong {
   width: 72px;
   height: 26px;
 }
+.pvz-map {
+  height: 380px;
+  border: 1px solid var(--c-line-2);
+  background: #1a1a1d;
+}
+.seg--tabs {
+  grid-template-columns: 1fr 1fr;
+}
+.seg--tabs button {
+  align-items: center;
+  padding: 10px 14px;
+}
+@media (max-width: 760px) {
+  .pvz-map {
+    height: 320px;
+  }
+}

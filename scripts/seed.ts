@@ -35,6 +35,7 @@ import {
   OFFER_GIFT_ANCHOR,
   OFFER_GIFT_FIXES,
   PRIVACY_SOCIAL_FIXES,
+  PRIVACY_MAPS_FIXES,
   CONSENT_PD_VERSION,
   OFFER_GIFT_SECTION,
   PRIVACY_GIFT_ANCHOR,
@@ -131,7 +132,7 @@ async function main() {
     .set({ body: sql`replace(${s.page.body}, ${OFFER_GIFT_ANCHOR}, ${OFFER_GIFT_SECTION + OFFER_GIFT_ANCHOR})` })
     .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%## 8.1. Подарочные сертификаты%'`));
   // Вход через Google и VK ID в политике
-  for (const [from, to] of PRIVACY_SOCIAL_FIXES) {
+  for (const [from, to] of [...PRIVACY_SOCIAL_FIXES, ...PRIVACY_MAPS_FIXES]) {
     await db
       .update(s.page)
       .set({ body: sql`replace(${s.page.body}, ${from}, ${to})` })

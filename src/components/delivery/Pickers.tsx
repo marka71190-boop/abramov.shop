@@ -1,6 +1,7 @@
 "use client";
 /** Выбор города и пункта выдачи СДЭК — общие для оформления заказа и «Моих адресов». */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PvzMap } from "./PvzMap";
 
 export interface City {
   code: number;
@@ -12,6 +13,8 @@ export interface Point {
   address: string;
   workTime: string;
   postalCode: string | null;
+  lat?: number | null;
+  lon?: number | null;
 }
 
 export function CityPicker({ value, onChange }: { value: City | null; onChange: (c: City | null) => void }) {
@@ -93,13 +96,19 @@ export function PointPicker({ city, value, onChange }: { city: City; value: Poin
   const [points, setPoints] = useState<Point[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [mapKey, setMapKey] = useState<string | null>(null);
+  const [view, setView] = useState<"map" | "list">("map");
 
   useEffect(() => {
     setPoints(null);
     setErr(null);
     fetch(`/api/delivery/points?city=${city.code}`)
       .then((x) => x.json())
-      .then((r) => (r.ok ? setPoints(r.points) : setErr(r.error)))
+      .then((r) => {
+        if (!r.ok) return setErr(r.error);
+        setPoints(r.points);
+        setMapKey(r.mapKey ?? null);
+      })
       .catch(() => setErr("Не удалось загрузить пункты выдачи"));
   }, [city.code]);
 
@@ -112,6 +121,7 @@ export function PointPicker({ city, value, onChange }: { city: City; value: Poin
     }
   }, [points, value, onChange]);
 
+  const onMap = useMemo(() => (points ?? []).filter((p): p is Point & { lat: number; lon: number } => typeof p.lat === "number" && typeof p.lon === "number"), [points]);
   const shown = useMemo(() => {
     const f = filter.trim().toLowerCase();
     return (points ?? []).filter((p) => !f || `${p.address} ${p.name}`.toLowerCase().includes(f)).slice(0, 60);
@@ -140,6 +150,20 @@ export function PointPicker({ city, value, onChange }: { city: City; value: Poin
   return (
     <div className="stack" style={{ gap: 10 }}>
       {gone && <div className="notice" style={{ margin: 0 }}>Сохранённый пункт выдачи СДЭК больше не работает — выберите другой.</div>}
+      {mapKey && onMap.length > 0 && (
+        <div className="seg seg--tabs" role="radiogroup" aria-label="Как выбрать пункт">
+          <button type="button" role="radio" aria-checked={view === "map"} onClick={() => setView("map")}>
+            <strong>На карте</strong>
+          </button>
+          <button type="button" role="radio" aria-checked={view === "list"} onClick={() => setView("list")}>
+            <strong>Списком</strong>
+          </button>
+        </div>
+      )}
+      {mapKey && onMap.length > 0 && view === "map" ? (
+        <PvzMap mapKey={mapKey} points={onMap} onPick={onChange} />
+      ) : (
+        <>
       <input className="input" placeholder={`Улица или метро — ${points.length} пунктов`} value={filter} onChange={(e) => setFilter(e.target.value)} />
       <ul className="pvz-list" role="listbox" aria-label="Пункты выдачи">
         {shown.map((p) => (
@@ -152,6 +176,8 @@ export function PointPicker({ city, value, onChange }: { city: City; value: Poin
         ))}
         {!shown.length && <li className="muted small" style={{ padding: 12 }}>Ничего не нашли — уточните запрос</li>}
       </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -180,6 +180,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
           <span className={`pill ${metrika ? "pill--ok" : "pill--bad"}`}>{metrika ? "подключена" : "не подключена"}</span>
         </div>
+        <div className="row-line">
+          <div>
+            <div>Яндекс Карты · пункты выдачи на карте</div>
+            <div className="muted small">
+              {process.env.YANDEX_MAPS_KEY
+                ? "При оформлении заказа пункты СДЭК показываются на карте, рядом — выбор списком."
+                : "Получите ключ «JavaScript API и HTTP Геокодер» в кабинете developer.tech.yandex.ru, ограничьте его адресом abramov.shop и добавьте в Timeweb переменную YANDEX_MAPS_KEY. Пока ключа нет — выбор пункта списком."}
+            </div>
+          </div>
+          <span className={`pill ${process.env.YANDEX_MAPS_KEY ? "pill--ok" : "pill--bad"}`}>{process.env.YANDEX_MAPS_KEY ? "подключены" : "не подключены"}</span>
+        </div>
       </div>
 
       <ShopSettingsForm s={settings} />
