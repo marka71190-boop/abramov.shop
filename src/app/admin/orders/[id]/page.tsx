@@ -7,6 +7,9 @@ import { fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
 import { ORDER_STATUS, TONE_PILL } from "@/lib/order-status";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { OrderControls } from "./OrderControls";
+import { ProductionPanel } from "./ProductionPanel";
+import { expectedReady, productionEvents } from "@/lib/production";
+import { fmtDate } from "@/lib/format";
 import { InspectionPanel } from "./InspectionPanel";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { driveStatus } from "@/lib/gdrive";
@@ -78,6 +81,19 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         paid={paid}
         owner={me.role === "OWNER"}
       />
+
+      {o.items.some((i) => i.spec) &&
+        (await (async () => {
+          const [evs, ready] = await Promise.all([productionEvents(o.id), expectedReady(o.paidAt)]);
+          return (
+            <ProductionPanel
+              orderId={o.id}
+              events={evs.map((e) => ({ id: e.id, stage: e.stage, note: e.note, photo: e.photo, at: fmtDateTime(e.createdAt) }))}
+              canEdit={o.status === "PAID" || o.status === "ASSEMBLING"}
+              ready={ready ? fmtDate(ready) : null}
+            />
+          );
+        })())}
 
       <div className="grid-2">
         <div className="panel stack" style={{ gap: 8 }}>

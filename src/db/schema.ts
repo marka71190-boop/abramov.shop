@@ -900,6 +900,29 @@ export const consentRelations = relations(consent, ({ one }) => ({
   document: one(consentDocument, { fields: [consent.documentId], references: [consentDocument.id] }),
 }));
 
+/** Изготовление кия на заказ: этапы, которые видит покупатель (отправка — обычным статусом заказа) */
+export const productionStageEnum = pgEnum("production_stage", ["ACCEPTED", "IN_WORK", "READY"]);
+
+export const productionEvent = pgTable(
+  "production_event",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    stage: productionStageEnum("stage").notNull(),
+    note: text("note"), // комментарий мастера — его видит покупатель
+    photo: text("photo"), // фото кия на этом этапе
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("production_event_order_idx").on(t.orderId)],
+);
+
+export const productionEventRelations = relations(productionEvent, ({ one }) => ({
+  order: one(order, { fields: [productionEvent.orderId], references: [order.id] }),
+}));
+
 export const orderRelations = relations(order, ({ one, many }) => ({
   user: one(user, { fields: [order.userId], references: [user.id] }),
   promo: one(promoCode, { fields: [order.promoCodeId], references: [promoCode.id] }),
@@ -909,6 +932,7 @@ export const orderRelations = relations(order, ({ one, many }) => ({
   inspection: one(orderInspection),
   media: many(inspectionMedia),
   giftUses: many(giftCardUse),
+  production: many(productionEvent),
 }));
 
 export const giftCardRelations = relations(giftCard, ({ one, many }) => ({

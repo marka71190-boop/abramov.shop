@@ -3556,3 +3556,40 @@ button.addr-card[aria-checked="true"] strong {
   cursor: pointer;
   padding: 4px 8px;
 }
+
+/* ── Изготовление кия ── */
+.prod-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 18px;
+  border-left: 2px solid var(--c-gold);
+  display: grid;
+  gap: 14px;
+}
+.prod-steps li {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+.prod-steps li::before {
+  content: "";
+  position: absolute;
+  left: -25px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--c-gold);
+}
+.prod-steps li.is-next::before {
+  background: var(--c-bg);
+  border: 2px solid var(--c-line-2);
+}
+.prod-photo {
+  display: block;
+  max-width: min(420px, 100%);
+  max-height: 360px;
+  width: auto;
+  height: auto;
+  border: 1px solid var(--c-line);
+}

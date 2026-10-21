@@ -324,6 +324,8 @@ export async function markPaid(orderId: string, source: string) {
     return true;
   });
   if (changed) {
+    // Кий на заказ: этап «Принят в работу»
+    await import("@/lib/production").then((m) => m.onOrderPaid(orderId)).catch((e) => console.error("[production]", e));
     await notifyOrder(orderId, "paid");
   }
 }

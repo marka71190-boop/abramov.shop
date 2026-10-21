@@ -16,6 +16,8 @@ import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns, returnable } from "@/lib/returns";
 import { loadInspection } from "@/lib/inspection";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
+import { expectedReady, productionEvents, STAGE_LABEL } from "@/lib/production";
+import { fmtDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -122,6 +124,45 @@ export default async function OrderPage({ params, searchParams }: Props) {
           ))}
         </ol>
       )}
+
+      {items.some((i) => i.spec) &&
+        ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status) &&
+        (await (async () => {
+          const [evs, ready] = await Promise.all([productionEvents(o.id), expectedReady(o.paidAt)]);
+          const isReady = evs.some((e) => e.stage === "READY");
+          const shipped = o.status === "SHIPPED" || o.status === "DELIVERED";
+          return (
+            <div className="panel stack" id="production">
+              <h2 style={{ marginBottom: 0 }}>Изготовление кия</h2>
+              {!isReady && ready && <p className="muted small" style={{ margin: 0 }}>Ориентировочно будет готов к {fmtDate(ready)}.</p>}
+              <ol className="prod-steps">
+                {evs.map((e) => (
+                  <li key={e.id}>
+                    <div>
+                      <b>{STAGE_LABEL[e.stage]}</b> <span className="muted small">· {fmtDateTime(e.createdAt)}</span>
+                    </div>
+                    {e.note && (
+                      <div className="small" style={{ whiteSpace: "pre-line" }}>
+                        {e.note}
+                        <span className="muted"> — мастер</span>
+                      </div>
+                    )}
+                    {e.photo && <img src={e.photo} alt="Фото кия" className="prod-photo" />}
+                  </li>
+                ))}
+                {!isReady && <li className="is-next muted">Кий готов</li>}
+                {shipped ? (
+                  <li>
+                    <b>Отправлен СДЭК</b>
+                    {o.shippedAt && <span className="muted small"> · {fmtDateTime(o.shippedAt)}</span>}
+                  </li>
+                ) : (
+                  <li className="is-next muted">Отправим СДЭК и пришлём трек-номер</li>
+                )}
+              </ol>
+            </div>
+          );
+        })())}
 
       <div className="order-grid">
         <div className="panel">
