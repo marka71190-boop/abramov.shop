@@ -5,10 +5,11 @@ import { useCart } from "@/components/cart/CartProvider";
 import { cleanEngraving, cueKey, cueSvg, resolveCue, spliceIcon, type CueConfig, type CueSelection } from "@/lib/cue-config";
 import { rub } from "@/lib/format";
 import { ecommerce, goal } from "@/lib/track";
+import { showcaseFromBuilder } from "@/app/admin/cue/gallery/actions";
 
 const plus = (k: number) => (k > 0 ? `+${rub(k)}` : k < 0 ? `−${rub(-k)}` : "включено");
 
-export function CueBuilder({ config, initial }: { config: CueConfig; initial: CueSelection }) {
+export function CueBuilder({ config, initial, admin = false }: { config: CueConfig; initial: CueSelection; admin?: boolean }) {
   const cart = useCart();
   const [sel, setSel] = useState<CueSelection>(initial);
   const [added, setAdded] = useState(false);
@@ -120,6 +121,11 @@ export function CueBuilder({ config, initial }: { config: CueConfig; initial: Cu
               <Link href="/cart" className="btn btn--line btn--block">
                 Перейти в корзину
               </Link>
+            )}
+            {admin && (
+              <button type="button" className="btn btn--line btn--block btn--sm" onClick={() => showcaseFromBuilder(cueKey(sel))}>
+                Сохранить сборку в галерею (админ)
+              </button>
             )}
             <p className="small muted" style={{ margin: 0 }}>
               Кий делается по вашим параметрам. Исправный кий, изготовленный по индивидуальному заказу, нельзя вернуть просто так — только при браке (п. 4 ст. 26.1 Закона о защите прав потребителей).

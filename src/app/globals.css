@@ -3593,3 +3593,86 @@ button.addr-card[aria-checked="true"] strong {
   height: auto;
   border: 1px solid var(--c-line);
 }
+
+/* ── Галерея «Чемпионов» ── */
+.showcase-admin {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.showcase-admin__item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.showcase-admin__item img,
+.showcase-admin__item .ph {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: #1a1a1d;
+  flex: none;
+}
+.showcase-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.showcase-photos__item {
+  display: grid;
+  gap: 6px;
+}
+.showcase-photos__item img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border: 1px solid var(--c-line);
+}
+.showcase {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.showcase__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line-2);
+}
+.showcase__photos {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  aspect-ratio: 4 / 3;
+  background: #0f0f11;
+}
+.showcase__photos img {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+.showcase__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  flex: 1;
+}
+.showcase__body details summary {
+  cursor: pointer;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.showcase__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+}

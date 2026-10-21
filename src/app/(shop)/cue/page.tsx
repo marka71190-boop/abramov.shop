@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { defaultSelection, parseCueKey, resolveCue, visibleGroups } from "@/lib/cue-config";
+import Link from "next/link";
+import { cueKey, defaultSelection, parseCueKey, resolveCue, visibleGroups } from "@/lib/cue-config";
+import { rub } from "@/lib/format";
+import { publicShowcase } from "@/lib/showcase";
 import { getCueConfig } from "@/lib/cue";
 import { og } from "@/lib/seo";
 import { isAdmin, getViewer } from "@/lib/viewer";
@@ -18,7 +21,7 @@ export const metadata: Metadata = {
 type Props = { searchParams: Promise<{ c?: string }> };
 
 export default async function CuePage({ searchParams }: Props) {
-  const [cfg, viewer, { c }] = await Promise.all([getCueConfig(), getViewer(), searchParams]);
+  const [cfg, viewer, { c }, gallery] = await Promise.all([getCueConfig(), getViewer(), searchParams, publicShowcase()]);
   const admin = !!viewer && isAdmin(viewer);
   if (!cfg.enabled && !admin) notFound();
 
@@ -41,7 +44,45 @@ export default async function CuePage({ searchParams }: Props) {
         <h1 className="h2">{cfg.title}</h1>
         {cfg.intro && <p>{cfg.intro}</p>}
       </div>
-      <CueBuilder config={pub} initial={initial} />
+      {gallery.length > 0 && (
+        <div className="stack" style={{ gap: 16 }}>
+          <h2 className="h3" style={{ margin: 0 }}>Готовые «Чемпионы»</h2>
+          <div className="showcase">
+            {gallery.map((g) => (
+              <article key={g.id} className="showcase__card">
+                <div className="showcase__photos">
+                  {g.photos.map((u, i) => (
+                    <img key={u + i} src={u} alt={i === 0 ? g.title : ""} loading="lazy" />
+                  ))}
+                </div>
+                <div className="showcase__body">
+                  <b>{g.title}</b>
+                  {g.summary && <div className="muted small">{g.summary}</div>}
+                  {g.description && <p className="small" style={{ margin: 0 }}>{g.description}</p>}
+                  {g.spec.length > 0 && (
+                    <details>
+                      <summary>Все параметры</summary>
+                      <div className="small" style={{ whiteSpace: "pre-line", marginTop: 6 }}>{g.spec.join("\n")}</div>
+                    </details>
+                  )}
+                  {g.photos.length > 1 && <div className="muted small">Ещё {g.photos.length - 1} фото — листайте →</div>}
+                  <div className="showcase__foot">
+                    {g.price != null && <strong>{rub(g.price)}</strong>}
+                    {g.key && (
+                      <Link href={`/cue?c=${encodeURIComponent(g.key)}#builder`} className="btn btn--gold btn--sm" style={{ whiteSpace: "nowrap" }}>
+                        Собрать такой же
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          <h2 className="h3" style={{ margin: "12px 0 0" }}>Соберите свой</h2>
+        </div>
+      )}
+      <div id="builder" style={{ scrollMarginTop: 90 }} />
+      <CueBuilder key={cueKey(initial)} config={pub} initial={initial} admin={admin} />
     </section>
   );
 }

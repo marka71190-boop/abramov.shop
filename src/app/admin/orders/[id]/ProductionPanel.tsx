@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useRef, useState } from "react";
 import { productionAction } from "./production-actions";
+import { showcaseFromOrderAction } from "../../cue/gallery/actions";
 
 export interface ProdEvent {
   id: string;
@@ -56,6 +57,14 @@ export function ProductionPanel({ orderId, events, canEdit, ready }: { orderId: 
         </ol>
       ) : (
         <p className="muted small" style={{ margin: 0 }}>Этап «Принят в работу» появится сам, когда заказ оплатят.</p>
+      )}
+      {done && (
+        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+          <button type="button" className="btn btn--line btn--sm" onClick={() => showcaseFromOrderAction(orderId)}>
+            В галерею «Чемпионов»
+          </button>
+          <span className="muted small">Возьмём сборку (без гравировки) и фото этапов — проверите и опубликуете.</span>
+        </div>
       )}
       {canEdit && (
         <form action={action} className="stack" style={{ gap: 10, borderTop: "1px solid var(--c-line)", paddingTop: 14 }}>

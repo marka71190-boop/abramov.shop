@@ -435,6 +435,7 @@ export const orderItem = pgTable("order_item", {
   price: integer("price").notNull(), // копейки за 1 шт.
   quantity: integer("quantity").notNull(),
   spec: text("spec"), // кий на заказ: параметры сборки, по строке «Группа: значение»
+  cueKey: text("cue_key"), // кий на заказ: код сборки (без гравировки) — чтобы «собрать такой же»
 });
 
 export const payment = pgTable("payment", {
@@ -899,6 +900,19 @@ export const consentRelations = relations(consent, ({ one }) => ({
   user: one(user, { fields: [consent.userId], references: [user.id] }),
   document: one(consentDocument, { fields: [consent.documentId], references: [consentDocument.id] }),
 }));
+
+/** Галерея готовых киёв «Чемпион»: фото и сборка — кнопка «Собрать такой же» */
+export const cueShowcase = pgTable("cue_showcase", {
+  id: id(),
+  title: text("title").notNull(),
+  description: text("description").default("").notNull(),
+  photos: text("photos").array().default([]).notNull(),
+  cueKey: text("cue_key"), // сборка без гравировки
+  published: boolean("published").default(false).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  orderId: text("order_id").references(() => order.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
 
 /** Изготовление кия на заказ: этапы, которые видит покупатель (отправка — обычным статусом заказа) */
 export const productionStageEnum = pgEnum("production_stage", ["ACCEPTED", "IN_WORK", "READY"]);

@@ -31,6 +31,9 @@ export default async function CueAdmin() {
           каталога). Там же можно задать категорию — чтобы на кий действовали промокоды этой категории.
         </p>
       )}
+      <p style={{ margin: 0 }}>
+        <Link href="/admin/cue/gallery">Галерея готовых «Чемпионов» →</Link>
+      </p>
       <CueForm initial={cfg} meta={CUE_GROUPS} />
     </>
   );

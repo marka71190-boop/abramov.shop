@@ -7,6 +7,7 @@
  *   возврат денег → REFUNDED
  */
 import "server-only";
+import { cueKey, parseCueKey } from "@/lib/cue-config";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
@@ -28,6 +29,12 @@ import {
 } from "@/lib/yookassa";
 
 /** Ошибка, текст которой можно показать покупателю. */
+
+/** Код сборки кия без гравировки */
+function withoutEngraving(key: string) {
+  const sel = parseCueKey(key);
+  return sel ? cueKey({ ...sel, e: undefined }) : null;
+}
 export class OrderError extends Error {
   constructor(
     message: string,
@@ -186,6 +193,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         price: l.price,
         quantity: l.qty,
         spec: l.spec ?? null,
+        // Код сборки без гравировки (гравировка — имя покупателя, в галерею не попадает)
+        cueKey: l.spec ? withoutEngraving(l.variantId) : null,
       })),
     );
     if (promoId) await tx.insert(s.promoUsage).values({ promoId, userId: user.id, orderId: o.id });
