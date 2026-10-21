@@ -184,6 +184,8 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
 
       const { mskUntil } = await import("@/lib/promo-timer");
       const until = mskUntil(endsAt);
+      // «23 октября в 21:49 по Москве» или «в 21:49 по Москве»
+      const when = until.includes(",") ? until.replace(", ", " в ") : `в ${until}`;
       const link = `${SITE.url}/cart?promo=${code}&utm_source=__CH__&utm_medium=trigger&utm_campaign=abandoned_promo`;
       const unsub = unsubscribeUrl(user.id);
       if (canMail) {
@@ -198,17 +200,18 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
           )
           .join("");
         const body =
-          `${first ? `Здравствуйте, ${escHtml(first)}!<br><br>` : ""}Товары всё ещё ждут вас в корзине. Чтобы решиться было проще — дарим скидку ${percent}% на этот заказ:` +
+          `${first ? `Здравствуйте, ${escHtml(first)}!<br><br>` : ""}Нам тут одна ласточка нашептала, что у вас в корзине завалялись товары:` +
           `<table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 8px;border-top:1px solid #2a2a2a;border-bottom:1px solid #2a2a2a">${rowsHtml}</table>` +
           `<div style="margin:20px 0 6px;padding:20px 16px;border:1px dashed #dcbf83;text-align:center">
+<div style="font-size:15px;color:#f3f2ef;margin-bottom:12px">Так вот — ласточка прилетела не одна. Забирайте промокод на скидку ${percent}%:</div>
 <div style="font-size:12px;letter-spacing:3px;color:#a3a3a8;text-transform:uppercase">Ваш промокод</div>
 <div style="font-size:30px;font-weight:bold;letter-spacing:5px;color:#dcbf83;margin:8px 0">${code}</div>
 <div style="font-size:15px;color:#f3f2ef;font-weight:bold">Скидка ${percent}%</div>
-<div style="font-size:15px;color:#dcbf83;margin-top:10px">⏱ Действует до ${escHtml(until)}</div>
+<div style="font-size:15px;color:#dcbf83;margin-top:10px">⏱ Ласточки — птицы быстрые: промокод улетит ${escHtml(when)}</div>
 <div style="font-size:12px;color:#7a7a80;margin-top:10px">Только для вас, на один заказ. Нажмите кнопку — промокод подставится сам</div>
 </div>` +
           `<div style="color:#a3a3a8;font-size:13px;margin-top:12px">Цены и наличие — на момент письма. Товары не забронированы.</div>`;
-        await sendMail(user.email, `Скидка ${percent}% на вашу корзину — до ${until}`, `Скидка ${percent}% на вашу корзину`, body, { text: "Оформить со скидкой", url: link.replace("__CH__", "email") }, {
+        await sendMail(user.email, `🕊 Ласточка принесла вам скидку ${percent}%`, "Ласточка прилетела не одна", body, { text: "Забрать скидку", url: link.replace("__CH__", "email") }, {
           footerHtml: `Вы получили письмо, потому что подписались на новости и акции Abramov Shop. <a href="${unsub}" style="color:#a3a3a8">Отписаться</a>`,
           headers: {
             "List-Unsubscribe": `<${SITE.url}/api/unsubscribe?u=${encodeURIComponent(user.id)}&t=${unsub.split("&t=")[1]}>`,
@@ -217,8 +220,8 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
         });
       } else {
         // В Telegram — без имени и без списка товаров: только промокод и срок
-        await tgSend(user.telegramChatId!, `🎁 <b>Скидка ${percent}% на вашу корзину</b>\n\nПромокод <code>${code}</code> — только для вас, на один заказ.\n⏱ Действует до ${tgEsc(until)}.`, [
-          { text: "Оформить со скидкой", url: link.replace("__CH__", "telegram") },
+        await tgSend(user.telegramChatId!, `🕊 <b>Ласточка прилетела не одна</b>\n\nНам тут одна ласточка нашептала, что у вас в корзине завалялись товары. Так вот — забирайте промокод <code>${code}</code> на скидку ${percent}%. Только для вас, на один заказ.\n\n⏱ Ласточки — птицы быстрые: промокод улетит ${tgEsc(when)}.`, [
+          { text: "Забрать скидку", url: link.replace("__CH__", "telegram") },
           { text: "Отписаться от напоминаний", url: unsub },
         ]);
       }
