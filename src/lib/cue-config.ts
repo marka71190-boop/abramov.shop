@@ -15,10 +15,8 @@ export const SPLICE_PATTERNS = {
   tulip: "Тюльпан",
   saturn: "Сатурн",
   web: "Паутина",
-  parrot: "Попугай (Марс)",
   dovetail: "Ласточкин хвост",
   spike: "Колосок",
-  flower: "Цветок",
 } as const;
 export type SplicePattern = keyof typeof SPLICE_PATTERNS;
 
@@ -75,7 +73,7 @@ export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?:
 
 const o = (id: string, name: string, rub: number, color?: string): CueOption => ({ id, name, price: rub * 100, ...(color ? { color } : {}) });
 const sp = (pattern: SplicePattern, rub: number): CueOption => ({ id: pattern.slice(0, 8), name: SPLICE_PATTERNS[pattern], price: rub * 100, pattern });
-const styles = (k: number) => [sp("classic", 0), sp("crown", 8000 * k), sp("tulip", 6000 * k), sp("saturn", 7000 * k), sp("web", 6000 * k), sp("parrot", 6000 * k), sp("dovetail", 5000 * k), sp("spike", 5000 * k), sp("flower", 7000 * k)];
+const styles = (k: number) => [sp("classic", 0), sp("crown", 8000 * k), sp("tulip", 6000 * k), sp("saturn", 7000 * k), sp("web", 6000 * k), sp("dovetail", 5000 * k), sp("spike", 5000 * k)];
 const counts = (k: number) => [4, 5, 6, 8, 10, 12, 17, 22].map((n) => o(String(n), `${n} ${n % 10 === 1 && n !== 11 ? "запил" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n) ? "запила" : "запилов"}`, n <= 4 ? 0 : (n - 4) * 1000 * k));
 
 /** Пример прайса — владелец меняет всё в админке перед включением */
@@ -113,7 +111,9 @@ export function mergeCue(raw: unknown): CueConfig {
   const groups = CUE_GROUPS.map((g) => {
     const def = CUE_DEFAULT.groups.find((x) => x.id === g.id)!;
     const got = Array.isArray(v.groups) ? v.groups.find((x) => x?.id === g.id) : undefined;
-    return got ? { ...def, ...got, id: g.id, options: Array.isArray(got.options) ? got.options : def.options } : def;
+    // Виды запила, которых больше нет (попугай, цветок), из сохранённого прайса убираем
+    const opts = Array.isArray(got?.options) ? got.options.filter((x) => !x.pattern || x.pattern in SPLICE_PATTERNS) : def.options;
+    return got ? { ...def, ...got, id: g.id, options: opts } : def;
   });
   return {
     enabled: typeof v.enabled === "boolean" ? v.enabled : CUE_DEFAULT.enabled,
@@ -272,14 +272,10 @@ export const spliceShapes = (style: SplicePattern): { fill: Pt[][]; lines?: Pt[]
       return { fill: [curve((u) => (1 - u) ** 0.7 * (1 + 0.55 * Math.sin(Math.PI * u * 0.95)))], band: true };
     case "web":
       return { fill: [[[0, -1], [0.3, 0], [0, 1]]], lines: [0.15, 0.35, 0.55, 0.75].map((u0) => [[u0, -1], [u0 + 0.25, 0], [u0, 1]] as Pt[]) };
-    case "parrot":
-      return { fill: [[...Array.from({ length: 13 }, (_, k): Pt => [k / 12, -1 + k / 12]), ...Array.from({ length: 13 }, (_, k): Pt => { const u = 1 - k / 12; return [u, 1 - Math.sqrt(u)]; })]] };
     case "dovetail":
       return { fill: [[[0, -0.35], [0.62, -0.35], [1, -0.95], [1, 0.95], [0.62, 0.35], [0, 0.35]]] };
     case "spike":
       return { fill: [0, 1, 2, 3, 4].map((j) => { const u0 = 0.04 + 0.19 * j; return [[u0, -0.85], [u0 + 0.17, 0], [u0, 0.85], [u0 + 0.07, 0]] as Pt[]; }) };
-    case "flower":
-      return { fill: [curve((u) => 0.95 * Math.sin(Math.PI * Math.min(1, u * 1.05)) ** 0.6), [[0.55, -0.12], [1, 0], [0.55, 0.12]]] };
     default: // классика (венский): клин и «ёлочка» из шпона внутри
       return { fill: [[[0, -1], [1, 0], [0, 1]]], lines: [[[0, -0.55], [0.55, 0], [0, 0.55]]] };
   }
