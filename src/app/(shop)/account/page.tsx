@@ -294,6 +294,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {favorites.length > 0 && (
           <section id="favorites" className="panel">
             <h2>Избранное</h2>
+            <p className="muted small" style={{ marginTop: -6 }}>
+              {mk ? (
+                <>📉 Когда товар из избранного подешевеет, пришлём письмо.</>
+              ) : (
+                <>
+                  📉 Хотите узнавать, когда товар из избранного подешевеет? Включите «Новости и акции» в <a href="#settings">настройках</a> ниже.
+                </>
+              )}
+            </p>
             <div className="products" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
               {favorites.map((p) => (
                 <ProductCard key={p.id} p={p} rating={favRatings.get(p.id)} favorite />

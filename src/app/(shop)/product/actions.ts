@@ -21,7 +21,11 @@ export async function toggleFavorite(productId: string): Promise<boolean | null>
   const where = and(eq(s.favorite.userId, u.id), eq(s.favorite.productId, productId));
   const existing = await db.query.favorite.findFirst({ where });
   if (existing) await db.delete(s.favorite).where(where);
-  else await db.insert(s.favorite).values({ userId: u.id, productId }).onConflictDoNothing();
+  else {
+    // Цена на момент добавления — от неё считаем «подешевело»
+    const { baselineFor } = await import("@/lib/price-drop");
+    await db.insert(s.favorite).values({ userId: u.id, productId, notifiedPrice: await baselineFor(productId) }).onConflictDoNothing();
+  }
   revalidatePath("/account");
   return !existing;
 }

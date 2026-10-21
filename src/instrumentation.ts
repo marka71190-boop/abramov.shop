@@ -47,6 +47,8 @@ export async function register() {
     await remindAbandonedCarts();
     const { abandonedCartPromos } = await import("@/lib/abandoned");
     await abandonedCartPromos();
+    const { priceDropAlerts } = await import("@/lib/price-drop");
+    await priceDropAlerts();
   };
   setTimeout(safe("abandoned", abandoned), 5 * 60_000);
   setInterval(safe("abandoned", abandoned), 30 * 60_000);

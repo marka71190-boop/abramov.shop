@@ -542,6 +542,9 @@ export const favorite = pgTable(
       .notNull()
       .references(() => product.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
+    // «Сообщить о снижении цены»: цена, от которой считаем снижение (при добавлении / последнем письме), копейки
+    notifiedPrice: integer("notified_price"),
+    notifiedAt: ts("notified_at"),
   },
   (t) => [primaryKey({ columns: [t.userId, t.productId] })],
 );
