@@ -1,4 +1,5 @@
-import { asc, desc } from "drizzle-orm";
+import { asc, desc, isNull } from "drizzle-orm";
+import { abandonedPromoStats } from "@/lib/abandoned";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDate, rub } from "@/lib/format";
@@ -9,15 +10,21 @@ import { requireAdmin } from "@/lib/viewer";
 export default async function PromoPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   await requireAdmin("OWNER");
   const { saved } = await searchParams;
-  const [promos, categories] = await Promise.all([
-    db.query.promoCode.findMany({ orderBy: desc(s.promoCode.createdAt) }),
+  // Персональные промокоды (за брошенные корзины) в общий список не выводим — их много, ниже только итог
+  const [promos, categories, personal] = await Promise.all([
+    db.query.promoCode.findMany({ where: isNull(s.promoCode.ownerUserId), orderBy: desc(s.promoCode.createdAt) }),
     db.select({ id: s.category.id, name: s.category.name }).from(s.category).orderBy(asc(s.category.sortOrder)),
+    abandonedPromoStats(),
   ]);
   const now = new Date();
 
   return (
     <>
       <h1>Промокоды</h1>
+      <p className="muted small" style={{ margin: 0 }}>
+        Персональные промокоды за брошенные корзины за 30 дней: выдано {personal.given}, применили {personal.used}.{" "}
+        <Link href="/admin/settings#abandoned-promo">Настроить</Link>
+      </p>
       <div className="table-wrap">
         <table className="table">
           <thead>

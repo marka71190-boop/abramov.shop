@@ -64,6 +64,12 @@ export default async function MailingPage() {
           ) : (
             <>Напоминания выключены.</>
           )}{" "}
+          {settings.checkout.abandonedPromoHours > 0 && (
+            <>
+              Если корзина лежит дольше {settings.checkout.abandonedPromoHours} ч — приходит персональный промокод на{" "}
+              {settings.checkout.abandonedPromoPercent}% (действует {settings.checkout.abandonedPromoValidHours} ч).{" "}
+            </>
+          )}
           <Link href="/admin/settings">Настроить</Link>
         </div>
         {!mailEnabled() && <div className="form-error">Почта на сайте не настроена — можно отправлять только в Telegram.</div>}

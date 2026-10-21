@@ -43,7 +43,11 @@ export async function register() {
 
   // Напоминания о брошенных корзинах — раз в 30 минут (днём по Москве)
   const { remindAbandonedCarts } = await import("@/lib/abandoned");
-  const abandoned = async () => void (await remindAbandonedCarts());
+  const abandoned = async () => {
+    await remindAbandonedCarts();
+    const { abandonedCartPromos } = await import("@/lib/abandoned");
+    await abandonedCartPromos();
+  };
   setTimeout(safe("abandoned", abandoned), 5 * 60_000);
   setInterval(safe("abandoned", abandoned), 30 * 60_000);
 

@@ -40,6 +40,9 @@ export interface SiteSettings {
     maxQtyPerItem: number;
     notice: string; // объявление на странице оформления
     abandonedHours: number; // через сколько часов напомнить о брошенной корзине; 0 — не напоминать
+    abandonedPromoHours: number; // через сколько часов прислать персональный промокод на корзину; 0 — не присылать
+    abandonedPromoPercent: number; // скидка по нему, %
+    abandonedPromoValidHours: number; // сколько часов он действует
   };
   stock: {
     lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
@@ -94,6 +97,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     maxQtyPerItem: 10,
     notice: "",
     abandonedHours: 3,
+    abandonedPromoHours: 24,
+    abandonedPromoPercent: 10,
+    abandonedPromoValidHours: 48,
   },
   stock: {
     lowThreshold: 3,

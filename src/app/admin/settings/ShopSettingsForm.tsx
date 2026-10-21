@@ -65,6 +65,23 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
           <input className="input" name="abandonedHours" type="number" min={0} max={168} defaultValue={s.checkout.abandonedHours} />
         </label>
       </div>
+      <div className="form-grid" id="abandoned-promo">
+        <label className="field">
+          Корзина лежит дольше, часов — прислать промокод (0 — не присылать)
+          <input className="input" name="abandonedPromoHours" type="number" min={0} max={168} defaultValue={s.checkout.abandonedPromoHours} />
+        </label>
+        <label className="field">
+          Скидка по этому промокоду, %
+          <input className="input" name="abandonedPromoPercent" type="number" min={1} max={50} defaultValue={s.checkout.abandonedPromoPercent} />
+        </label>
+        <label className="field">
+          Промокод действует, часов
+          <input className="input" name="abandonedPromoValidHours" type="number" min={1} max={336} defaultValue={s.checkout.abandonedPromoValidHours} />
+        </label>
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        Промокод персональный: только этому покупателю, на один заказ. Приходит подписчикам на рассылку, днём, не чаще раза в 30 дней на человека.
+      </p>
       <label className="field">
         Объявление на странице оформления (например, «Отправка после 15 октября»)
         <input className="input" name="notice" defaultValue={s.checkout.notice} maxLength={500} />

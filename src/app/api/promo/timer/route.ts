@@ -23,6 +23,11 @@ export async function GET(request: Request) {
 
   let endsAt = p.endsAt;
   let needLogin = false;
+  if (p.ownerUserId) {
+    const viewer = await getViewer();
+    if (!viewer) needLogin = true;
+    else if (viewer.id !== p.ownerUserId) return no();
+  }
   if (p.personalHours) {
     const viewer = await getViewer();
     if (!viewer) needLogin = true;

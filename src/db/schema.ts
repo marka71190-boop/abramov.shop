@@ -361,6 +361,8 @@ export const promoCode = pgTable("promo_code", {
   combinableWithBonus: boolean("combinable_with_bonus").default(true).notNull(),
   /** Акция по таймеру: действует столько часов с момента, когда письмо рассылки пришло покупателю, и только получателям */
   personalHours: integer("personal_hours"),
+  /** Персональный промокод — подходит только этому покупателю (например, за брошенную корзину) */
+  ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "cascade" }),
   note: text("note"),
   createdAt: createdAt(),
 });
@@ -719,6 +721,7 @@ export const savedCart = pgTable(
     remindedAt: ts("reminded_at"), // когда напомнили о брошенной корзине
     remindCount: integer("remind_count").default(0).notNull(),
     recoveredAt: ts("recovered_at"), // оформил заказ после напоминания
+    promoSentAt: ts("promo_sent_at"), // когда прислали персональный промокод за брошенную корзину
   },
   (t) => [index("saved_cart_updated_idx").on(t.updatedAt)],
 );
