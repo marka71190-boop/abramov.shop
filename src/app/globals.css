@@ -3702,3 +3702,81 @@ button.addr-card[aria-checked="true"] strong {
   align-items: flex-end;
   white-space: nowrap;
 }
+
+/* ── Сравнение ── */
+.compare-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px 10px 18px;
+  background: #17171a;
+  border: 1px solid var(--c-gold);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.compare-bar__x {
+  background: none;
+  border: 0;
+  color: var(--c-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+.compare-table th,
+.compare-table td {
+  vertical-align: top;
+  min-width: 180px;
+}
+.compare-table tr.is-diff td {
+  background: rgba(220, 191, 131, 0.06);
+}
+.compare-table img {
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.pp__specs {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.pp__specs dt {
+  color: var(--c-muted);
+}
+.pp__specs dd {
+  margin: 0;
+}
+.facets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0 0 16px;
+  align-items: flex-start;
+}
+.facet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.facet__name {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-right: 4px;
+}
+.facet input {
+  width: 74px;
+  min-height: 34px;
+  padding: 4px 8px;
+}

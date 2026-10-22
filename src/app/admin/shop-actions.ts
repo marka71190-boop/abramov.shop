@@ -197,6 +197,7 @@ const ProductIn = z.object({
   variants: z.string(),
   images: z.string(),
   related: z.string().max(5000).optional(),
+  attrs: z.string().max(20_000).optional(),
 });
 
 /** «Джос, джосс,  jos, джос» → «Джос, джосс, jos»: без пустых и повторов (без учёта регистра) */
@@ -223,6 +224,22 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
   if (!variants.success) return { error: variants.error.issues[0]?.message };
   const images = z.array(ImageIn).max(30).safeParse(JSON.parse(d.images || "[]"));
   if (!images.success) return { error: "Ошибка в списке фото" };
+  // Характеристики: проверяем по справочнику
+  let attrRows: { attributeId: string; value: string }[] | null = null;
+  if (d.attrs !== undefined) {
+    const raw = z.record(z.string(), z.string().max(200)).safeParse(JSON.parse(d.attrs || "{}"));
+    if (!raw.success) return { error: "Ошибка в характеристиках" };
+    const { listAttributes, normalizeAttr } = await import("@/lib/attributes");
+    const defs = await listAttributes();
+    attrRows = [];
+    for (const [id, v] of Object.entries(raw.data)) {
+      const def = defs.find((x) => x.id === id);
+      if (!def) continue;
+      const r = normalizeAttr(def, v);
+      if ("error" in r) return { error: r.error };
+      if (r.value != null) attrRows.push({ attributeId: id, value: r.value });
+    }
+  }
   // «С этим покупают» вручную: до 12 товаров, без самого себя и повторов
   let related: string[] | null = null;
   if (d.related !== undefined) {
@@ -291,6 +308,10 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
         }
       }
 
+      if (attrRows) {
+        await tx.delete(s.productAttribute).where(eq(s.productAttribute.productId, productId!));
+        if (attrRows.length) await tx.insert(s.productAttribute).values(attrRows.map((r) => ({ ...r, productId: productId! })));
+      }
       if (related) {
         await tx.delete(s.productRelated).where(eq(s.productRelated.productId, productId!));
         const exist = related.length

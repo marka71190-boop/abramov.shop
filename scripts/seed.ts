@@ -42,6 +42,7 @@ import {
   PRIVACY_GIFT_LINE,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
+import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15_000 });
 const db = drizzle(pool, { schema: s });
@@ -189,6 +190,14 @@ async function main() {
   }
 
   await db.insert(s.setting).values({ key: "site", value: DEFAULT_SETTINGS }).onConflictDoNothing({ target: s.setting.key });
+  // Характеристики товаров: стартовый набор — один раз (дальше владелец правит в админке, удалённое не возвращаем)
+  const seeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "attributes_seeded") });
+  if (!seeded) {
+    for (const a of DEFAULT_ATTRIBUTES) {
+      await db.insert(s.attribute).values({ ...a, options: a.options ?? [] }).onConflictDoNothing({ target: s.attribute.key });
+    }
+    await db.insert(s.setting).values({ key: "attributes_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
+  }
 
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
   if (ownerEmail) {

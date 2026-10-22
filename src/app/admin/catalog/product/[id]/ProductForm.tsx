@@ -43,6 +43,42 @@ export interface ProductData {
 }
 
 type Brief = { id: string; name: string; sku: string | null; visibility: "DRAFT" | "HIDDEN" | "PUBLISHED" };
+export type AttrDef = { id: string; name: string; unit: string; type: string; options: string[]; categoryIds: string[] };
+
+/** Характеристики товара: показываем общие и те, что для выбранной категории */
+function AttrPanel({ defs, values, onChange, categoryId }: { defs: AttrDef[]; values: Record<string, string>; onChange: (v: Record<string, string>) => void; categoryId: string }) {
+  const shown = defs.filter((a) => !a.categoryIds.length || a.categoryIds.includes(categoryId) || values[a.id]);
+  if (!defs.length) return null;
+  const set = (id: string, v: string) => onChange({ ...values, [id]: v });
+  return (
+    <div className="panel stack">
+      <h2 style={{ marginBottom: 0 }}>Характеристики</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Видны в карточке, фильтрах и сравнении. Пустые не показываются. Список характеристик — <a href="/admin/catalog/attributes">Каталог → Характеристики</a>.
+      </p>
+      <div className="form-grid">
+        {shown.map((a) => (
+          <label key={a.id} className="field">
+            {a.name}
+            {a.unit ? `, ${a.unit}` : ""}
+            {a.type === "select" ? (
+              <select className="select" value={values[a.id] ?? ""} onChange={(e) => set(a.id, e.target.value)}>
+                <option value="">—</option>
+                {a.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input className="input" inputMode={a.type === "number" ? "decimal" : undefined} value={values[a.id] ?? ""} onChange={(e) => set(a.id, e.target.value)} />
+            )}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** «С этим покупают»: ручная подборка; пусто — подбираем сами по покупкам и категории */
 function RelatedPicker({ all, value, onChange }: { all: Brief[]; value: string[]; onChange: (v: string[]) => void }) {
@@ -138,6 +174,8 @@ export function ProductForm({
   canDelete,
   allProducts,
   related: relatedInit,
+  attrDefs = [],
+  attrValues: attrInit = {},
 }: {
   product: ProductData | null;
   categories: { id: string; name: string }[];
@@ -145,7 +183,11 @@ export function ProductForm({
   canDelete: boolean;
   allProducts: Brief[];
   related: string[];
+  attrDefs?: AttrDef[];
+  attrValues?: Record<string, string>;
 }) {
+  const [attrs, setAttrs] = useState<Record<string, string>>(attrInit);
+  const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
   const [related, setRelated] = useState<string[]>(relatedInit);
   const [state, action, pending] = useActionState(saveProduct, saved ? { ok: "Товар создан" } : {});
   const [name, setName] = useState(product?.name ?? "");
@@ -199,6 +241,7 @@ export function ProductForm({
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
       <input type="hidden" name="images" value={JSON.stringify(images)} />
       <input type="hidden" name="related" value={JSON.stringify(related)} />
+      <input type="hidden" name="attrs" value={JSON.stringify(attrs)} />
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Основное</h2>
@@ -232,7 +275,7 @@ export function ProductForm({
           </label>
           <label className="field">
             Категория
-            <select className="select" name="categoryId" defaultValue={product?.categoryId ?? ""}>
+            <select className="select" name="categoryId" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">Без категории</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -408,6 +451,8 @@ export function ProductForm({
           </button>
         </div>
       </div>
+
+      <AttrPanel defs={attrDefs} values={attrs} onChange={setAttrs} categoryId={categoryId} />
 
       <RelatedPicker all={allProducts} value={related} onChange={setRelated} />
 

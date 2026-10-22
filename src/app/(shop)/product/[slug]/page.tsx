@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FavoriteButton } from "@/components/product/FavoriteButton";
 import { ProductView } from "@/components/product/ProductView";
+import { CompareButton } from "@/components/product/Compare";
+import { productSpecs } from "@/lib/attributes";
 import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
 import { Stars } from "@/components/product/Stars";
@@ -78,6 +80,8 @@ export default async function ProductPage({ params, searchParams }: Props) {
   ]);
   const rating = ratings.get(p.id);
   const related = await recommendFor([p.id], { limit: 8 });
+  const specs = await productSpecs(p.id, p.categoryId);
+  const brandSpec = specs.find((x) => x.name === "Бренд");
   const [relRatings, relFavs] = await Promise.all([
     ratingsFor(related.map((r) => r.id)),
     viewer ? favoriteIds(viewer.id) : Promise.resolve(new Set<string>()),
@@ -89,7 +93,8 @@ export default async function ProductPage({ params, searchParams }: Props) {
     description: p.description.slice(0, 500),
     image: p.images.map((i) => shareImage(i.url)!),
     sku: p.sku ?? undefined,
-    brand: { "@type": "Brand", name: "Abramov Shop" },
+    brand: { "@type": "Brand", name: brandSpec?.value ?? "Abramov Shop" },
+    additionalProperty: specs.length ? specs.map((x) => ({ "@type": "PropertyValue", name: x.name, value: x.value })) : undefined,
     // Несколько вариантов с разной ценой — диапазон цен
     offers:
       new Set(variants.map((v) => v.price)).size > 1
@@ -143,7 +148,12 @@ export default async function ProductPage({ params, searchParams }: Props) {
             </>
           }
           buyFallback={stock > 0 ? null : <StockAlert productId={p.id} initial={alert} />}
-          extra={<FavoriteButton productId={p.id} initial={fav} variant="button" />}
+          extra={
+            <>
+              <FavoriteButton productId={p.id} initial={fav} variant="button" />
+              <CompareButton productId={p.id} />
+            </>
+          }
           body={
             <>
               {p.isLimited && p.limitedTotal ? (
@@ -159,6 +169,19 @@ export default async function ProductPage({ params, searchParams }: Props) {
                   </div>
                 </div>
               ) : null}
+              {specs.length > 0 && (
+                <div className="pp__desc">
+                  <div className="label">Характеристики</div>
+                  <dl className="pp__specs">
+                    {specs.map((x) => (
+                      <div key={x.name} style={{ display: "contents" }}>
+                        <dt>{x.name}</dt>
+                        <dd>{x.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
               {p.description && (
                 <div className="pp__desc">
                   <div className="label">Описание</div>

@@ -290,6 +290,34 @@ export const productVariant = pgTable("product_variant", {
   lowStockNotifiedAt: ts("low_stock_notified_at"), // уже предупредили админов, что заканчивается
 });
 
+/** Характеристики товаров: вес, длина, диаметр наклейки, бренд… — для карточки, фильтров и сравнения */
+export const attribute = pgTable("attribute", {
+  id: id(),
+  key: text("key").notNull().unique(), // латиницей, для адреса фильтра: weight, brand
+  name: text("name").notNull(), // «Вес»
+  unit: text("unit").default("").notNull(), // «г»
+  type: text("type").notNull(), // number | select | text
+  options: text("options").array().default([]).notNull(), // варианты для select
+  categoryIds: text("category_ids").array().default([]).notNull(), // пусто — для всех категорий
+  filterable: boolean("filterable").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: createdAt(),
+});
+
+export const productAttribute = pgTable(
+  "product_attribute",
+  {
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    attributeId: text("attribute_id")
+      .notNull()
+      .references(() => attribute.id, { onDelete: "cascade" }),
+    value: text("value").notNull(), // число — с точкой: «12.5»
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.attributeId] }), index("product_attribute_attr_idx").on(t.attributeId)],
+);
+
 /** «С этим покупают» — подборка, заданная вручную в карточке товара */
 export const productRelated = pgTable(
   "product_related",

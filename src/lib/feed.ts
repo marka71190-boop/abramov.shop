@@ -5,7 +5,7 @@
  */
 import "server-only";
 import { createHash } from "node:crypto";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { shareImage } from "@/lib/seo";
 import { SELLER, SITE } from "@/lib/site";
@@ -46,6 +46,11 @@ export async function yandexFeed() {
   const catIds = new Set(publicCats.map((c) => c.id));
   const date = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16) + "+03:00";
 
+  // Характеристики → <param>, бренд → <vendor>
+  const { listAttributes, attrValues } = await import("@/lib/attributes");
+  const [attrDefs, attrVals] = await Promise.all([listAttributes(), attrValues(products.map((p) => p.id))]);
+  const pickupOn = (await (await import("@/lib/settings")).getSettings()).delivery.pickupEnabled && (await db.$count(s.club, eq(s.club.pickup, true))) > 0;
+
   const offers: string[] = [];
   for (const p of products) {
     if (!isPublic(p) || (p.categoryId && !catIds.has(p.categoryId))) continue;
@@ -69,10 +74,18 @@ export async function yandexFeed() {
           p.categoryId ? `<categoryId>${num(p.categoryId)}</categoryId>` : "",
           ...pics.map((u) => `<picture>${xml(u)}</picture>`),
           `<delivery>true</delivery>`,
-          `<pickup>false</pickup>`,
+          `<pickup>${pickupOn}</pickup>`,
+          (() => {
+            const brand = attrDefs.find((a) => a.key === "brand");
+            const b = brand ? attrVals.get(p.id)?.get(brand.id) : undefined;
+            return b ? `<vendor>${xml(b)}</vendor>` : "";
+          })(),
           p.description ? `<description><![CDATA[${plain(p.description).replace(/]]>/g, "]]&gt;")}]]></description>` : "",
           v.sku || p.sku ? `<vendorCode>${xml((v.sku || p.sku)!)}</vendorCode>` : "",
           many ? `<param name="Вариант">${xml(v.name)}</param>` : "",
+          ...attrDefs
+            .filter((a) => a.key !== "brand" && attrVals.get(p.id)?.has(a.id))
+            .map((a) => `<param name="${xml(a.name)}"${a.unit ? ` unit="${xml(a.unit)}"` : ""}>${xml(attrVals.get(p.id)!.get(a.id)!)}</param>`),
           `<count>${Math.max(0, v.stock)}</count>`,
           `<weight>${(p.weightGrams / 1000).toFixed(3)}</weight>`,
           `<dimensions>${p.lengthCm}/${p.widthCm}/${p.heightCm}</dimensions>`,

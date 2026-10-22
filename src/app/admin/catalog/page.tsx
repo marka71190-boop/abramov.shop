@@ -38,6 +38,9 @@ export default async function CatalogAdmin() {
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ margin: 0 }}>Каталог</h1>
         <div className="row">
+          <Link className="btn btn--line btn--sm" href="/admin/catalog/attributes">
+            Характеристики
+          </Link>
           <Link className="btn btn--line btn--sm" href="/admin/catalog/import">
             Загрузить из Excel
           </Link>

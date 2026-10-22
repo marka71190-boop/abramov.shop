@@ -37,6 +37,19 @@ export interface CatalogParams {
   max?: number;
   sort?: Sort;
   page?: number;
+  /** Характеристики-списки: ключ → выбранные значения */
+  attrs?: Record<string, string[]>;
+  /** Характеристики-числа: ключ → от/до */
+  ranges?: Record<string, { min?: number; max?: number }>;
+}
+
+export interface Facet {
+  key: string;
+  name: string;
+  unit: string;
+  type: "select" | "number";
+  values?: { value: string; count: number; on: boolean }[];
+  range?: { min: number; max: number; from?: number; to?: number };
 }
 
 interface Row {
@@ -165,6 +178,53 @@ export async function listCatalog(params: CatalogParams) {
   const activeCat = !params.fixedCategoryId && params.cat ? cats.find((c) => c.slug === params.cat) : undefined;
   if (activeCat) list = list.filter((x) => x.r.categoryId === activeCat.id);
 
+  // 4б. Фильтры по характеристикам: варианты считаем по текущему списку, потом фильтруем
+  const facets: Facet[] = [];
+  {
+    const { listAttributes, attrValues, appliesTo } = await import("@/lib/attributes");
+    const catId = params.fixedCategoryId ?? activeCat?.id ?? null;
+    const defs = (await listAttributes()).filter((a) => a.filterable && a.type !== "text" && (catId ? appliesTo(a, catId) : true));
+    if (defs.length && list.length) {
+      const vals = await attrValues(list.map((x) => x.r.id));
+      for (const a of defs) {
+        const present = list.map((x) => vals.get(x.r.id)?.get(a.id)).filter((v): v is string => v != null);
+        if (a.type === "select") {
+          const counts = new Map<string, number>();
+          for (const v of present) counts.set(v, (counts.get(v) ?? 0) + 1);
+          const chosen = params.attrs?.[a.key] ?? [];
+          if (counts.size >= 2 || chosen.length)
+            facets.push({
+              key: a.key,
+              name: a.name,
+              unit: a.unit,
+              type: "select",
+              values: [...counts.entries()]
+                .sort((x, y) => a.options.indexOf(x[0]) - a.options.indexOf(y[0]) || x[0].localeCompare(y[0], "ru"))
+                .map(([value, count]) => ({ value, count, on: chosen.includes(value) })),
+            });
+        } else {
+          const nums = present.map(Number).filter(Number.isFinite);
+          const r = params.ranges?.[a.key];
+          if (nums.length >= 2 && Math.min(...nums) < Math.max(...nums))
+            facets.push({ key: a.key, name: a.name, unit: a.unit, type: "number", range: { min: Math.min(...nums), max: Math.max(...nums), from: r?.min, to: r?.max } });
+        }
+      }
+      // Фильтруем
+      for (const a of defs) {
+        const chosen = params.attrs?.[a.key];
+        const r = params.ranges?.[a.key];
+        if (a.type === "select" && chosen?.length) list = list.filter((x) => chosen.includes(vals.get(x.r.id)?.get(a.id) ?? ""));
+        if (a.type === "number" && r && (r.min != null || r.max != null)) {
+          list = list.filter((x) => {
+            const v = Number(vals.get(x.r.id)?.get(a.id));
+            if (!Number.isFinite(v)) return false;
+            return (r.min == null || v >= r.min) && (r.max == null || v <= r.max);
+          });
+        }
+      }
+    }
+  }
+
   // 5. Сортировка. Товары, которых нет в наличии, всегда в конце
   const sold = sort === "popular" ? await soldCounts() : new Map<string, number>();
   const ratings = sort === "rating" ? await ratingsFor(list.map((x) => x.r.id)) : new Map();
@@ -201,6 +261,7 @@ export async function listCatalog(params: CatalogParams) {
     categories,
     activeCat: activeCat ? { slug: activeCat.slug, name: activeCat.name } : null,
     priceRange,
+    facets,
   };
 }
 
