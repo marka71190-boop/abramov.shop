@@ -271,6 +271,8 @@ export const product = pgTable("product", {
   lengthCm: integer("length_cm").default(10).notNull(),
   widthCm: integer("width_cm").default(10).notNull(),
   heightCm: integer("height_cm").default(10).notNull(),
+  // Видеообзоры: VK Видео, Rutube, YouTube
+  videos: jsonb("videos").$type<{ url: string; title: string }[]>().default([]).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -317,6 +319,18 @@ export const productAttribute = pgTable(
   },
   (t) => [primaryKey({ columns: [t.productId, t.attributeId] }), index("product_attribute_attr_idx").on(t.attributeId)],
 );
+
+/** Комплект со скидкой: если в корзине все товары комплекта — скидка на них */
+export const bundle = pgTable("bundle", {
+  id: id(),
+  name: text("name").notNull(), // «Стартовый набор: кий + чехол + мел»
+  note: text("note").default("").notNull(),
+  productIds: text("product_ids").array().default([]).notNull(), // 2–6 товаров, по одному каждого
+  percent: integer("percent").notNull(), // скидка на товары комплекта, %
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: createdAt(),
+});
 
 /** «С этим покупают» — подборка, заданная вручную в карточке товара */
 export const productRelated = pgTable(
@@ -413,7 +427,8 @@ export const order = pgTable(
 
     // Суммы в копейках
     subtotal: integer("subtotal").notNull(),
-    discount: integer("discount").default(0).notNull(),
+    discount: integer("discount").default(0).notNull(), // промокод
+    bundleDiscount: integer("bundle_discount").default(0).notNull(), // скидка за комплекты
     bonusSpent: integer("bonus_spent").default(0).notNull(),
     shippingCost: integer("shipping_cost").default(0).notNull(),
     total: integer("total").notNull(), // итог заказа; онлайн платится total − giftCardAmount

@@ -66,6 +66,18 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
                 </button>
               </div>
             ))}
+        {quote?.bundleHints.map((h) => (
+          <div key={h.id} className="notice bundle-hint" style={{ margin: 0 }}>
+            <b>Скидка {h.percent}% на комплект «{h.name}».</b> Добавьте{" "}
+            {h.missing.map((m, i) => (
+              <span key={m.slug}>
+                {i > 0 ? " и " : ""}
+                <Link href={`/product/${m.slug}`}>{m.name}</Link>
+              </span>
+            ))}{" "}
+            — скидка применится сама.
+          </div>
+        ))}
         <CartUpsell />
       </div>
 
@@ -75,13 +87,21 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
           <span>Товары, {cart.count} шт.</span>
           <span>{quote ? rub(quote.subtotal) : "…"}</span>
         </div>
+        {quote?.bundles.map((b) => (
+          <div key={b.id} className="summary__row good">
+            <span>
+              Комплект «{b.name}»{b.sets > 1 ? ` × ${b.sets}` : ""}
+            </span>
+            <span>−{rub(b.discount)}</span>
+          </div>
+        ))}
         <div className="summary__row muted">
           <span>Доставка СДЭК</span>
           <span>при оформлении</span>
         </div>
         <div className="summary__total">
           <span>К оплате</span>
-          <span>{quote ? rub(quote.subtotal) : "…"}</span>
+          <span>{quote ? rub(quote.subtotal - quote.bundleDiscount) : "…"}</span>
         </div>
         <p className="muted small" style={{ margin: 0 }}>
           Промокод и бонусы — на следующем шаге.

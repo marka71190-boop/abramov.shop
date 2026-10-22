@@ -25,6 +25,7 @@ export interface ProductData {
   categoryId: string | null;
   description: string;
   searchTags: string;
+  videos: { url: string; title: string }[];
   price: number;
   oldPrice: number | null;
   sku: string | null;
@@ -325,6 +326,20 @@ export function ProductForm({
           <span className="muted small">
             Через запятую: как ещё покупатели могут назвать товар — бренд по-русски, сокращения, частые ошибки. На сайте эти слова не видны, по ним
             только ищут. Название, варианты, артикул и описание искать и так умеет — их сюда писать не нужно.
+          </span>
+        </label>
+        <label className="field">
+          Видеообзоры
+          <textarea
+            className="textarea"
+            name="videos"
+            defaultValue={(product?.videos ?? []).map((v) => (v.title ? `${v.url} | ${v.title}` : v.url)).join("\n")}
+            placeholder={"https://vkvideo.ru/video-123456_789012 | Обзор кия: баланс и удар\nhttps://rutube.ru/video/…"}
+            style={{ minHeight: 76, paddingTop: 12 }}
+          />
+          <span className="muted small">
+            По ссылке в строке, после «|» — подпись. Подходят VK Видео, Rutube и YouTube (YouTube в России открывается не у всех — лучше VK или
+            Rutube). Видео появится в карточке под описанием; плеер загружается только когда покупатель нажмёт «смотреть».
           </span>
         </label>
         <div className="row" style={{ gap: 24, alignItems: "flex-end" }}>

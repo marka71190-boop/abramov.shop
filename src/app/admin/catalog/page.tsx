@@ -41,6 +41,9 @@ export default async function CatalogAdmin() {
           <Link className="btn btn--line btn--sm" href="/admin/catalog/attributes">
             Характеристики
           </Link>
+          <Link className="btn btn--line btn--sm" href="/admin/catalog/bundles">
+            Комплекты
+          </Link>
           <Link className="btn btn--line btn--sm" href="/admin/catalog/import">
             Загрузить из Excel
           </Link>

@@ -62,9 +62,11 @@ interface Props {
   viewer: UserRow | null;
   /** /catalog — с поиском и списком категорий; /catalog/[slug] — без них */
   isAll: boolean;
+  /** Название категории на её странице — для подсказки «Подбор кия» */
+  categoryName?: string;
 }
 
-export async function CatalogView({ basePath, params, raw, viewer, isAll }: Props) {
+export async function CatalogView({ basePath, params, raw, viewer, isAll, categoryName }: Props) {
   const res = await listCatalog(params);
   const [ratings, favs] = await Promise.all([
     ratingsFor(res.items.map((p) => p.id)),
@@ -168,6 +170,11 @@ export async function CatalogView({ basePath, params, raw, viewer, isAll }: Prop
               Сбросить фильтры
             </Link>
           </>
+        )}
+        {/^ки[йи]/i.test(categoryName ?? res.activeCat?.name ?? "") && (
+          <Link href="/podbor-kiya" className="cmeta__quiz">
+            Не знаете, какой выбрать? Подбор кия за минуту →
+          </Link>
         )}
       </div>
 

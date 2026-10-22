@@ -38,6 +38,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         revenue: sql<number>`coalesce(sum(${s.order.total}), 0)::int`,
         orders: sql<number>`count(*)::int`,
         discount: sql<number>`coalesce(sum(${s.order.discount}), 0)::int`,
+        bundle: sql<number>`coalesce(sum(${s.order.bundleDiscount}), 0)::int`,
         bonus: sql<number>`coalesce(sum(${s.order.bonusSpent}), 0)::int`,
         shipping: sql<number>`coalesce(sum(${s.order.shippingCost}), 0)::int`,
       })
@@ -112,7 +113,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     { label: "Оплаченных заказов", value: num(totals.orders), sub: trend(dOrd) },
     { label: "Средний чек", value: rub(avg), sub: "с доставкой" },
     { label: "Новых покупателей", value: num(newBuyers?.n ?? 0), sub: `повторные заказы — ${repeatPct}%` },
-    { label: "Скидки и бонусы", value: rub(totals.discount + totals.bonus), sub: `промокоды ${rub(totals.discount)} · бонусы ${rub(totals.bonus)}` },
+    { label: "Скидки и бонусы", value: rub(totals.discount + totals.bundle + totals.bonus), sub: `промокоды ${rub(totals.discount)}${totals.bundle ? ` · комплекты ${rub(totals.bundle)}` : ""} · бонусы ${rub(totals.bonus)}` },
     { label: "Бонусов на счетах", value: num(liability.bonus), sub: "1 бонус = 1 ₽ скидки для клиента" },
   ];
 

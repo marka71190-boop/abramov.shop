@@ -198,6 +198,7 @@ const ProductIn = z.object({
   images: z.string(),
   related: z.string().max(5000).optional(),
   attrs: z.string().max(20_000).optional(),
+  videos: z.string().max(5000).optional(),
 });
 
 /** «Джос, джосс,  jos, джос» → «Джос, джосс, jos»: без пустых и повторов (без учёта регистра) */
@@ -248,6 +249,15 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     related = [...new Set(r.data)].filter((x) => x !== d.id).slice(0, 12);
   }
 
+  // Видеообзоры: «ссылка | подпись» по строкам
+  let videos: { url: string; title: string }[] | null = null;
+  if (d.videos !== undefined) {
+    const { parseVideoLines } = await import("@/lib/video");
+    const r = parseVideoLines(d.videos);
+    if (r.errors.length) return { error: `Не получилось распознать видео: ${r.errors[0]}. Нужна ссылка VK Видео, Rutube или YouTube` };
+    videos = r.videos;
+  }
+
   const price = rubToKop(d.price);
   if (!(price >= 100)) return { error: "Укажите цену в рублях" };
   const oldPrice = d.oldPrice?.trim() ? rubToKop(d.oldPrice) : null;
@@ -273,6 +283,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     widthCm: d.widthCm,
     heightCm: d.heightCm,
     sortOrder: d.sortOrder,
+    ...(videos ? { videos } : {}),
   };
 
   let productId = d.id;

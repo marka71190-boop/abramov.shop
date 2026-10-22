@@ -464,6 +464,14 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
           <span>Товары</span>
           <span>{quote ? rub(quote.subtotal) : "…"}</span>
         </div>
+        {quote?.bundles.map((b) => (
+          <div key={b.id} className="summary__row good">
+            <span>
+              Комплект «{b.name}»{b.sets > 1 ? ` × ${b.sets}` : ""}
+            </span>
+            <span>−{rub(b.discount)}</span>
+          </div>
+        ))}
         {!!quote?.discount && (
           <div className="summary__row good">
             <span>Промокод {quote.promo?.code}</span>

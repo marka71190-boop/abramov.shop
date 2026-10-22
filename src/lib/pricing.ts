@@ -78,7 +78,13 @@ export interface Quote {
   subtotal: number;
   promo: { code: string; label: string; freeShipping: boolean } | null;
   promoError: string | null;
+  /** Скидка по промокоду */
   discount: number;
+  /** Скидка за собранные комплекты */
+  bundleDiscount: number;
+  bundles: { id: string; name: string; percent: number; sets: number; discount: number }[];
+  /** Почти собранный комплект: чего не хватает до скидки */
+  bundleHints: { id: string; name: string; percent: number; missing: { name: string; slug: string }[] }[];
   bonus: { balance: number; available: number; spent: number; blockedByPromo: boolean };
   shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean } | null;
   shippingError: string | null;
@@ -220,17 +226,38 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   const { lines, removed, adjusted } = await loadLines(input.lines ?? [], settings);
   const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0);
 
+  // ---- Комплекты со скидкой
+  const { activeBundles, applyBundles } = await import("@/lib/bundles");
+  const br = lines.length ? applyBundles(lines, await activeBundles()) : { discount: 0, applied: [], cut: new Map<string, number>(), hints: [] };
+  const bundleDiscount = Math.min(br.discount, Math.max(0, subtotal - 100));
+  let bundleHints: Quote["bundleHints"] = [];
+  if (br.hints.length) {
+    const ids = [...new Set(br.hints.flatMap((h) => h.missing))];
+    const prods = await db.query.product.findMany({ where: inArray(s.product.id, ids), with: { category: true } });
+    bundleHints = br.hints
+      .map((h) => ({
+        id: h.id,
+        name: h.name,
+        percent: h.percent,
+        missing: h.missing.map((pid) => prods.find((p) => p.id === pid)).filter((p) => p && isPublic(p) && (!p.category || isPublic(p.category))).map((p) => ({ name: p!.name, slug: p!.slug })),
+      }))
+      .filter((h, i, a) => h.missing.length > 0 && a.findIndex((x) => x.id === h.id) === i)
+      .slice(0, 2);
+  }
+  const afterBundle = (l: QuoteLine) => l.lineTotal - (br.cut.get(l.variantId) ?? 0);
+
   // ---- Промокод
   let promo: Quote["promo"] = null;
   let promoRow: PromoRow | null = null;
   let promoError: string | null = null;
   let discount = 0;
   if (input.promoCode?.trim() && lines.length) {
-    const r = await checkPromo(input.promoCode, user, subtotal);
+    const r = await checkPromo(input.promoCode, user, subtotal - bundleDiscount);
     if (typeof r === "string") promoError = r;
     else {
       const fits = (l: QuoteLine) => (!r.categoryId || l.categoryId === r.categoryId) && !(r.excludeSpecial && (l.limited || l.spec));
-      const eligible = lines.filter(fits).reduce((a, l) => a + l.lineTotal, 0);
+      // Промокод — от цены после скидки за комплект
+      const eligible = Math.floor(lines.filter(fits).reduce((a, l) => a + afterBundle(l), 0));
       if (r.categoryId && eligible === 0) promoError = "Промокод не действует на товары в корзине";
       else if (r.excludeSpecial && eligible === 0 && r.type !== "FREE_SHIPPING") promoError = "Промокод не действует на лимитированные товары и кий на заказ";
       else {
@@ -244,8 +271,8 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
     }
   }
   // Оставляем минимум 1 ₽ за товары — меньше ЮKassa не принимает
-  discount = Math.min(discount, Math.max(0, subtotal - 100));
-  const afterDiscount = subtotal - discount;
+  discount = Math.min(discount, Math.max(0, subtotal - bundleDiscount - 100));
+  const afterDiscount = subtotal - bundleDiscount - discount;
 
   // ---- Бонусы
   const balance = user?.bonusBalance ?? 0;
@@ -316,6 +343,9 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
     promo,
     promoError,
     discount,
+    bundleDiscount,
+    bundles: br.applied,
+    bundleHints,
     bonus: { balance, available: Math.floor(available / 100), spent: bonusSpent, blockedByPromo },
     shipping,
     shippingError,

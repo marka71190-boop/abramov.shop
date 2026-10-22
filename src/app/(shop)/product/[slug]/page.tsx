@@ -3,6 +3,9 @@ import Link from "next/link";
 import { FavoriteButton } from "@/components/product/FavoriteButton";
 import { ProductView } from "@/components/product/ProductView";
 import { CompareButton } from "@/components/product/Compare";
+import { ProductVideos } from "@/components/product/ProductVideos";
+import { BundleOffer } from "@/components/product/BundleOffer";
+import { bundlesFor } from "@/lib/bundles";
 import { productSpecs } from "@/lib/attributes";
 import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
@@ -80,7 +83,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   ]);
   const rating = ratings.get(p.id);
   const related = await recommendFor([p.id], { limit: 8 });
-  const specs = await productSpecs(p.id, p.categoryId);
+  const [specs, bundles] = await Promise.all([productSpecs(p.id, p.categoryId), bundlesFor(p.id)]);
   const brandSpec = specs.find((x) => x.name === "Бренд");
   const [relRatings, relFavs] = await Promise.all([
     ratingsFor(related.map((r) => r.id)),
@@ -193,6 +196,10 @@ export default async function ProductPage({ params, searchParams }: Props) {
             </>
           }
         />
+        {bundles.map((b) => (
+          <BundleOffer key={b.id} bundle={b} />
+        ))}
+        <ProductVideos videos={p.videos} poster={gallery.find((g) => !g.variantId)?.url ?? gallery[0]?.url ?? null} productName={p.name} />
         {related.length > 0 && (
           <div className="related">
             <div className="section-head" style={{ marginBottom: 20 }}>

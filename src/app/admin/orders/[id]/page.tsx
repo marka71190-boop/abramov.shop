@@ -174,6 +174,12 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                 <td colSpan={3} className="muted">Товары</td>
                 <td>{rub(o.subtotal)}</td>
               </tr>
+              {o.bundleDiscount > 0 && (
+                <tr>
+                  <td colSpan={3} className="muted">Скидка за комплект</td>
+                  <td>−{rub(o.bundleDiscount)}</td>
+                </tr>
+              )}
               {o.discount > 0 && (
                 <tr>
                   <td colSpan={3} className="muted">Промокод {o.promo?.code}</td>

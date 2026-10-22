@@ -63,6 +63,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           raw={raw}
           viewer={viewer}
           isAll={false}
+          categoryName={cat.name}
         />
       </section>
       {isPublic(cat) && (

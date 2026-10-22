@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       o.trackNumber,
       o.items.map((i) => `${i.name} × ${i.quantity}`).join("; "),
       money(o.subtotal),
-      money(o.discount),
+      money(o.discount + o.bundleDiscount),
       o.promo?.code,
       money(o.bonusSpent),
       money(o.shippingCost),

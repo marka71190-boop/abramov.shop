@@ -43,6 +43,9 @@ export default async function CuePage({ searchParams }: Props) {
         <div className="eyebrow">Собственное производство</div>
         <h1 className="h2">{cfg.title}</h1>
         {cfg.intro && <p>{cfg.intro}</p>}
+        <p className="small">
+          Не знаете, какая длина и вес нужны? <Link href="/podbor-kiya">Подбор за минуту →</Link>
+        </p>
       </div>
       {gallery.length > 0 && (
         <div className="stack" style={{ gap: 16 }}>

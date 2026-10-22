@@ -195,6 +195,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <span>Товары</span>
             <span>{rub(o.subtotal)}</span>
           </div>
+          {o.bundleDiscount > 0 && (
+            <div className="summary__row good">
+              <span>Комплект со скидкой</span>
+              <span>−{rub(o.bundleDiscount)}</span>
+            </div>
+          )}
           {o.discount > 0 && (
             <div className="summary__row good">
               <span>Промокод</span>

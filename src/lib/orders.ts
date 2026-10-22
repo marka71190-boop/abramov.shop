@@ -172,6 +172,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         comment: input.comment?.trim() || null,
         subtotal: quote.subtotal,
         discount: quote.discount,
+        bundleDiscount: quote.bundleDiscount,
         bonusSpent: quote.bonus.spent,
         shippingCost: quote.shipping!.cost,
         total: quote.total,
