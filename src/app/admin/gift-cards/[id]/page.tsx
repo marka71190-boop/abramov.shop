@@ -5,7 +5,7 @@ import { GiftCardView } from "@/components/gift/GiftCardView";
 import { db, schema as s } from "@/db";
 import { fmtDate, fmtDateTime, rub } from "@/lib/format";
 import { giftUrl } from "@/lib/giftcards";
-import { ORDER_STATUS } from "@/lib/order-status";
+import { orderStatus } from "@/lib/order-status";
 import { requireAdmin } from "@/lib/viewer";
 import { STATUS_PILL } from "../status";
 import { GiftControls } from "./GiftControls";
@@ -18,7 +18,7 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
   const uses = await db.query.giftCardUse.findMany({
     where: eq(s.giftCardUse.giftCardId, c.id),
     orderBy: desc(s.giftCardUse.createdAt),
-    with: { order: { columns: { id: true, number: true, status: true } } },
+    with: { order: { columns: { id: true, number: true, status: true, deliveryType: true } } },
   });
   const st = STATUS_PILL(c);
   const active = c.status === "ACTIVE";
@@ -101,7 +101,7 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
                   <tr key={u.id}>
                     <td>
                       <Link href={`/admin/orders/${u.order.id}`}>{u.order.number}</Link>
-                      <div className="muted small">{ORDER_STATUS[u.order.status].text}</div>
+                      <div className="muted small">{orderStatus(u.order.status, u.order.deliveryType).text}</div>
                     </td>
                     <td>
                       {rub(u.amount)}

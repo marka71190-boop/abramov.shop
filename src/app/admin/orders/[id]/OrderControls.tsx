@@ -11,6 +11,8 @@ interface Props {
   paid: boolean;
   /** Возврат денег и тестовая оплата — только владелец */
   owner: boolean;
+  /** Самовывоз из клуба: вместо отправки — «Готов к выдаче» */
+  pickup?: boolean;
 }
 
 function Op({ op, label, tone = "line", confirmText, extra }: { op: string; label: string; tone?: "gold" | "line" | "danger"; confirmText?: string; extra?: React.ReactNode }) {
@@ -30,7 +32,7 @@ function Op({ op, label, tone = "line", confirmText, extra }: { op: string; labe
   );
 }
 
-export function OrderControls({ id, status, track, cdek, testPay, paid, owner }: Props) {
+export function OrderControls({ id, status, track, cdek, testPay, paid, owner, pickup = false }: Props) {
   const [state, action, pending] = useActionState(orderAction, {});
   const [refundOpen, setRefundOpen] = useState(false);
   const form = (children: React.ReactNode, key: string) => (
@@ -61,6 +63,12 @@ export function OrderControls({ id, status, track, cdek, testPay, paid, owner }:
               <span className="muted small">Заказ появится в кабинете СДЭК, трек подтянется сам</span>
             </div>
           )}
+          {pickup ? (
+            <div className="row">
+              {status === "PAID" && form(<Op op="assembling" label="Собираем" />, "as")}
+              {form(<Op op="shipped" label="Готов к выдаче в клубе" tone="gold" confirmText="Заказ лежит в клубе? Покупателю придёт письмо, что можно забирать." />, "rp")}
+            </div>
+          ) : (
           <div className="row">
             {status === "PAID" && form(<Op op="assembling" label="Собираем" />, "as")}
             {form(
@@ -77,18 +85,27 @@ export function OrderControls({ id, status, track, cdek, testPay, paid, owner }:
               "sh",
             )}
           </div>
+          )}
         </div>
       )}
 
       {status === "SHIPPED" && (
         <div className="row">
           {cdek.uuid && form(<Op op="cdek-sync" label="Обновить статус из СДЭК" />, "cs")}
-          {form(<Op op="delivered" label="Получен — начислить бонусы" tone="gold" confirmText="Отметить заказ полученным? Клиенту начислятся бонусы." />, "dl")}
+          {form(
+            <Op
+              op="delivered"
+              label={pickup ? "Выдан в клубе — начислить бонусы" : "Получен — начислить бонусы"}
+              tone="gold"
+              confirmText="Отметить заказ полученным? Клиенту начислятся бонусы."
+            />,
+            "dl",
+          )}
         </div>
       )}
       {(status === "PAID" || status === "ASSEMBLING") && cdek.uuid && <div className="row">{form(<Op op="cdek-sync" label="Обновить из СДЭК" />, "cs2")}</div>}
       {(status === "PAID" || status === "ASSEMBLING") && (
-        <div className="row">{form(<Op op="delivered" label="Клиент получил (самовывоз)" confirmText="Отметить заказ полученным? Клиенту начислятся бонусы." />, "dl2")}</div>
+        <div className="row">{form(<Op op="delivered" label={pickup ? "Выдан сразу (уже был в клубе)" : "Клиент получил (самовывоз)"} confirmText="Отметить заказ полученным? Клиенту начислятся бонусы." />, "dl2")}</div>
       )}
 
       {paid && !owner && <p className="muted small" style={{ margin: 0 }}>Вернуть деньги может только владелец магазина.</p>}

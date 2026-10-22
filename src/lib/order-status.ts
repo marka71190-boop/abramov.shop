@@ -20,3 +20,13 @@ export const STEPS: { key: OrderStatus; label: string }[] = [
   { key: "SHIPPED", label: "В пути" },
   { key: "DELIVERED", label: "Получен" },
 ];
+
+/** Статус с учётом способа получения: у самовывоза «В пути · СДЭК» — это «Готов к выдаче» */
+export function orderStatus(status: OrderStatus, deliveryType?: string | null) {
+  if (deliveryType === "PICKUP" && status === "SHIPPED") return { text: "Готов к выдаче", tone: "gold" as const };
+  return ORDER_STATUS[status];
+}
+
+export function stepsFor(deliveryType?: string | null) {
+  return deliveryType === "PICKUP" ? STEPS.map((x) => (x.key === "SHIPPED" ? { ...x, label: "Готов к выдаче" } : x)) : STEPS;
+}

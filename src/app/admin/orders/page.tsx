@@ -2,7 +2,7 @@ import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDateTime, prettyPhone, rub } from "@/lib/format";
-import { ORDER_STATUS, TONE_PILL, type OrderStatus } from "@/lib/order-status";
+import { ORDER_STATUS, orderStatus, TONE_PILL, type OrderStatus } from "@/lib/order-status";
 
 const PER_PAGE = 50;
 type Props = { searchParams: Promise<{ q?: string; status?: string; page?: string }> };
@@ -89,7 +89,7 @@ export default async function OrdersPage({ searchParams }: Props) {
           </thead>
           <tbody>
             {rows.map((o) => {
-              const st = ORDER_STATUS[o.status];
+              const st = orderStatus(o.status, o.deliveryType);
               return (
                 <tr key={o.id}>
                   <td>

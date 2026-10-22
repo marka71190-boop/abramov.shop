@@ -23,7 +23,9 @@ export interface CartLineInput {
 }
 
 export interface DeliveryInput {
-  type: "PVZ" | "COURIER";
+  type: "PVZ" | "COURIER" | "PICKUP";
+  /** Самовывоз: из какого клуба */
+  clubId?: string | null;
   cityCode?: number | null;
   cityName?: string | null;
   pvzCode?: string | null;
@@ -257,7 +259,14 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   let shipping: Quote["shipping"] = null;
   let shippingError: string | null = null;
   const d = input.delivery;
-  if (d && lines.length) {
+  if (d && lines.length && d.type === "PICKUP") {
+    // Самовывоз из клуба — бесплатно
+    const { getClub } = await import("@/lib/clubs");
+    const club = await getClub(d.clubId);
+    if (!settings.delivery.pickupEnabled) shippingError = "Самовывоз сейчас недоступен";
+    else if (!club || !club.isActive || !club.pickup) shippingError = "Выберите клуб, где заберёте заказ";
+    else shipping = { cost: 0, days: null, tariff: null, free: true, estimate: false };
+  } else if (d && lines.length) {
     const st = settings.delivery;
     const tariff = d.type === "PVZ" ? st.tariffPvz : st.tariffCourier;
     const free = (st.freeFrom > 0 && afterDiscount >= st.freeFrom * 100) || !!promo?.freeShipping;

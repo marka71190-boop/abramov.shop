@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { fmtDate, fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
-import { ORDER_STATUS, TONE_PILL } from "@/lib/order-status";
+import { orderStatus, TONE_PILL } from "@/lib/order-status";
 import { getActiveBan, requireAdmin } from "@/lib/viewer";
 import { unbanUser } from "../../actions";
 import { BanForm, BirthdayAdminForm, BonusForm, RoleForm } from "./forms";
@@ -166,7 +166,7 @@ export default async function CustomerPage({ params }: Props) {
             <div key={o.id} className="row-line">
               <Link href={`/admin/orders/${o.id}`}>{o.number}</Link>
               <span className="muted">{fmtDate(o.createdAt)}</span>
-              <span className={`pill ${TONE_PILL[ORDER_STATUS[o.status].tone]}`}>{ORDER_STATUS[o.status].text}</span>
+              <span className={`pill ${TONE_PILL[orderStatus(o.status, o.deliveryType).tone]}`}>{orderStatus(o.status, o.deliveryType).text}</span>
               <span>{rub(o.total)}</span>
             </div>
           ))

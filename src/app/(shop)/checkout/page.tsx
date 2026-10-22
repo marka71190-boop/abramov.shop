@@ -11,6 +11,7 @@ import { getActiveBan, isAdmin, requireUser } from "@/lib/viewer";
 import { isPublic } from "@/lib/visibility";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
 import { CheckoutForm } from "./CheckoutForm";
+import { clubMapUrl, listClubs } from "@/lib/clubs";
 import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
 
 export const metadata: Metadata = { title: "Оформление заказа", robots: { index: false } };
@@ -67,6 +68,16 @@ export default async function CheckoutPage() {
         }}
         canReferral={!user.referredById && ordersBefore === 0}
         delivery={{ pvz: settings.delivery.pvzEnabled, courier: settings.delivery.courierEnabled, cdek: cdekEnabled() }}
+        clubs={(settings.delivery.pickupEnabled ? await listClubs({ pickup: true }) : []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          city: c.city,
+          address: c.address,
+          workTime: c.workTime,
+          note: c.note,
+          mapUrl: clubMapUrl(c),
+        }))}
+        pickupDays={settings.delivery.pickupStorageDays}
         maxPerItem={settings.checkout.maxQtyPerItem}
         canPay={payments || isAdmin(user)}
         testMode={!payments}

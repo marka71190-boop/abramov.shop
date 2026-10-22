@@ -425,6 +425,7 @@ const ShopSettingsIn = z.object({
   giftValidityDays: z.coerce.number().int().min(0).max(3650),
   lowStock: z.coerce.number().int().min(0).max(10_000),
   reviewRequestDays: z.coerce.number().int().min(0).max(29, "Просить отзыв — не позже чем через 29 дней"),
+  pickupStorageDays: z.coerce.number().int().min(1, "Хранение в клубе — от 1 дня").max(60),
 });
 
 export async function updateShopSettings(_: ActionState, form: FormData): Promise<ActionState> {
@@ -434,7 +435,8 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
   const d = p.data;
   const pvzEnabled = form.get("pvzEnabled") === "on";
   const courierEnabled = form.get("courierEnabled") === "on";
-  if (!pvzEnabled && !courierEnabled) return { error: "Оставьте хотя бы один способ доставки" };
+  const pickupEnabled = form.get("pickupEnabled") === "on";
+  if (!pvzEnabled && !courierEnabled && !pickupEnabled) return { error: "Оставьте хотя бы один способ доставки" };
   const nominals = [...new Set(d.giftNominals.split(/[,;\s]+/).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 100 && x <= 1_000_000))].sort((a, b) => a - b);
   if (!nominals.length && d.giftCustomMin === 0) return { error: "Сертификаты: укажите номиналы или разрешите свою сумму" };
   if (d.giftCustomMin > 0 && d.giftCustomMax < d.giftCustomMin) return { error: "Сертификаты: «до» должно быть больше «от»" };
@@ -452,6 +454,8 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
       freeFrom: d.freeFrom,
       flatPvz: d.flatPvz,
       flatCourier: d.flatCourier,
+      pickupEnabled,
+      pickupStorageDays: d.pickupStorageDays,
     },
     checkout: {
       paymentMinutes: d.paymentMinutes,

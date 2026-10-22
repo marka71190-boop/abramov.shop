@@ -10,6 +10,7 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  doublePrecision,
   customType,
   date,
   index,
@@ -394,7 +395,8 @@ export const order = pgTable(
     promoCodeId: text("promo_code_id").references(() => promoCode.id, { onDelete: "set null" }),
 
     // Доставка
-    deliveryType: text("delivery_type"), // PVZ | COURIER
+    deliveryType: text("delivery_type"), // PVZ | COURIER | PICKUP (самовывоз из клуба)
+    pickupClubId: text("pickup_club_id"), // самовывоз: из какого клуба
     city: text("city"),
     postalCode: text("postal_code"),
     address: text("address"),
@@ -903,6 +905,24 @@ export const consentRelations = relations(consent, ({ one }) => ({
   user: one(user, { fields: [consent.userId], references: [user.id] }),
   document: one(consentDocument, { fields: [consent.documentId], references: [consentDocument.id] }),
 }));
+
+/** Клубы сети «Чемпион» и «Абрамов»: самовывоз заказов и приём киёв в мастерскую */
+export const club = pgTable("club", {
+  id: id(),
+  name: text("name").notNull(), // «Бильярдный клуб «Чемпион»»
+  city: text("city").notNull(),
+  address: text("address").notNull(),
+  workTime: text("work_time").default("").notNull(),
+  phone: text("phone"),
+  note: text("note").default("").notNull(), // как найти, где отдать заказ
+  lat: doublePrecision("lat"),
+  lon: doublePrecision("lon"),
+  pickup: boolean("pickup").default(true).notNull(), // выдаёт заказы
+  service: boolean("service").default(true).notNull(), // принимает кии в мастерскую
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: createdAt(),
+});
 
 /** Галерея готовых киёв «Чемпион»: фото и сборка — кнопка «Собрать такой же» */
 export const cueShowcase = pgTable("cue_showcase", {

@@ -21,7 +21,12 @@ interface Props {
   docs: { offer: boolean; returns: boolean };
   addresses: AddressCard[];
   maxAddresses: number;
+  /** Клубы для самовывоза */
+  clubs: { id: string; name: string; city: string; address: string; workTime: string; note: string; mapUrl: string }[];
+  pickupDays: number;
 }
+
+type DeliveryType = "PVZ" | "COURIER" | "PICKUP";
 
 /** Значения полей заказа из сохранённой карточки адреса */
 function fromCard(a: AddressCard, cdek: boolean) {
@@ -39,7 +44,7 @@ function fromCard(a: AddressCard, cdek: boolean) {
 }
 
 
-export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, docs, addresses, maxAddresses }: Props) {
+export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
   const cart = useCart();
   // Сохранённый адрес: основной (или последний использованный) подставляется сразу
   const first = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
@@ -51,7 +56,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   const [phone, setPhone] = useState(init?.phone || user.phone);
   const [email, setEmail] = useState(user.email);
   const [comment, setComment] = useState(init?.comment ?? "");
-  const [type, setType] = useState<"PVZ" | "COURIER">(init?.type ?? (delivery.pvz ? "PVZ" : "COURIER"));
+  const [type, setType] = useState<DeliveryType>(init?.type ?? (delivery.pvz ? "PVZ" : delivery.courier ? "COURIER" : clubs.length ? "PICKUP" : "PVZ"));
+  const [clubId, setClubId] = useState<string | null>(clubs.length === 1 ? clubs[0].id : null);
   const [city, setCity] = useState<City | null>(init?.city ?? null);
   const [cityText, setCityText] = useState(init?.cityText ?? ""); // если СДЭК ещё не подключён
   const [point, setPoint] = useState<Point | null>(init?.point ?? null);
@@ -100,7 +106,11 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
     } catch {}
   }, [canReferral]);
 
-  const deliveryInput = delivery.cdek
+  const deliveryInput = type === "PICKUP"
+    ? clubId
+      ? { type, clubId }
+      : null
+    : delivery.cdek
     ? city
       ? { type, cityCode: city.code, cityName: city.name.split(",")[0], pvzCode: point?.code, pvzAddress: point?.address, address, postalCode: point?.postalCode }
       : null
@@ -110,7 +120,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
 
   const { quote, error: quoteError, loading, setQuote } = useQuote(
     { promoCode: promo, giftCode: gift, useBonus, delivery: deliveryInput ? { ...deliveryInput, address: undefined, pvzAddress: undefined } : null },
-    [promo, gift, useBonus, type, city?.code, delivery.cdek ? "" : cityText.trim()],
+    [promo, gift, useBonus, type, city?.code, clubId, delivery.cdek ? "" : cityText.trim()],
   );
 
   useEffect(() => {
@@ -143,6 +153,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   }
 
   const needPoint = type === "PVZ" && delivery.cdek && !point;
+  const pickupClub = type === "PICKUP" ? (clubs.find((c) => c.id === clubId) ?? null) : null;
   const needAddress = type === "COURIER" && address.trim().length < 5;
   const ready = !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !loading;
 
@@ -237,7 +248,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
 
         <fieldset className="panel stack">
           <legend className="step">
-            <span>2</span> Доставка СДЭК
+            <span>2</span> Доставка
           </legend>
           <div className="seg" role="radiogroup" aria-label="Способ доставки">
             {delivery.pvz && (
@@ -252,9 +263,36 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
                 <span>до двери</span>
               </button>
             )}
+            {clubs.length > 0 && (
+              <button type="button" role="radio" aria-checked={type === "PICKUP"} onClick={() => setType("PICKUP")}>
+                <strong>Самовывоз из клуба</strong>
+                <span>бесплатно · {[...new Set(clubs.map((c) => c.city))].join(", ")}</span>
+              </button>
+            )}
           </div>
 
-          {delivery.cdek ? (
+          {type === "PICKUP" ? (
+            <div className="stack" style={{ gap: 10 }}>
+              <div className="club-list" role="radiogroup" aria-label="Клуб для самовывоза">
+                {clubs.map((c) => (
+                  <button key={c.id} type="button" role="radio" aria-checked={clubId === c.id} className="addr-card" onClick={() => setClubId(c.id)}>
+                    <span className="label">{c.city}</span>
+                    <strong>{c.name}</strong>
+                    <span className="small">{c.address}</span>
+                    {c.workTime && <span className="muted small">{c.workTime}</span>}
+                  </button>
+                ))}
+              </div>
+              {pickupClub && (
+                <div className="notice notice--muted" style={{ margin: 0 }}>
+                  {pickupClub.note && <>{pickupClub.note}. </>}Заказ будет ждать вас {pickupDays} дн. — пришлём письмо, когда можно забирать.{" "}
+                  <a href={pickupClub.mapUrl} target="_blank" rel="noreferrer">
+                    Как добраться
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : delivery.cdek ? (
             <CityPicker
               key={picked}
               value={city}
@@ -271,6 +309,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
           )}
 
           {type === "PVZ" && delivery.cdek && city && <PointPicker city={city} value={point} onChange={setPoint} />}
+          {type === "PICKUP" && !clubId && <div className="muted small">Выберите клуб, где удобно забрать заказ</div>}
           {type === "PVZ" && !delivery.cdek && (
             <label className="field">
               Адрес пункта СДЭК, если знаете
@@ -283,7 +322,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
               <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" placeholder="ул. Северная, 324, кв. 15" />
             </label>
           )}
-          {picked === "new" && addresses.length < maxAddresses && (
+          {type !== "PICKUP" && picked === "new" && addresses.length < maxAddresses && (
             <div className="row" style={{ alignItems: "flex-end" }}>
               <label className="check" style={{ minHeight: 48 }}>
                 <input type="checkbox" checked={saveNew} onChange={(e) => setSaveNew(e.target.checked)} />

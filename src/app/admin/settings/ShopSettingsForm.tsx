@@ -18,6 +18,12 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
           <input type="checkbox" name="courierEnabled" defaultChecked={d.courierEnabled} />
           <span>Курьером СДЭК до двери</span>
         </label>
+        <label className="check">
+          <input type="checkbox" name="pickupEnabled" defaultChecked={d.pickupEnabled} />
+          <span>
+            Самовывоз из клубов (<a href="/admin/clubs">список клубов</a>)
+          </span>
+        </label>
       </div>
       <div className="form-grid">
         <label className="field">
@@ -51,6 +57,10 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
         <label className="field">
           Пока СДЭК не подключён: курьер, ₽
           <input className="input" name="flatCourier" type="number" min={0} defaultValue={d.flatCourier} />
+        </label>
+        <label className="field">
+          Самовывоз: заказ ждёт в клубе, дней
+          <input className="input" name="pickupStorageDays" type="number" min={1} max={60} defaultValue={d.pickupStorageDays} />
         </label>
         <label className="field">
           Сколько ждать оплату, минут

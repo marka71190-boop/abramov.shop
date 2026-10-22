@@ -162,6 +162,13 @@
       "when": 1792611894672,
       "tag": "0022_price_drop",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792677381037,
+      "tag": "0023_clubs",
+      "breakpoints": true
     }
   ]
 }

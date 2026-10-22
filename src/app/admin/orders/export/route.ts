@@ -1,7 +1,7 @@
 /** GET /admin/orders/export?days=30 — заказы за период в CSV для Excel. */
 import { and, desc, gte } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { ORDER_STATUS } from "@/lib/order-status";
+import { orderStatus } from "@/lib/order-status";
 import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       o.number,
       msk(o.createdAt),
       msk(o.paidAt),
-      ORDER_STATUS[o.status].text,
+      orderStatus(o.status, o.deliveryType).text,
       o.customerName,
       o.phone,
       o.email,

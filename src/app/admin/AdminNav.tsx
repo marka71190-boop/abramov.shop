@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/catalog", label: "Каталог" },
   { href: "/admin/stock", label: "Остатки" },
   { href: "/admin/cue", label: "Кий на заказ", owner: true },
+  { href: "/admin/clubs", label: "Клубы", owner: true },
   { href: "/admin/promo", label: "Промокоды", owner: true },
   { href: "/admin/gift-cards", label: "Сертификаты", owner: true },
   { href: "/admin/mailing", label: "Рассылки", owner: true },

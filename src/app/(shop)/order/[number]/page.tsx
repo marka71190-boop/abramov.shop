@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { trackUrl } from "@/lib/cdek";
 import { fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
-import { ORDER_STATUS, STEPS, TONE_COLOR } from "@/lib/order-status";
+import { orderStatus, stepsFor, TONE_COLOR } from "@/lib/order-status";
 import { getPayUrl, syncPayment } from "@/lib/orders";
 import { getSettings } from "@/lib/settings";
 import { isAdmin, requireUser } from "@/lib/viewer";
@@ -17,6 +17,7 @@ import { listReturns, returnable } from "@/lib/returns";
 import { loadInspection } from "@/lib/inspection";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { expectedReady, productionEvents, STAGE_LABEL } from "@/lib/production";
+import { clubMapUrl, getClub } from "@/lib/clubs";
 import { fmtDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
@@ -48,8 +49,9 @@ export default async function OrderPage({ params, searchParams }: Props) {
     loadInspection(o.id),
   ]);
 
-  const st = ORDER_STATUS[o.status];
-  const stepIdx = STEPS.findIndex((x) => x.key === o.status);
+  const st = orderStatus(o.status, o.deliveryType);
+  const pickupClub = o.deliveryType === "PICKUP" ? await getClub(o.pickupClubId) : null;
+  const stepIdx = stepsFor(o.deliveryType).findIndex((x) => x.key === o.status);
   const awaiting = o.status === "AWAITING_PAYMENT";
   const minutesLeft = o.expiresAt ? Math.max(0, Math.round((+o.expiresAt - Date.now()) / 60000)) : null;
   const justPaid = from === "pay" && o.status === "PAID";
@@ -81,7 +83,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <div className="hero-note">
           <div className="h3">Спасибо, оплата прошла</div>
           <p className="muted" style={{ margin: 0 }}>
-            Мы соберём заказ и отправим трек-номер СДЭК. Бонусы ({num(o.bonusAccrued / 100)}) начислятся после получения.
+            {o.deliveryType === "PICKUP" ? "Соберём заказ и пришлём письмо, когда можно забирать в клубе." : "Мы соберём заказ и отправим трек-номер СДЭК."} Бонусы ({num(o.bonusAccrued / 100)}) начислятся после получения.
           </p>
         </div>
       )}
@@ -117,7 +119,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
       {stepIdx >= 0 && (
         <ol className="steps" aria-label="Статус заказа">
-          {STEPS.map((x, i) => (
+          {stepsFor(o.deliveryType).map((x, i) => (
             <li key={x.key} data-done={i <= stepIdx || undefined}>
               {x.label}
             </li>
@@ -153,11 +155,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 {!isReady && <li className="is-next muted">Кий готов</li>}
                 {shipped ? (
                   <li>
-                    <b>Отправлен СДЭК</b>
+                    <b>{o.deliveryType === "PICKUP" ? "Ждёт вас в клубе" : "Отправлен СДЭК"}</b>
                     {o.shippedAt && <span className="muted small"> · {fmtDateTime(o.shippedAt)}</span>}
                   </li>
                 ) : (
-                  <li className="is-next muted">Отправим СДЭК и пришлём трек-номер</li>
+                  <li className="is-next muted">{o.deliveryType === "PICKUP" ? "Привезём в клуб и сообщим, когда можно забирать" : "Отправим СДЭК и пришлём трек-номер"}</li>
                 )}
               </ol>
             </div>
@@ -288,14 +290,48 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
         <div className="panel stack">
           <h2 style={{ margin: 0 }}>Доставка</h2>
-          <div>
-            <div className="label">{o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
-            <div style={{ marginTop: 6 }}>
-              {o.city}
-              {o.address ? `, ${o.address}` : ""}
+          {o.deliveryType === "PICKUP" ? (
+            <div>
+              <div className="label">Самовывоз из клуба</div>
+              <div style={{ marginTop: 6 }}>
+                {pickupClub?.name ?? o.address}
+                {pickupClub && (
+                  <div>
+                    {pickupClub.city}, {pickupClub.address}
+                  </div>
+                )}
+              </div>
+              {pickupClub?.workTime && <div className="muted small">{pickupClub.workTime}</div>}
+              {pickupClub?.phone && (
+                <div className="small">
+                  <a href={`tel:${pickupClub.phone}`}>{pickupClub.phone}</a>
+                </div>
+              )}
+              {pickupClub?.note && <div className="muted small">{pickupClub.note}</div>}
+              {o.status === "SHIPPED" && (
+                <div className="notice" style={{ margin: "8px 0 0" }}>
+                  Заказ ждёт вас{o.shippedAt ? ` до ${fmtDate(new Date(+new Date(o.shippedAt) + settings.delivery.pickupStorageDays * 86400_000))}` : ""}. Назовите номер заказа{" "}
+                  <b>{o.number}</b> администратору.
+                </div>
+              )}
+              {pickupClub && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  <a href={clubMapUrl(pickupClub)} target="_blank" rel="noreferrer">
+                    Как добраться →
+                  </a>
+                </div>
+              )}
             </div>
-            {o.deliveryDays && <div className="muted small">Срок: {o.deliveryDays} дн. после отправки</div>}
-          </div>
+          ) : (
+            <div>
+              <div className="label">{o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
+              <div style={{ marginTop: 6 }}>
+                {o.city}
+                {o.address ? `, ${o.address}` : ""}
+              </div>
+              {o.deliveryDays && <div className="muted small">Срок: {o.deliveryDays} дн. после отправки</div>}
+            </div>
+          )}
           {o.trackNumber && (
             <div>
               <div className="label">Трек-номер</div>

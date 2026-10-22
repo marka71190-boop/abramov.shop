@@ -91,15 +91,21 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (input.giftCode?.trim() && quote.giftError) throw new OrderError(quote.giftError, quote);
   if (!d) throw new OrderError("Выберите способ доставки", quote);
   if (quote.shippingError || !quote.shipping) throw new OrderError(quote.shippingError ?? "Не удалось рассчитать доставку", quote);
-  if (cdekEnabled() && !d.cityCode) throw new OrderError("Выберите город доставки", quote);
-  if (d.type === "PVZ" && !d.pvzCode && cdekEnabled()) throw new OrderError("Выберите пункт выдачи СДЭК", quote);
-  if (d.type === "COURIER" && !d.address?.trim()) throw new OrderError("Укажите адрес для курьера", quote);
-  if (!cdekEnabled() && !d.cityName?.trim()) throw new OrderError("Укажите город", quote);
+  // Самовывоз из клуба: адрес — клуба, СДЭК не нужен
+  const club = d.type === "PICKUP" ? await import("@/lib/clubs").then((m) => m.getClub(d.clubId)) : null;
+  if (d.type === "PICKUP") {
+    if (!club) throw new OrderError("Выберите клуб, где заберёте заказ", quote);
+  } else {
+    if (cdekEnabled() && !d.cityCode) throw new OrderError("Выберите город доставки", quote);
+    if (d.type === "PVZ" && !d.pvzCode && cdekEnabled()) throw new OrderError("Выберите пункт выдачи СДЭК", quote);
+    if (d.type === "COURIER" && !d.address?.trim()) throw new OrderError("Укажите адрес для курьера", quote);
+    if (!cdekEnabled() && !d.cityName?.trim()) throw new OrderError("Укажите город", quote);
+  }
   // Покупатель подтверждает сумму к оплате (за вычетом сертификата)
   if (quote.payable !== input.expectedTotal) throw new OrderError("Сумма заказа изменилась — проверьте итог и подтвердите ещё раз", quote);
 
   const expiresAt = new Date(Date.now() + settings.checkout.paymentMinutes * 60_000);
-  const address = d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
+  const address = club ? `${club.name}, ${club.address}` : d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
 
   const order = await db.transaction(async (tx) => {
     // 1. Резервируем товар: остаток не может уйти в минус
@@ -173,11 +179,12 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         bonusAccrued: quote.accrue,
         promoCodeId: promoId,
         deliveryType: d.type,
-        city: d.cityName?.trim() || null,
-        cdekCityCode: d.cityCode ?? null,
-        postalCode: d.postalCode ?? null,
+        city: club ? club.city : d.cityName?.trim() || null,
+        cdekCityCode: club ? null : (d.cityCode ?? null),
+        postalCode: club ? null : (d.postalCode ?? null),
         address,
         cdekPvzCode: d.type === "PVZ" ? (d.pvzCode ?? null) : null,
+        pickupClubId: club?.id ?? null,
         deliveryTariff: quote.shipping!.tariff,
         deliveryDays: quote.shipping!.days,
         expiresAt,

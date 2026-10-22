@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { cdekEnabled, trackUrl } from "@/lib/cdek";
 import { fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
-import { ORDER_STATUS, TONE_PILL } from "@/lib/order-status";
+import { orderStatus, TONE_PILL } from "@/lib/order-status";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { OrderControls } from "./OrderControls";
 import { ProductionPanel } from "./ProductionPanel";
@@ -44,7 +44,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
     loadInspection(o.id),
     o.giftCardAmount > 0 ? db.query.giftCardUse.findMany({ where: eq(s.giftCardUse.orderId, o.id), with: { giftCard: true } }) : Promise.resolve([]),
   ]);
-  const st = ORDER_STATUS[o.status];
+  const st = orderStatus(o.status, o.deliveryType);
   const paid = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status);
 
   return (
@@ -76,7 +76,8 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         id={o.id}
         status={o.status}
         track={o.trackNumber}
-        cdek={{ enabled: cdekEnabled(), uuid: o.cdekOrderUuid, canCreate: !!o.cdekCityCode }}
+        cdek={{ enabled: cdekEnabled() && o.deliveryType !== "PICKUP", uuid: o.cdekOrderUuid, canCreate: !!o.cdekCityCode }}
+        pickup={o.deliveryType === "PICKUP"}
         testPay={!yookassaEnabled()}
         paid={paid}
         owner={me.role === "OWNER"}
@@ -124,7 +125,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         <div className="panel stack" style={{ gap: 8 }}>
           <h2 style={{ marginBottom: 4 }}>Доставка</h2>
           <div>
-            {o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}
+            {o.deliveryType === "PICKUP" ? <b>Самовывоз из клуба</b> : o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}
             {o.deliveryTariff ? <span className="muted"> · тариф {o.deliveryTariff}</span> : null}
           </div>
           <div>

@@ -17,7 +17,8 @@ import { yookassaEnabled } from "@/lib/yookassa";
 
 const Line = z.object({ variantId: z.string().max(400), qty: z.coerce.number().int().min(1).max(999) });
 const Delivery = z.object({
-  type: z.enum(["PVZ", "COURIER"]),
+  type: z.enum(["PVZ", "COURIER", "PICKUP"]),
+  clubId: z.string().max(64).nullish(),
   cityCode: z.number().int().positive().nullish(),
   cityName: z.string().trim().max(200).nullish(),
   pvzCode: z.string().trim().max(40).nullish(),
@@ -82,7 +83,7 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
     // «Мои адреса»: отметить использованный или сохранить новый (ошибки сохранения заказ не ломают)
     const d = p.data.delivery;
     if (p.data.savedAddressId) await touchAddress(user.id, p.data.savedAddressId).catch(() => {});
-    else if (p.data.saveAddress && d) {
+    else if (p.data.saveAddress && d && d.type !== "PICKUP") {
       await saveAddress(user.id, {
         label: p.data.saveAddress.label || "Адрес",
         deliveryType: d.type,

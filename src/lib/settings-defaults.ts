@@ -34,6 +34,8 @@ export interface SiteSettings {
     freeFrom: number; // ₽, с какой суммы доставка бесплатная; 0 — никогда
     flatPvz: number; // ₽, если СДЭК ещё не подключён
     flatCourier: number;
+    pickupEnabled: boolean; // самовывоз из клубов
+    pickupStorageDays: number; // сколько дней заказ ждёт в клубе
   };
   checkout: {
     paymentMinutes: number; // сколько ждём оплату, потом заказ отменяется и товар возвращается в продажу
@@ -93,6 +95,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     freeFrom: 0,
     flatPvz: 350,
     flatCourier: 600,
+    pickupEnabled: true,
+    pickupStorageDays: 7,
   },
   checkout: {
     paymentMinutes: 60,
