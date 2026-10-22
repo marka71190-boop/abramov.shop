@@ -3681,3 +3681,24 @@ button.addr-card[aria-checked="true"] strong {
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 8px;
 }
+
+/* ── Мастерская ── */
+.service-prices {
+  display: grid;
+}
+.service-prices__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.service-prices__row:last-child {
+  border-bottom: 0;
+}
+.service-prices__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}

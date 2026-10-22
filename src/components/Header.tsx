@@ -25,7 +25,7 @@ export function Header({
         <nav className="nav" aria-label="Основное меню">
           <Link href="/catalog">Каталог</Link>
           {cue && <Link href="/cue">Кий на заказ</Link>}
-          <Link href="/#drop">Коллекции</Link>
+          <Link href="/service">Мастерская</Link>
           <Link href="/#bonus">Бонусы</Link>
           <Link href="/gift">Сертификаты</Link>
           <Link href="/p/delivery">Доставка</Link>

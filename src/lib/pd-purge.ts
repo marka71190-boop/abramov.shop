@@ -101,6 +101,12 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
       .set({ buyerEmail: null, recipientName: null, recipientEmail: null, senderName: null, message: null })
       .where(or(isNull(s.giftCard.buyerId), ne(s.giftCard.buyerId, keepId)));
 
+    // Заявки в мастерскую: остаются для учёта, контакты и описание стираются
+    await tx
+      .update(s.serviceRequest)
+      .set({ name: "Удалено", phone: "", email: "", returnAddress: null, description: "", photos: [] })
+      .where(others(s.serviceRequest.userId));
+
     // Журнал согласий и токены
     const consents = (await tx.delete(s.consent).where(others(s.consent.userId)).returning({ id: s.consent.id })).length;
     await tx.delete(s.verification);

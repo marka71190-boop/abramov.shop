@@ -51,6 +51,11 @@ export interface SiteSettings {
   stock: {
     lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
   };
+  service: {
+    enabled: boolean; // приём заявок в мастерскую на сайте
+    cdekAddress: string; // куда присылать кий СДЭК: получатель, город, адрес или пункт
+    intro: string; // текст на странице мастерской
+  };
   reviews: {
     requestDays: number; // через сколько дней после получения попросить отзыв письмом; 0 — не просить
   };
@@ -115,6 +120,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   reviews: {
     requestDays: 5,
   },
+  service: {
+    enabled: true,
+    cdekAddress: "",
+    intro: "Замена наклейки, ремонт и реставрация киёв в мастерской Abramov. Принесите кий в любой наш клуб или пришлите СДЭК — вернём как новый.",
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -138,6 +148,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     giftCards: { ...d.giftCards, ...(s.giftCards ?? {}) },
     stock: { ...d.stock, ...(s.stock ?? {}) },
     reviews: { ...d.reviews, ...(s.reviews ?? {}) },
+    service: { ...d.service, ...(s.service ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

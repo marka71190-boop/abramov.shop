@@ -924,6 +924,67 @@ export const club = pgTable("club", {
   createdAt: createdAt(),
 });
 
+/** Мастерская: прайс услуг (замена наклейки, ремонт и т. п.) */
+export const serviceItem = pgTable("service_item", {
+  id: id(),
+  name: text("name").notNull(),
+  description: text("description").default("").notNull(),
+  price: integer("price").default(0).notNull(), // копейки
+  priceFrom: boolean("price_from").default(false).notNull(), // «от …» — точную цену скажет мастер
+  days: integer("days").default(1).notNull(), // срок, дней
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: createdAt(),
+});
+
+export const serviceStatusEnum = pgEnum("service_status", ["NEW", "RECEIVED", "IN_WORK", "READY", "DONE", "CANCELLED"]);
+
+/** Заявка в мастерскую */
+export const serviceRequest = pgTable(
+  "service_request",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // RM-261022-7QX4
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    email: text("email").notNull(),
+    items: jsonb("items").$type<{ id: string; name: string; price: number; priceFrom: boolean; days: number }[]>().default([]).notNull(),
+    description: text("description").default("").notNull(), // что случилось с кием
+    photos: text("photos").array().default([]).notNull(),
+    handover: text("handover").notNull(), // CLUB — принесёт в клуб, CDEK — пришлёт
+    clubId: text("club_id"),
+    returnMethod: text("return_method").notNull(), // CLUB — заберёт в клубе, CDEK — отправить
+    returnAddress: text("return_address"), // для отправки СДЭК: город, пункт или адрес
+    status: serviceStatusEnum("status").default("NEW").notNull(),
+    price: integer("price"), // итоговая цена от мастера, копейки
+    readyBy: ts("ready_by"), // к какому дню будет готов
+    paymentId: text("payment_id"),
+    paymentStatus: text("payment_status"), // PENDING | SUCCEEDED | CANCELED | OFFLINE
+    payUrl: text("pay_url"),
+    paidAt: ts("paid_at"),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("service_request_status_idx").on(t.status), index("service_request_user_idx").on(t.userId)],
+);
+
+export const serviceEvent = pgTable(
+  "service_event",
+  {
+    id: id(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => serviceRequest.id, { onDelete: "cascade" }),
+    status: serviceStatusEnum("status").notNull(),
+    note: text("note"),
+    photo: text("photo"),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("service_event_request_idx").on(t.requestId)],
+);
+
 /** Галерея готовых киёв «Чемпион»: фото и сборка — кнопка «Собрать такой же» */
 export const cueShowcase = pgTable("cue_showcase", {
   id: id(),

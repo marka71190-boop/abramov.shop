@@ -27,6 +27,7 @@ export function Footer({ pages, telegram, email, cue = false }: Props) {
           <Link href="/#catalog">Каталог</Link>
           <Link href="/#bonus">Бонусная программа</Link>
           {cue && <Link href="/cue">Кий «Чемпион» на заказ</Link>}
+          <Link href="/service">Мастерская: ремонт киёв</Link>
           <Link href="/gift">Подарочные сертификаты</Link>
           <Link href="/account">Личный кабинет</Link>
         </div>

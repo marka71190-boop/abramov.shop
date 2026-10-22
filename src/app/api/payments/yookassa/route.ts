@@ -28,7 +28,14 @@ export async function POST(request: Request) {
     const known = await db.query.payment.findFirst({ where: eq(s.payment.externalId, String(id).slice(0, 64)), columns: { id: true } });
     if (!known) {
       const gift = await db.query.giftCard.findFirst({ where: eq(s.giftCard.paymentId, String(id).slice(0, 64)), columns: { id: true } });
-      if (!gift) return Response.json({ ok: true, skipped: true });
+      if (!gift) {
+        // Оплата заявки в мастерскую
+        const svc = await db.query.serviceRequest.findFirst({ where: eq(s.serviceRequest.paymentId, String(id).slice(0, 64)), columns: { id: true } });
+        if (!svc) return Response.json({ ok: true, skipped: true });
+        const { applyServicePayment } = await import("@/lib/service");
+        await applyServicePayment(await getPayment(id));
+        return Response.json({ ok: true });
+      }
       await applyGiftPayment(await getPayment(id));
       return Response.json({ ok: true });
     }

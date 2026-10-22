@@ -90,6 +90,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
   const returns = await listReturns({ userId: user.id });
   const addresses = await listAddresses(user.id);
+  const { userRequests, SERVICE_STATUS } = await import("@/lib/service");
+  const services = await userRequests(user.id);
   const gifts = await db.query.giftCard.findMany({
     where: and(eq(s.giftCard.buyerId, user.id), ne(s.giftCard.status, "PENDING")),
     orderBy: desc(s.giftCard.createdAt),
@@ -108,6 +110,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <Link href="#orders">Заказы</Link>
         <Link href="#bonus">Бонусы</Link>
         {returns.length > 0 && <Link href="#returns">Возвраты</Link>}
+        {services.length > 0 && <Link href="#service">Мастерская</Link>}
         <Link href="#favorites">Избранное</Link>
         <Link href="#settings">Настройки</Link>
         <SignOutButton>Выйти</SignOutButton>
@@ -257,6 +260,23 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <ReturnCard key={r.id} r={r} />
               ))}
             </div>
+          </section>
+        )}
+
+        {services.length > 0 && (
+          <section id="service" className="panel">
+            <h2>Мастерская</h2>
+            {services.map((r) => (
+              <Link key={r.id} href={`/service/${r.number}`} className="row-line row-line--link">
+                <span>
+                  <b>{r.number}</b> <span className="muted small">· {r.items.map((i) => i.name).join(", ")}</span>
+                </span>
+                <span className="small">{SERVICE_STATUS[r.status].text}</span>
+              </Link>
+            ))}
+            <p className="small" style={{ margin: "10px 0 0" }}>
+              <Link href="/service">Новая заявка в мастерскую →</Link>
+            </p>
           </section>
         )}
 

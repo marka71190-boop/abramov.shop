@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/admin", label: "Обзор", exact: true },
   { href: "/admin/orders", label: "Заказы" },
   { href: "/admin/returns", label: "Возвраты" },
+  { href: "/admin/service", label: "Мастерская" },
   { href: "/admin/analytics", label: "Аналитика", owner: true },
   { href: "/admin/customers", label: "Клиенты" },
   { href: "/admin/consents", label: "Журнал согласий", owner: true },
