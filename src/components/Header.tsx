@@ -29,10 +29,19 @@ export function Header({
           <Link href="/catalog">Каталог</Link>
           {cue && <Link href="/cue">Кий на заказ</Link>}
           <Link href="/service">Мастерская</Link>
-          <Link href="/#bonus">Бонусы</Link>
-          <Link href="/gift">Сертификаты</Link>
-          <Link href="/p/delivery">Доставка</Link>
-          <Link href="/#support">Поддержка</Link>
+          {/* Второстепенные пункты прячем на узких экранах — они есть в подвале */}
+          <Link href="/#bonus" className="nav__minor">
+            Бонусы
+          </Link>
+          <Link href="/gift" className="nav__minor">
+            Сертификаты
+          </Link>
+          <Link href="/p/delivery" className="nav__minor">
+            Доставка
+          </Link>
+          <Link href="/#support" className="nav__minor2">
+            Поддержка
+          </Link>
           {admin && <Link href="/admin">Админка</Link>}
           {club && <Link href="/club">Клуб</Link>}
         </nav>

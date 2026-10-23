@@ -10,7 +10,7 @@ import { db, schema as s } from "@/db";
 import { decorate } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { score, swapLayout, tokens } from "@/lib/search-text";
-import { isPublic, publicWhere } from "@/lib/visibility";
+import { isPublic, publicWhere, retailWhere } from "@/lib/visibility";
 
 export const SORTS = {
   relevance: "По совпадению",
@@ -66,7 +66,7 @@ interface Row {
 
 /** Открытые товары (в открытых категориях или без категории) с ценой, остатком и текстом для поиска. */
 async function loadRows(fixedCategoryId?: string) {
-  const [products, cats] = await Promise.all([db.select().from(s.product).where(publicWhere(s.product)), db.select().from(s.category)]);
+  const [products, cats] = await Promise.all([db.select().from(s.product).where(retailWhere(s.product)), db.select().from(s.category)]);
   const catById = new Map(cats.map((c) => [c.id, c]));
   const visible = products.filter((p) => {
     if (!p.categoryId) return true;
@@ -347,7 +347,7 @@ export async function getLatestReviews(limit = 6) {
         eq(s.review.status, "APPROVED"),
         gte(s.review.rating, 4),
         sql`char_length(${s.review.text}) >= 20`,
-        publicWhere(s.product),
+        retailWhere(s.product),
         or(isNull(s.product.categoryId), publicWhere(s.category)),
       ),
     )

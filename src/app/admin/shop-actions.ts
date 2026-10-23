@@ -64,6 +64,23 @@ export async function orderAction(_: ActionState, form: FormData): Promise<Actio
       case "cdek-sync":
         await syncCdek(id);
         break;
+      case "invoice-paid":
+      case "invoice-extend": {
+        const o = await db.query.order.findFirst({ where: eq(s.order.id, id), columns: { paymentMethod: true, status: true, expiresAt: true } });
+        if (!o || o.paymentMethod !== "INVOICE") return { error: "Это не заказ по счёту" };
+        if (op === "invoice-paid") {
+          if (o.status !== "AWAITING_PAYMENT" && o.status !== "CANCELLED") return { error: "Заказ уже оплачен" };
+          await markPaid(id, `invoice:${me.id}`);
+          await audit(me.id, "order.invoice_paid", "order", id);
+        } else {
+          if (o.status !== "AWAITING_PAYMENT") return { error: "Продлить можно только неоплаченный заказ" };
+          const days = (await getSettings()).b2b.invoiceDays || 5;
+          const base = Math.max(Date.now(), o.expiresAt?.getTime() ?? 0);
+          await db.update(s.order).set({ expiresAt: new Date(base + days * 86400_000) }).where(eq(s.order.id, id));
+          await audit(me.id, "order.invoice_extend", "order", id, { days });
+        }
+        break;
+      }
       default:
         return { error: "Неизвестное действие" };
     }
@@ -199,6 +216,9 @@ const ProductIn = z.object({
   related: z.string().max(5000).optional(),
   attrs: z.string().max(20_000).optional(),
   videos: z.string().max(5000).optional(),
+  channel: z.enum(["RETAIL", "WHOLESALE", "BOTH"]).default("RETAIL"),
+  wholesalePrice: z.string().optional(),
+  wholesaleMin: z.coerce.number().int().min(1).max(10000).optional(),
 });
 
 /** «Джос, джосс,  jos, джос» → «Джос, джосс, jos»: без пустых и повторов (без учёта регистра) */
@@ -284,7 +304,11 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     heightCm: d.heightCm,
     sortOrder: d.sortOrder,
     ...(videos ? { videos } : {}),
+    channel: d.channel,
+    wholesalePrice: d.channel === "BOTH" && d.wholesalePrice?.trim() ? rubToKop(d.wholesalePrice) : null,
+    wholesaleMin: d.channel === "RETAIL" ? 1 : (d.wholesaleMin ?? 1),
   };
+  if (values.wholesalePrice != null && !(values.wholesalePrice >= 100)) return { error: "Оптовая цена — в рублях, или оставьте поле пустым" };
 
   let productId = d.id;
   const { notifyBackInStock, productStock } = await import("@/lib/stock-alerts");
@@ -617,4 +641,30 @@ export async function disconnectDriveAction() {
   await disconnectDrive();
   await audit(me.id, "drive.disconnect", "setting", "google_drive");
   revalidatePath("/admin/settings");
+}
+
+// ============================================================
+// Опт и счета
+// ============================================================
+
+const B2bIn = z.object({
+  intro: z.string().trim().max(1000).default(""),
+  invoiceDays: z.coerce.number().int().min(1, "Срок оплаты — от 1 дня").max(60),
+  minOrder: z.coerce.number().int().min(0).max(10_000_000),
+  bankName: z.string().trim().max(200).default(""),
+  bik: z.string().trim().regex(/^(\d{9})?$/, "БИК — 9 цифр"),
+  account: z.string().trim().regex(/^(\d{20})?$/, "Расчётный счёт — 20 цифр"),
+  corrAccount: z.string().trim().regex(/^(\d{20})?$/, "Корр. счёт — 20 цифр"),
+  vatNote: z.string().trim().min(3).max(60),
+});
+
+export async function saveB2bSettings(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin("OWNER");
+  const p = B2bIn.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const cur = await getSettings();
+  await saveSettings({ ...cur, b2b: { ...cur.b2b, ...p.data, enabled: form.get("enabled") === "on" } });
+  await audit(me.id, "settings.b2b", "setting", "site");
+  revalidatePath("/", "layout");
+  return { ok: "Сохранено" };
 }

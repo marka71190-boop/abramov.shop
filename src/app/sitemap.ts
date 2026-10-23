@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db, schema as s } from "@/db";
 import { SITE } from "@/lib/site";
-import { publicWhere } from "@/lib/visibility";
+import { publicWhere, retailWhere } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [pages, cats, products, cue] = await Promise.all([
     db.select({ slug: s.page.slug, updatedAt: s.page.updatedAt }).from(s.page).where(publicWhere(s.page)),
     db.select({ slug: s.category.slug, updatedAt: s.category.updatedAt }).from(s.category).where(publicWhere(s.category)),
-    db.select({ slug: s.product.slug, updatedAt: s.product.updatedAt }).from(s.product).where(publicWhere(s.product)),
+    db.select({ slug: s.product.slug, updatedAt: s.product.updatedAt }).from(s.product).where(retailWhere(s.product)),
     import("@/lib/cue").then((m) => m.getCueConfig()),
   ]);
   return [
@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE.url}/gift`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE.url}/service`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/podbor-kiya`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE.url}/opt`, changeFrequency: "monthly", priority: 0.5 },
     ...(cue.enabled ? [{ url: `${SITE.url}/cue`, changeFrequency: "monthly" as const, priority: 0.7 }] : []),
     ...cats.map((c) => ({ url: `${SITE.url}/catalog/${c.slug}`, lastModified: c.updatedAt })),
     ...products.map((p) => ({ url: `${SITE.url}/product/${p.slug}`, lastModified: p.updatedAt })),

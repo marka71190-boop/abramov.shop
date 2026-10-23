@@ -59,6 +59,18 @@ export interface SiteSettings {
   reviews: {
     requestDays: number; // через сколько дней после получения попросить отзыв письмом; 0 — не просить
   };
+  b2b: {
+    enabled: boolean; // приём заявок от организаций и оптовый каталог
+    intro: string; // текст на странице «Опт для клубов и бизнеса»
+    invoiceDays: number; // сколько дней ждём оплату по счёту, потом заказ отменяется
+    minOrder: number; // ₽, минимальная сумма оптовых товаров в заказе; 0 — без минимума
+    // Реквизиты для счёта
+    bankName: string;
+    bik: string;
+    account: string; // расчётный счёт
+    corrAccount: string;
+    vatNote: string; // «Без НДС» или «В т. ч. НДС 5 %»
+  };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
     nominals: number[]; // ₽
@@ -125,6 +137,17 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     cdekAddress: "",
     intro: "Замена наклейки, ремонт и реставрация киёв в мастерской Abramov. Принесите кий в любой наш клуб или пришлите СДЭК — вернём как новый.",
   },
+  b2b: {
+    enabled: true,
+    intro: "Оптовые цены для бильярдных клубов, магазинов и тренеров. Оставьте заявку — проверим организацию и откроем оптовый каталог.",
+    invoiceDays: 5,
+    minOrder: 0,
+    bankName: "",
+    bik: "",
+    account: "",
+    corrAccount: "",
+    vatNote: "Без НДС",
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -149,6 +172,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     stock: { ...d.stock, ...(s.stock ?? {}) },
     reviews: { ...d.reviews, ...(s.reviews ?? {}) },
     service: { ...d.service, ...(s.service ?? {}) },
+    b2b: { ...d.b2b, ...(s.b2b ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

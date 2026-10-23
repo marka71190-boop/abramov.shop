@@ -7,7 +7,7 @@ import "server-only";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { decorate } from "@/lib/catalog";
-import { publicWhere } from "@/lib/visibility";
+import { publicWhere, retailWhere } from "@/lib/visibility";
 
 const PAID = sql`('PAID','ASSEMBLING','SHIPPED','DELIVERED')`;
 
@@ -54,7 +54,7 @@ export async function recommendFor(productIds: string[], opts: { exclude?: strin
     .select({ product: s.product })
     .from(s.product)
     .leftJoin(s.category, eq(s.category.id, s.product.categoryId))
-    .where(and(publicWhere(s.product), inArray(s.product.id, ids), or(isNull(s.product.categoryId), publicWhere(s.category))));
+    .where(and(retailWhere(s.product), inArray(s.product.id, ids), or(isNull(s.product.categoryId), publicWhere(s.category))));
   const cards = await decorate(rows.map((r) => r.product));
   const rank = (id: string) => ids.indexOf(id);
   return cards

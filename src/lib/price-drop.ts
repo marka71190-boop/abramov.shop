@@ -15,7 +15,7 @@ import { rub } from "@/lib/format";
 import { escHtml, mailEnabled, sendMail } from "@/lib/mail";
 import { isPlaceholderEmail, SITE } from "@/lib/site";
 import { send as tgSend, telegramEnabled } from "@/lib/telegram";
-import { isPublic } from "@/lib/visibility";
+import { isPublic, isRetail } from "@/lib/visibility";
 
 const mskHour = () => Number(new Intl.DateTimeFormat("ru-RU", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Moscow" }).format(new Date()));
 const abs = (url: string) => (url.startsWith("/") ? `${SITE.url}${url}` : url);
@@ -29,7 +29,7 @@ export async function currentPrices(productIds: string[]) {
     with: { category: true, variants: true, images: { orderBy: (im, { asc }) => asc(im.sortOrder), limit: 1 } },
   });
   for (const p of rows) {
-    if (!isPublic(p) || (p.category && !isPublic(p.category))) continue;
+    if (!isRetail(p) || (p.category && !isPublic(p.category))) continue;
     const prices = p.variants.filter((v) => v.isActive && v.stock > 0).map((v) => v.price ?? p.price);
     if (!prices.length) continue;
     out.set(p.id, { price: Math.min(...prices), slug: p.slug, name: p.name, image: p.images[0]?.url ?? null });

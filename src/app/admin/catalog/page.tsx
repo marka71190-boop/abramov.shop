@@ -24,6 +24,7 @@ export default async function CatalogAdmin() {
         slug: s.product.slug,
         sku: s.product.sku,
         price: s.product.price,
+        channel: s.product.channel,
         visibility: s.product.visibility,
         previewToken: s.product.previewToken,
         category: sql<string | null>`(select ${s.category.name} from ${s.category} where ${s.category.id} = ${s.product.categoryId})`,
@@ -118,6 +119,7 @@ export default async function CatalogAdmin() {
                 <tr key={p.id}>
                   <td>
                     <Link href={`/admin/catalog/product/${p.id}`}>{p.name}</Link>
+                    {p.channel !== "RETAIL" && <span className="pill pill--warn" style={{ marginLeft: 6 }}>{p.channel === "WHOLESALE" ? "только опт" : "+ опт"}</span>}
                     <div className="muted small">
                       {[p.category ?? "без категории", p.sku].filter(Boolean).join(" · ")}
                     </div>

@@ -121,8 +121,20 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           Здравствуйте, {firstName}
         </h1>
 
+        {user.organizationId &&
+          (await (async () => {
+            const { orgOf, ORG_STATUS } = await import("@/lib/wholesale");
+            const org = await orgOf(user.id);
+            if (!org) return null;
+            return (
+              <div className="notice notice--muted" style={{ margin: 0 }}>
+                {org.name}: {ORG_STATUS[org.status].text.toLowerCase()}.{" "}
+                <Link href="/opt">{org.status === "APPROVED" ? "Оптовый каталог →" : "Подробнее →"}</Link>
+              </div>
+            );
+          })())}
         {user.role === "CLUB" && (
-          <div className="notice" style={{ margin: 0 }}>
+          <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы администратор клуба. <Link href="/club">Открыть раздел «Клуб» →</Link> — заказы на выдачу и кии для мастерской. Чтобы получать
             уведомления в Telegram, подключите его ниже в «Настройках».
           </div>

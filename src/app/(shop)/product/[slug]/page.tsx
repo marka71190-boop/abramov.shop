@@ -30,7 +30,7 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ previe
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const [{ slug }, { v }] = await Promise.all([params, searchParams]);
   const p = await getProductBySlug(slug);
-  if (!p || !isPublic(p) || (p.category && !isPublic(p.category))) return { robots: { index: false } };
+  if (!p || !isPublic(p) || p.channel === "WHOLESALE" || (p.category && !isPublic(p.category))) return { robots: { index: false } };
   // Ссылка на вариант (?v=…) — в превью его фото и цена
   const variant = p.variants.find((x) => x.id === v);
   const photo = (variant && p.images.find((i) => i.variantId === variant.id)) ?? p.images.find((i) => !i.variantId) ?? p.images[0];
@@ -63,6 +63,8 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const viewer = await getViewer();
   const admin = isAdmin(viewer);
   if (!p || !canView(p, { admin, preview })) notFound();
+  // «Только опт» — в оптовом каталоге /opt, отдельной страницы для розницы нет
+  if (p.channel === "WHOLESALE" && !admin) notFound();
   // Товар из скрытой категории тоже не показываем покупателям
   if (p.category && !isPublic(p.category) && !admin && preview !== p.previewToken) notFound();
 

@@ -107,13 +107,14 @@ export default async function OrdersPage({ searchParams }: Props) {
                   <td>
                     {o.city}
                     <div className="muted small">
-                      {o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}
+                      {o.deliveryType === "COURIER" ? "Курьер" : o.deliveryType === "PICKUP" ? "Самовывоз" : "ПВЗ"}
                       {o.trackNumber ? ` · ${o.trackNumber}` : ""}
                     </div>
                   </td>
                   <td>{rub(o.total)}</td>
                   <td>
                     <span className={`pill ${TONE_PILL[st.tone]}`}>{st.text}</span>
+                    {o.paymentMethod === "INVOICE" && <div className="muted small">по счёту</div>}
                   </td>
                 </tr>
               );

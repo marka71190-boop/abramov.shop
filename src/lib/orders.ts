@@ -78,6 +78,8 @@ export interface PlaceInput extends QuoteInput {
   comment?: string | null;
   referralCode?: string | null;
   expectedTotal: number;
+  /** ONLINE — ЮKassa, INVOICE — счёт для организации */
+  paymentMethod?: "ONLINE" | "INVOICE";
 }
 
 export async function placeOrder(user: UserRow, input: PlaceInput, origin: string) {
@@ -88,6 +90,11 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (!quote.lines.length) throw new OrderError("Корзина пуста", quote);
   if (quote.removed.length || quote.adjusted.length) throw new OrderError("Корзина изменилась — проверьте товары и количество", quote);
   if (input.promoCode?.trim() && quote.promoError) throw new OrderError(quote.promoError, quote);
+  if (quote.wholesale.error) throw new OrderError(quote.wholesale.error, quote);
+  const invoice = input.paymentMethod === "INVOICE";
+  if (invoice && !quote.wholesale.invoice) throw new OrderError("Оплата по счёту — только для одобренных организаций", quote);
+  if (invoice && input.giftCode?.trim()) throw new OrderError("Подарочным сертификатом можно заплатить только картой", quote);
+  const org = invoice || quote.wholesale.sum > 0 ? await import("@/lib/wholesale").then((m) => m.approvedOrg(user)) : null;
   if (input.giftCode?.trim() && quote.giftError) throw new OrderError(quote.giftError, quote);
   if (!d) throw new OrderError("Выберите способ доставки", quote);
   if (quote.shippingError || !quote.shipping) throw new OrderError(quote.shippingError ?? "Не удалось рассчитать доставку", quote);
@@ -104,7 +111,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   // Покупатель подтверждает сумму к оплате (за вычетом сертификата)
   if (quote.payable !== input.expectedTotal) throw new OrderError("Сумма заказа изменилась — проверьте итог и подтвердите ещё раз", quote);
 
-  const expiresAt = new Date(Date.now() + settings.checkout.paymentMinutes * 60_000);
+  const expiresAt = new Date(Date.now() + (invoice ? settings.b2b.invoiceDays * 86400_000 : settings.checkout.paymentMinutes * 60_000));
   const address = club ? `${club.name}, ${club.address}` : d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
 
   const order = await db.transaction(async (tx) => {
@@ -114,7 +121,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
       const r = await tx
         .update(s.productVariant)
         .set({ stock: sql`${s.productVariant.stock} - ${l.qty}` })
-        .where(and(eq(s.productVariant.id, l.variantId), gte(s.productVariant.stock, l.qty)))
+        .where(and(eq(s.productVariant.id, l.variantRef ?? l.variantId), gte(s.productVariant.stock, l.qty)))
         .returning({ id: s.productVariant.id });
       if (!r.length) throw new OrderError(`«${l.name}» осталось меньше, чем в корзине. Обновите страницу`);
     }
@@ -179,6 +186,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         giftCardAmount: quote.gift?.applied ?? 0,
         bonusAccrued: quote.accrue,
         promoCodeId: promoId,
+        paymentMethod: invoice ? "INVOICE" : "ONLINE",
+        organizationId: org?.id ?? null,
         deliveryType: d.type,
         city: club ? club.city : d.cityName?.trim() || null,
         cdekCityCode: club ? null : (d.cityCode ?? null),
@@ -196,7 +205,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
       quote.lines.map((l) => ({
         orderId: o.id,
         productId: l.productId,
-        variantId: l.spec ? null : l.variantId,
+        variantId: l.spec ? null : (l.variantRef ?? l.variantId),
+        wholesale: !!l.wholesale,
         name: l.variantName ? `${l.name} · ${l.variantName}` : l.name,
         price: l.price,
         quantity: l.qty,
@@ -232,13 +242,18 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   });
 
   // Остатки: предупредить админов, если что-то заканчивается (не задерживает покупателя)
-  void import("@/lib/low-stock").then((m) => m.checkLowStock(quote.lines.filter((l) => !l.spec).map((l) => l.variantId))).catch((e) => console.error("[stock] low:", e));
+  void import("@/lib/low-stock").then((m) => m.checkLowStock(quote.lines.filter((l) => !l.spec).map((l) => l.variantRef ?? l.variantId))).catch((e) => console.error("[stock] low:", e));
 
   // 6. Платёж. Сертификат покрыл всё — платить онлайн нечего
   const payable = order.total - order.giftCardAmount;
   if (payable <= 0) {
     await markPaid(order.id, "giftcard");
     return { number: order.number, payUrl: `/order/${order.number}?from=pay` };
+  }
+  // Счёт для организации: ЮKassa не нужна, оплату отметят в админке
+  if (invoice) {
+    void import("@/lib/invoice").then((m) => m.invoiceCreated(order.id)).catch((e) => console.error("[invoice]", e));
+    return { number: order.number, payUrl: `/order/${order.number}?invoice=1` };
   }
   if (!yookassaEnabled()) return { number: order.number, payUrl: `/order/${order.number}` };
   try {

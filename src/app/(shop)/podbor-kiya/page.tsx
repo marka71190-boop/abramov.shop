@@ -6,7 +6,7 @@ import { getCueConfig, CUE_SLUG } from "@/lib/cue";
 import type { QuizProduct } from "@/lib/quiz";
 import { ratingsFor } from "@/lib/reviews";
 import { og } from "@/lib/seo";
-import { isPublic, publicWhere } from "@/lib/visibility";
+import { isPublic, publicWhere, retailWhere } from "@/lib/visibility";
 import { CueQuiz } from "./CueQuiz";
 
 const DESC = "Ответьте на 5 вопросов — подскажем длину, вес и наклейку кия для русского бильярда и покажем подходящие кии из каталога.";
@@ -24,7 +24,7 @@ async function quizProducts(): Promise<QuizProduct[]> {
   const key = (k: string) => attrs.find((a) => a.key === k)?.id;
   const [wId, lId, tId, cId] = [key("weight"), key("length"), key("tip"), key("construction")];
   const rows = await db.query.product.findMany({
-    where: and(publicWhere(s.product), ne(s.product.slug, CUE_SLUG)),
+    where: and(retailWhere(s.product), ne(s.product.slug, CUE_SLUG)),
     with: { category: true, variants: { where: eq(s.productVariant.isActive, true) }, images: { orderBy: asc(s.productImage.sortOrder), limit: 1 } },
     limit: 500,
   });

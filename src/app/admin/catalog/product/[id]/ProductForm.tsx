@@ -26,6 +26,9 @@ export interface ProductData {
   description: string;
   searchTags: string;
   videos: { url: string; title: string }[];
+  channel: string;
+  wholesalePrice: number | null;
+  wholesaleMin: number;
   price: number;
   oldPrice: number | null;
   sku: string | null;
@@ -167,6 +170,37 @@ function RelatedPicker({ all, value, onChange }: { all: Brief[]; value: string[]
 const newKey = () => `new-${Math.random().toString(36).slice(2, 10)}`;
 const toLocal = (d: Date | null) => (d ? new Date(+new Date(d) + 3 * 3600_000).toISOString().slice(0, 16) : "");
 const rubStr = (k: number | null | undefined) => (k == null ? "" : String(k / 100));
+
+/** Где продаётся товар: розница, оптовый каталог или оба */
+function WholesaleFields({ product }: { product: ProductData | null }) {
+  const [channel, setChannel] = useState(product?.channel ?? "RETAIL");
+  return (
+    <div className="form-grid">
+      <label className="field">
+        Где продаётся
+        <select className="select" name="channel" value={channel} onChange={(e) => setChannel(e.target.value)}>
+          <option value="RETAIL">Только розница</option>
+          <option value="BOTH">Розница и оптовый каталог</option>
+          <option value="WHOLESALE">Только оптовый каталог</option>
+        </select>
+        {channel === "WHOLESALE" && <span className="muted small">Покупатели в рознице товар не видят. «Цена» выше — оптовая.</span>}
+      </label>
+      {channel === "BOTH" && (
+        <label className="field">
+          Оптовая цена, ₽
+          <input className="input" name="wholesalePrice" type="number" min={1} step="0.01" defaultValue={rubStr(product?.wholesalePrice)} />
+          <span className="muted small">Для всех вариантов. Пусто — как в рознице</span>
+        </label>
+      )}
+      {channel !== "RETAIL" && (
+        <label className="field">
+          Минимальная партия, шт.
+          <input className="input" name="wholesaleMin" type="number" min={1} max={10000} defaultValue={product?.wholesaleMin ?? 1} />
+        </label>
+      )}
+    </div>
+  );
+}
 
 export function ProductForm({
   product,
@@ -310,6 +344,7 @@ export function ProductForm({
             <input className="input" type="datetime-local" name="publishAt" defaultValue={toLocal(product?.publishAt ?? null)} />
           </label>
         </div>
+        <WholesaleFields product={product} />
         <label className="field">
           Описание
           <textarea className="textarea" name="description" defaultValue={product?.description} style={{ minHeight: 160, paddingTop: 12 }} />

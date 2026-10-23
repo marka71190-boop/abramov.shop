@@ -13,9 +13,10 @@ import { checkGiftCode, giftApplicable } from "@/lib/giftcards";
 import { getSettings } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import type { UserRow } from "@/lib/viewer";
-import { isPublic } from "@/lib/visibility";
+import { isPublic, isRetail } from "@/lib/visibility";
 import { isCueKey } from "@/lib/cue-config";
 import { cueLine } from "@/lib/cue";
+import { approvedOrg, isWholesaleKey, WHOLESALE_PREFIX, wholesalePriceOf } from "@/lib/wholesale";
 
 export interface CartLineInput {
   variantId: string;
@@ -66,6 +67,11 @@ export interface QuoteLine {
   spec?: string;
   /** Лимитированный товар */
   limited?: boolean;
+  /** Оптовая позиция: variantId — ключ корзины «w:…», настоящий вариант — variantRef */
+  wholesale?: boolean;
+  variantRef?: string;
+  /** Минимальная партия (опт) */
+  minQty?: number;
   madeToOrder?: number;
 }
 
@@ -97,11 +103,13 @@ export interface Quote {
   payable: number;
   accrue: number; // копейки — бонусы за заказ (1 бонус = 100 коп.)
   tierPercent: number;
+  /** Опт: сумма оптовых позиций, можно ли платить по счёту, ошибка (минимальная сумма) */
+  wholesale: { sum: number; invoice: boolean; error: string | null; org: string | null };
 }
 
 const floorRub = (kop: number) => Math.floor(kop / 100) * 100;
 
-async function loadLines(input: CartLineInput[], settings: SiteSettings) {
+async function loadLines(input: CartLineInput[], settings: SiteSettings, org: { id: string } | null) {
   const wanted = new Map<string, number>();
   for (const l of input.slice(0, 50)) {
     const q = Math.trunc(Number(l.qty));
@@ -127,9 +135,10 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
   }
   const ids = [...wanted.keys()];
   if (!ids.length) return { lines: cueLines, removed, adjusted };
+  const realId = (k: string) => (isWholesaleKey(k) ? k.slice(WHOLESALE_PREFIX.length) : k);
 
   const rows = await db.query.productVariant.findMany({
-    where: inArray(s.productVariant.id, ids),
+    where: inArray(s.productVariant.id, [...new Set(ids.map(realId))]),
     with: { product: { with: { category: true, images: { orderBy: asc(s.productImage.sortOrder), limit: 30 } } } },
   });
 
@@ -145,10 +154,20 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
 
   const lines: QuoteLine[] = [...cueLines];
   for (const id of ids) {
-    const v = rows.find((r) => r.id === id);
+    const opt = isWholesaleKey(id);
+    const v = rows.find((r) => r.id === realId(id));
     const p = v?.product;
     if (!v || !p || !v.isActive || !isPublic(p) || (p.category && !isPublic(p.category))) {
       removed.push({ variantId: id, reason: "Товар больше не продаётся" });
+      continue;
+    }
+    // Розница не покупает «только опт», опт — только одобренные организации и только оптовые товары
+    if (!opt && p.channel === "WHOLESALE") {
+      removed.push({ variantId: id, reason: `«${p.name}» продаётся только оптом` });
+      continue;
+    }
+    if (opt && (!org || p.channel === "RETAIL")) {
+      removed.push({ variantId: id, reason: org ? `«${p.name}» больше не продаётся оптом` : "Оптовые цены доступны только одобренным организациям" });
       continue;
     }
     if (v.stock <= 0) {
@@ -156,15 +175,25 @@ async function loadLines(input: CartLineInput[], settings: SiteSettings) {
       continue;
     }
     let qty = wanted.get(id)!;
-    const max = Math.min(v.stock, settings.checkout.maxQtyPerItem);
+    const minQty = opt ? Math.max(1, p.wholesaleMin) : 1;
+    if (opt && v.stock < minQty) {
+      removed.push({ variantId: id, reason: `«${p.name}»: на складе меньше минимальной партии (${minQty} шт.)` });
+      continue;
+    }
+    const max = opt ? Math.min(v.stock, 9999) : Math.min(v.stock, settings.checkout.maxQtyPerItem);
     if (qty > max) {
       qty = max;
       adjusted.push({ variantId: id, name: p.name, qty });
     }
-    const price = v.price ?? p.price;
+    if (qty < minQty) {
+      qty = minQty;
+      adjusted.push({ variantId: id, name: `${p.name} — минимальная партия`, qty });
+    }
+    const price = opt ? wholesalePriceOf(p, v) : (v.price ?? p.price);
     const single = (variantCounts.find((c) => c.productId === p.id)?.n ?? 1) <= 1;
     lines.push({
-      variantId: v.id,
+      variantId: id,
+      ...(opt ? { wholesale: true, variantRef: v.id, href: "/opt", minQty } : {}),
       productId: p.id,
       slug: p.slug,
       name: p.name,
@@ -223,12 +252,19 @@ export async function checkPromo(code: string, user: UserRow | null, subtotal: n
 
 export async function computeQuote(input: QuoteInput, user: UserRow | null): Promise<Quote> {
   const settings = await getSettings();
-  const { lines, removed, adjusted } = await loadLines(input.lines ?? [], settings);
+  const org = await approvedOrg(user);
+  const { lines, removed, adjusted } = await loadLines(input.lines ?? [], settings, org);
   const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0);
+  // Оптовые позиции: без промокодов, комплектов и бонусов
+  const wholesaleSum = lines.filter((l) => l.wholesale).reduce((a, l) => a + l.lineTotal, 0);
+  const wholesaleError =
+    wholesaleSum > 0 && settings.b2b.minOrder > 0 && wholesaleSum < settings.b2b.minOrder * 100
+      ? `Минимальная сумма оптового заказа — ${settings.b2b.minOrder.toLocaleString("ru-RU")} ₽`
+      : null;
 
   // ---- Комплекты со скидкой
   const { activeBundles, applyBundles } = await import("@/lib/bundles");
-  const br = lines.length ? applyBundles(lines, await activeBundles()) : { discount: 0, applied: [], cut: new Map<string, number>(), hints: [] };
+  const br = lines.length ? applyBundles(lines.filter((l) => !l.wholesale), await activeBundles()) : { discount: 0, applied: [], cut: new Map<string, number>(), hints: [] };
   const bundleDiscount = Math.min(br.discount, Math.max(0, subtotal - 100));
   let bundleHints: Quote["bundleHints"] = [];
   if (br.hints.length) {
@@ -239,7 +275,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
         id: h.id,
         name: h.name,
         percent: h.percent,
-        missing: h.missing.map((pid) => prods.find((p) => p.id === pid)).filter((p) => p && isPublic(p) && (!p.category || isPublic(p.category))).map((p) => ({ name: p!.name, slug: p!.slug })),
+        missing: h.missing.map((pid) => prods.find((p) => p.id === pid)).filter((p) => p && isRetail(p) && (!p.category || isPublic(p.category))).map((p) => ({ name: p!.name, slug: p!.slug })),
       }))
       .filter((h, i, a) => h.missing.length > 0 && a.findIndex((x) => x.id === h.id) === i)
       .slice(0, 2);
@@ -251,11 +287,13 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   let promoRow: PromoRow | null = null;
   let promoError: string | null = null;
   let discount = 0;
-  if (input.promoCode?.trim() && lines.length) {
-    const r = await checkPromo(input.promoCode, user, subtotal - bundleDiscount);
+  if (input.promoCode?.trim() && lines.length && lines.every((l) => l.wholesale)) {
+    promoError = "Промокоды не действуют на оптовые цены";
+  } else if (input.promoCode?.trim() && lines.length) {
+    const r = await checkPromo(input.promoCode, user, subtotal - bundleDiscount - wholesaleSum);
     if (typeof r === "string") promoError = r;
     else {
-      const fits = (l: QuoteLine) => (!r.categoryId || l.categoryId === r.categoryId) && !(r.excludeSpecial && (l.limited || l.spec));
+      const fits = (l: QuoteLine) => !l.wholesale && (!r.categoryId || l.categoryId === r.categoryId) && !(r.excludeSpecial && (l.limited || l.spec));
       // Промокод — от цены после скидки за комплект
       const eligible = Math.floor(lines.filter(fits).reduce((a, l) => a + afterBundle(l), 0));
       if (r.categoryId && eligible === 0) promoError = "Промокод не действует на товары в корзине";
@@ -277,7 +315,9 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   // ---- Бонусы
   const balance = user?.bonusBalance ?? 0;
   const blockedByPromo = !!promoRow && !promoRow.combinableWithBonus;
-  const byPercent = floorRub((afterDiscount * settings.loyalty.maxSpendPercent) / 100);
+  // Бонусами платят только за розничные товары
+  const retailAfter = Math.max(0, afterDiscount - wholesaleSum);
+  const byPercent = floorRub((retailAfter * settings.loyalty.maxSpendPercent) / 100);
   const available = blockedByPromo ? 0 : Math.max(0, Math.min(balance * 100, byPercent, floorRub(afterDiscount - 100)));
   const bonusSpent = input.useBonus ? available : 0;
   const goods = afterDiscount - bonusSpent;
@@ -319,7 +359,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
 
   const tier = tierProgress(Math.floor((user?.totalSpent ?? 0) / 100), settings.loyalty).current;
   const tierPercent = settings.loyalty.tiers[tier].percent;
-  const accrue = user ? Math.floor((goods * tierPercent) / 100 / 100) * 100 : 0;
+  const accrue = user ? Math.floor((Math.max(0, goods - wholesaleSum) * tierPercent) / 100 / 100) * 100 : 0;
 
   const total = goods + (shipping?.cost ?? 0);
 
@@ -355,5 +395,6 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
     payable: total - (gift?.applied ?? 0),
     accrue,
     tierPercent,
+    wholesale: { sum: wholesaleSum, invoice: !!org && !!settings.b2b.enabled && !!settings.b2b.account && !!settings.b2b.bik, error: wholesaleError, org: org?.name ?? null },
   };
 }

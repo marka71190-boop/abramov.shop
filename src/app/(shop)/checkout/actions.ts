@@ -15,7 +15,7 @@ import { SITE, isPlaceholderEmail } from "@/lib/site";
 import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
 
-const Line = z.object({ variantId: z.string().max(400), qty: z.coerce.number().int().min(1).max(999) });
+const Line = z.object({ variantId: z.string().max(400), qty: z.coerce.number().int().min(1).max(9999) });
 const Delivery = z.object({
   type: z.enum(["PVZ", "COURIER", "PICKUP"]),
   clubId: z.string().max(64).nullish(),
@@ -59,6 +59,7 @@ const PlaceIn = QuoteIn.extend({
   expectedTotal: z.number().int(),
   savedAddressId: z.string().max(64).nullish(),
   saveAddress: z.object({ label: z.string().trim().max(30) }).nullish(),
+  paymentMethod: z.enum(["ONLINE", "INVOICE"]).optional(),
 });
 
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
@@ -68,7 +69,8 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
   const settings = await getSettings();
   if (settings.pdPause && !isAdmin(user)) return { error: settings.pdPauseMessage };
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных" };
-  if (!yookassaEnabled() && !isAdmin(user)) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
+  const byInvoice = (raw as { paymentMethod?: string } | null)?.paymentMethod === "INVOICE";
+  if (!yookassaEnabled() && !isAdmin(user) && !byInvoice) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
   if (!placeLimit(user.id)) return { error: "Слишком много попыток. Подождите несколько минут" };
 
   const p = PlaceIn.safeParse(raw);

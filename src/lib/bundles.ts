@@ -6,7 +6,7 @@
 import "server-only";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { isPublic } from "@/lib/visibility";
+import { isPublic, isRetail } from "@/lib/visibility";
 
 export type Bundle = typeof s.bundle.$inferSelect;
 
@@ -110,7 +110,7 @@ export async function bundleCards(bundles: Bundle[]): Promise<BundleCard[]> {
     const items: BundleCard["items"] = [];
     for (const pid of [...new Set(b.productIds)]) {
       const p = products.find((x) => x.id === pid);
-      if (!p || !isPublic(p) || (p.category && !isPublic(p.category))) break;
+      if (!p || !isRetail(p) || (p.category && !isPublic(p.category))) break;
       const v = p.variants.find((x) => x.isActive && x.stock > 0);
       if (!v) break;
       items.push({ productId: p.id, variantId: v.id, variantIds: p.variants.filter((x) => x.isActive).map((x) => x.id), slug: p.slug, name: p.name, image: p.images[0]?.url ?? null, price: v.price ?? p.price });

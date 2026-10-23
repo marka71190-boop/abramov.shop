@@ -1,4 +1,4 @@
-import { and, isNull, lte, or, eq, type SQL } from "drizzle-orm";
+import { and, isNull, lte, ne, or, eq, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 export type Visibility = "DRAFT" | "HIDDEN" | "PUBLISHED";
@@ -29,3 +29,13 @@ export const VISIBILITY_LABEL: Record<Visibility, string> = {
   HIDDEN: "Скрыто",
   PUBLISHED: "Опубликовано",
 };
+
+/** Товар розницы: открыт и не только для оптового каталога */
+export function isRetail(p: Pick<Publishable, "visibility" | "publishAt"> & { channel: string }, now = new Date()) {
+  return isPublic(p, now) && p.channel !== "WHOLESALE";
+}
+
+/** Условие для розничных списков товаров: открыт и не «только опт» */
+export function retailWhere(t: { visibility: PgColumn; publishAt: PgColumn; channel: PgColumn }): SQL {
+  return and(publicWhere(t), ne(t.channel, "WHOLESALE"))!;
+}

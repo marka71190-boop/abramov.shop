@@ -17,7 +17,7 @@ import { escHtml, mailEnabled, sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { isPlaceholderEmail, SITE } from "@/lib/site";
 import { send as tgSend, telegramEnabled } from "@/lib/telegram";
-import { publicWhere } from "@/lib/visibility";
+import { publicWhere, retailWhere } from "@/lib/visibility";
 
 const mskHour = () => Number(new Intl.DateTimeFormat("ru-RU", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Moscow" }).format(new Date()));
 const abs = (url: string) => (url.startsWith("/") ? `${SITE.url}${url}` : url);
@@ -29,7 +29,7 @@ async function reviewable(orderId: string, userId: string) {
     .from(s.orderItem)
     .innerJoin(s.product, eq(s.product.id, s.orderItem.productId))
     .leftJoin(s.category, eq(s.category.id, s.product.categoryId))
-    .where(and(eq(s.orderItem.orderId, orderId), publicWhere(s.product), or(isNull(s.product.categoryId), publicWhere(s.category))));
+    .where(and(eq(s.orderItem.orderId, orderId), retailWhere(s.product), or(isNull(s.product.categoryId), publicWhere(s.category))));
   if (!items.length) return [];
   const productIds = [...new Set(items.map((i) => i.product.id))];
   const [reviewed, returned, images] = await Promise.all([

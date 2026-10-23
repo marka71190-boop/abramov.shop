@@ -11,7 +11,7 @@ import { getViewer } from "@/lib/viewer";
  */
 const limiter = createRateLimiter({ limit: 120, windowMs: 60_000 });
 const Items = z
-  .array(z.object({ variantId: z.string().min(1).max(400), qty: z.number().int().min(1).max(999) }))
+  .array(z.object({ variantId: z.string().min(1).max(400), qty: z.number().int().min(1).max(9999) }))
   .max(50);
 
 export async function GET() {

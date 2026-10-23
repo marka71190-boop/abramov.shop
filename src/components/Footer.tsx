@@ -26,6 +26,7 @@ export function Footer({ pages, telegram, email, cue = false }: Props) {
           <div className="footer__title">Магазин</div>
           <Link href="/#catalog">Каталог</Link>
           <Link href="/podbor-kiya">Подбор кия за минуту</Link>
+          <Link href="/opt">Опт для клубов и бизнеса</Link>
           <Link href="/#bonus">Бонусная программа</Link>
           {cue && <Link href="/cue">Кий «Чемпион» на заказ</Link>}
           <Link href="/service">Мастерская: ремонт киёв</Link>

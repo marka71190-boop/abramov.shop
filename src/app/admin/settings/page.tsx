@@ -16,6 +16,7 @@ import { DriveDisconnect } from "./DriveDisconnect";
 import { PurgeForm } from "./PurgeForm";
 import { SettingsForm } from "./SettingsForm";
 import { ShopSettingsForm } from "./ShopSettingsForm";
+import { B2bSettingsForm } from "./B2bSettingsForm";
 
 const DRIVE_MSG: Record<string, { ok: boolean; text: string }> = {
   ok: { ok: true, text: "Google Диск подключён" },
@@ -194,6 +195,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </div>
 
       <ShopSettingsForm s={settings} />
+      <B2bSettingsForm s={settings.b2b} />
       <SettingsForm s={settings} />
 
       <div className="panel stack" id="pd-purge">

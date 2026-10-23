@@ -28,10 +28,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const [{ number }, { from }] = await Promise.all([params, searchParams]);
   const user = await requireUser(`/order/${number}`);
   let o = await db.query.order.findFirst({ where: eq(s.order.number, number) });
-  if (!o || (o.userId !== user.id && !isAdmin(user))) notFound();
+  // Заказ видят покупатель, его коллеги по организации (оптовые заказы) и админы
+  if (!o || (o.userId !== user.id && !(o.organizationId && user.organizationId === o.organizationId) && !isAdmin(user))) notFound();
 
   // Вернулись со страницы оплаты — не ждём уведомление, спрашиваем ЮKassa сами
-  if (o.status === "AWAITING_PAYMENT") {
+  if (o.status === "AWAITING_PAYMENT" && o.paymentMethod !== "INVOICE") {
     await syncPayment(o.id);
     o = (await db.query.order.findFirst({ where: eq(s.order.id, o.id) }))!;
   }
@@ -88,7 +89,25 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {awaiting && (
+      {awaiting && o.paymentMethod === "INVOICE" && (
+        <div className="panel stack pay-box">
+          <div>
+            <div className="h3">Ждём оплату по счёту</div>
+            <p className="muted" style={{ margin: "8px 0 0" }}>
+              Товар зарезервирован{o.expiresAt ? ` до ${fmtDate(o.expiresAt)}` : ""}. Оплатите счёт с расчётного счёта организации — в счёте есть QR-код для
+              банковского приложения. Как только деньги поступят, начнём собирать заказ и пришлём письмо.
+            </p>
+          </div>
+          <div className="row">
+            <a className="btn btn--gold" href={`/print/invoice/${o.number}`} target="_blank" rel="noreferrer">
+              Счёт на оплату — {rub(o.total)}
+            </a>
+            {o.userId === user.id && <CancelButton number={o.number} />}
+          </div>
+        </div>
+      )}
+
+      {awaiting && o.paymentMethod !== "INVOICE" && (
         <div className="panel stack pay-box">
           <div>
             <div className="h3">Ожидаем оплату</div>

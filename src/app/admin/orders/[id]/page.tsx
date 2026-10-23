@@ -11,6 +11,7 @@ import { ProductionPanel } from "./ProductionPanel";
 import { expectedReady, productionEvents } from "@/lib/production";
 import { fmtDate } from "@/lib/format";
 import { InspectionPanel } from "./InspectionPanel";
+import { InvoicePanel } from "./InvoicePanel";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { driveStatus } from "@/lib/gdrive";
 import { CHECKLIST, loadInspection } from "@/lib/inspection";
@@ -82,6 +83,21 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         paid={paid}
         owner={me.role === "OWNER"}
       />
+
+      {o.paymentMethod === "INVOICE" &&
+        (await (async () => {
+          const org = o.organizationId ? await db.query.organization.findFirst({ where: eq(s.organization.id, o.organizationId), columns: { name: true } }) : null;
+          return (
+            <InvoicePanel
+              id={o.id}
+              number={o.number}
+              awaiting={o.status === "AWAITING_PAYMENT"}
+              cancelled={o.status === "CANCELLED"}
+              until={o.expiresAt ? fmtDate(o.expiresAt) : null}
+              org={org?.name ?? null}
+            />
+          );
+        })())}
 
       {o.items.some((i) => i.spec) &&
         (await (async () => {
@@ -163,6 +179,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                 <tr key={i.id}>
                   <td>
                     {i.name}
+                    {i.wholesale && <span className="pill pill--warn" style={{ marginLeft: 6 }}>опт</span>}
                     {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}
                   </td>
                   <td>{rub(i.price)}</td>

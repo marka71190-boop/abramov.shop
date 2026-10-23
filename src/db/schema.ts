@@ -63,6 +63,7 @@ export const user = pgTable(
     bonusReminderAt: ts("bonus_reminder_at"), // последнее напоминание о сгорающих бонусах
     role: roleEnum("role").default("CUSTOMER").notNull(),
     clubId: text("club_id"), // для роли CLUB: в каком клубе работает
+    organizationId: text("organization_id"), // сотрудник организации-оптовика
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.
     bannedAt: ts("banned_at"),
@@ -273,6 +274,10 @@ export const product = pgTable("product", {
   lengthCm: integer("length_cm").default(10).notNull(),
   widthCm: integer("width_cm").default(10).notNull(),
   heightCm: integer("height_cm").default(10).notNull(),
+  // Где продаётся: RETAIL — розница, WHOLESALE — только оптовый каталог, BOTH — и там и там
+  channel: text("channel").default("RETAIL").notNull(),
+  wholesalePrice: integer("wholesale_price"), // оптовая цена, копейки; пусто — как в рознице
+  wholesaleMin: integer("wholesale_min").default(1).notNull(), // минимальная партия, шт.
   // Видеообзоры: VK Видео, Rutube, YouTube
   videos: jsonb("videos").$type<{ url: string; title: string }[]>().default([]).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
@@ -439,6 +444,10 @@ export const order = pgTable(
 
     promoCodeId: text("promo_code_id").references(() => promoCode.id, { onDelete: "set null" }),
 
+    // Оплата: ONLINE — ЮKassa, INVOICE — по счёту для организации
+    paymentMethod: text("payment_method").default("ONLINE").notNull(),
+    organizationId: text("organization_id"),
+
     // Доставка
     deliveryType: text("delivery_type"), // PVZ | COURIER | PICKUP (самовывоз из клуба)
     pickupClubId: text("pickup_club_id"), // самовывоз: из какого клуба
@@ -483,7 +492,39 @@ export const orderItem = pgTable("order_item", {
   quantity: integer("quantity").notNull(),
   spec: text("spec"), // кий на заказ: параметры сборки, по строке «Группа: значение»
   cueKey: text("cue_key"), // кий на заказ: код сборки (без гравировки) — чтобы «собрать такой же»
+  wholesale: boolean("wholesale").default(false).notNull(), // куплено по оптовой цене
 });
+
+export const orgStatusEnum = pgEnum("org_status", ["PENDING", "APPROVED", "REJECTED", "BLOCKED"]);
+
+/** Организация-оптовик: клуб, магазин. Подаёт заявку, после одобрения видит оптовый каталог */
+export const organization = pgTable(
+  "organization",
+  {
+    id: id(),
+    inn: text("inn").notNull().unique(),
+    kpp: text("kpp"),
+    ogrn: text("ogrn"),
+    name: text("name").notNull(), // ООО «Чемпион», ИП Иванов И. И.
+    legalAddress: text("legal_address").default("").notNull(),
+    kind: text("kind").notNull(), // CLUB | SHOP | OTHER
+    tables: integer("tables"), // сколько столов / точек
+    city: text("city").default("").notNull(),
+    website: text("website"),
+    contactName: text("contact_name").notNull(),
+    contactPhone: text("contact_phone").notNull(),
+    contactEmail: text("contact_email").notNull(),
+    comment: text("comment"),
+    status: orgStatusEnum("status").default("PENDING").notNull(),
+    rejectReason: text("reject_reason"),
+    reviewedById: text("reviewed_by_id"),
+    reviewedAt: ts("reviewed_at"),
+    createdById: text("created_by_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("organization_status_idx").on(t.status)],
+);
 
 export const payment = pgTable("payment", {
   id: id(),

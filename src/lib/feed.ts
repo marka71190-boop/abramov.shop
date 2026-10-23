@@ -9,7 +9,7 @@ import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { shareImage } from "@/lib/seo";
 import { SELLER, SITE } from "@/lib/site";
-import { isPublic } from "@/lib/visibility";
+import { isPublic, isRetail } from "@/lib/visibility";
 
 const xml = (v: string) =>
   v
@@ -53,7 +53,7 @@ export async function yandexFeed() {
 
   const offers: string[] = [];
   for (const p of products) {
-    if (!isPublic(p) || (p.categoryId && !catIds.has(p.categoryId))) continue;
+    if (!isRetail(p) || (p.categoryId && !catIds.has(p.categoryId))) continue;
     const variants = p.variants.filter((v) => v.isActive);
     const many = variants.length > 1;
     for (const v of variants) {

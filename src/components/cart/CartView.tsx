@@ -51,13 +51,18 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
                     {l.name}
                   </Link>
                   {l.variantName && <div className="muted small">{l.variantName}</div>}
+                  {l.wholesale && (
+                    <div className="small gold">
+                      Оптовая цена{l.minQty && l.minQty > 1 ? ` · партия от ${l.minQty} шт.` : ""}
+                    </div>
+                  )}
                   <div className="muted small">{rub(l.price)} за шт.</div>
                   {l.madeToOrder ? <div className="small gold">Изготовим за {l.madeToOrder} дн. после оплаты</div> : null}
                 </div>
                 <QtyStepper
                   size="sm"
                   value={cart.items.find((i) => i.variantId === l.variantId)?.qty ?? l.qty}
-                  max={Math.min(l.stock, maxPerItem)}
+                  max={l.wholesale ? l.stock : Math.min(l.stock, maxPerItem)}
                   onChange={(n) => cart.setQty(l.variantId, n)}
                 />
                 <div className="cart-line__sum">{rub(l.lineTotal)}</div>
@@ -67,7 +72,7 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
               </div>
             ))}
         {quote?.bundleHints.map((h) => (
-          <div key={h.id} className="notice bundle-hint" style={{ margin: 0 }}>
+          <div key={h.id} className="notice notice--muted bundle-hint" style={{ margin: 0 }}>
             <b>Скидка {h.percent}% на комплект «{h.name}».</b> Добавьте{" "}
             {h.missing.map((m, i) => (
               <span key={m.slug}>

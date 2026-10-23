@@ -107,6 +107,9 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
       .set({ name: "Удалено", phone: "", email: "", returnAddress: null, description: "", photos: [] })
       .where(others(s.serviceRequest.userId));
 
+    // Организации-оптовики: в заявке контактное лицо, телефон и почта — удаляем вместе с заявками
+    await tx.delete(s.organization);
+
     // Журнал согласий и токены
     const consents = (await tx.delete(s.consent).where(others(s.consent.userId)).returning({ id: s.consent.id })).length;
     await tx.delete(s.verification);

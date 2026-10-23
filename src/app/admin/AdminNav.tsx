@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/club", label: "Выдача в клубах" },
   { href: "/admin/analytics", label: "Аналитика", owner: true },
   { href: "/admin/customers", label: "Клиенты" },
+  { href: "/admin/orgs", label: "Организации" },
   { href: "/admin/consents", label: "Журнал согласий", owner: true },
   { href: "/admin/home", label: "Главная страница", owner: true },
   { href: "/admin/pages", label: "Страницы", owner: true },

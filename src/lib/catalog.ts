@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { publicWhere } from "@/lib/visibility";
+import { publicWhere, retailWhere } from "@/lib/visibility";
 
 export async function getPublicCategories() {
   return db.select().from(s.category).where(publicWhere(s.category)).orderBy(asc(s.category.sortOrder), asc(s.category.name));
@@ -41,7 +41,7 @@ export async function getPublicProductsByCategory(categoryId: string) {
   const rows = await db
     .select()
     .from(s.product)
-    .where(and(publicWhere(s.product), eq(s.product.categoryId, categoryId)))
+    .where(and(retailWhere(s.product), eq(s.product.categoryId, categoryId)))
     .orderBy(asc(s.product.sortOrder), asc(s.product.name));
   return decorate(rows);
 }
@@ -50,7 +50,7 @@ export async function getFeaturedLimited() {
   const rows = await db
     .select()
     .from(s.product)
-    .where(and(publicWhere(s.product), eq(s.product.isLimited, true)))
+    .where(and(retailWhere(s.product), eq(s.product.isLimited, true)))
     .orderBy(asc(s.product.sortOrder))
     .limit(1);
   const [p] = await decorate(rows);
@@ -72,7 +72,7 @@ export async function getProductBySlug(slug: string) {
 /** Открытые товары по списку id (для избранного), в том же порядке. */
 export async function getPublicProductsByIds(ids: string[]) {
   if (!ids.length) return [];
-  const rows = await db.select().from(s.product).where(and(publicWhere(s.product), inArray(s.product.id, ids)));
+  const rows = await db.select().from(s.product).where(and(retailWhere(s.product), inArray(s.product.id, ids)));
   const list = await decorate(rows);
   return ids.map((id) => list.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
 }
