@@ -4,7 +4,7 @@ import { SITE } from "@/lib/site";
  * robots.txt. Clean-param — подсказка Яндексу: метки рассылок, промокоды и ссылки «приведи друга»
  * не создают новых страниц, индексировать надо адрес без них.
  */
-const DISALLOW = ["/admin", "/account", "/api", "/login", "/register", "/forgot-password", "/reset-password", "/consent", "/cart", "/checkout", "/order", "/gift/", "/unsubscribe", "/cue/thumb", "/service/"];
+const DISALLOW = ["/admin", "/club", "/account", "/api", "/login", "/register", "/forgot-password", "/reset-password", "/consent", "/cart", "/checkout", "/order", "/gift/", "/unsubscribe", "/cue/thumb", "/service/"];
 
 export function GET() {
   const body = [

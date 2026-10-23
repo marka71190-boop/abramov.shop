@@ -4181,3 +4181,99 @@ button.addr-card[aria-checked="true"] strong {
     aspect-ratio: 1;
   }
 }
+
+/* ---- Раздел администратора клуба */
+.club-app__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px var(--gutter);
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-bg-2);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.club-app__main {
+  padding-top: clamp(24px, 4vw, 44px);
+  padding-bottom: 80px;
+}
+.club-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.club-stat {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+}
+.club-stat b {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.1;
+  color: var(--c-dim);
+}
+.club-stat.is-on b {
+  color: var(--c-gold);
+}
+.club-stat span {
+  font-size: 13px;
+  color: var(--c-muted);
+}
+.club-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 12px;
+}
+.club-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line-2);
+}
+.club-card--late {
+  border-color: rgba(255, 107, 107, 0.6);
+}
+.club-card--quiet {
+  border-color: var(--c-line);
+  gap: 6px;
+}
+.club-card__num {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+.club-card__items {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+  font-size: 15px;
+}
+.club-late {
+  color: var(--c-danger);
+}
+.club-btn {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.club-btn .btn {
+  min-height: 44px;
+}
+@media (max-width: 640px) {
+  .club-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .club-btn,
+  .club-btn .btn {
+    width: 100%;
+  }
+}

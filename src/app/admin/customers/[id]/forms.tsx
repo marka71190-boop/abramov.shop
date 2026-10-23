@@ -74,34 +74,75 @@ export function BonusForm({ userId }: { userId: string }) {
   );
 }
 
-export function RoleForm({ userId, role }: { userId: string; role: "CUSTOMER" | "MANAGER" | "OWNER" }) {
+type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB";
+
+export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role: Role; clubId: string | null; clubs: { id: string; name: string; city: string }[] }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+  const [r, setR] = useState<Role>(role);
+  const [club, setClub] = useState(clubId ?? "");
+  const save = (nextRole: Role, nextClub: string) => {
+    setError(null);
+    setOk(false);
+    if (nextRole === "CLUB" && !nextClub) return; // ждём выбора клуба
+    start(async () => {
+      try {
+        await setRole(userId, nextRole, nextRole === "CLUB" ? nextClub : null);
+        setOk(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Не получилось");
+      }
+    });
+  };
   return (
-    <label className="field" style={{ marginTop: 8 }}>
-      Роль
-      <select
-        className="select"
-        defaultValue={role}
-        disabled={pending}
-        onChange={(e) => {
-          const v = e.target.value as typeof role;
-          setError(null);
-          start(async () => {
-            try {
-              await setRole(userId, v);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Не получилось");
-            }
-          });
-        }}
-      >
-        <option value="CUSTOMER">Покупатель</option>
-        <option value="MANAGER">Менеджер (доступ в админку)</option>
-        <option value="OWNER">Владелец (всё, включая настройки)</option>
-      </select>
+    <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+      <label className="field">
+        Роль
+        <select
+          className="select"
+          value={r}
+          disabled={pending}
+          onChange={(e) => {
+            const v = e.target.value as Role;
+            setR(v);
+            save(v, club);
+          }}
+        >
+          <option value="CUSTOMER">Покупатель</option>
+          <option value="CLUB">Администратор клуба (только выдача и приём киёв)</option>
+          <option value="MANAGER">Менеджер (доступ в админку)</option>
+          <option value="OWNER">Владелец (всё, включая настройки)</option>
+        </select>
+      </label>
+      {r === "CLUB" && (
+        <label className="field">
+          Клуб
+          <select
+            className="select"
+            value={club}
+            disabled={pending}
+            onChange={(e) => {
+              setClub(e.target.value);
+              save("CLUB", e.target.value);
+            }}
+          >
+            <option value="">— выберите клуб —</option>
+            {clubs.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}, {c.city}
+              </option>
+            ))}
+          </select>
+          <span className="muted small">
+            Сотрудник входит на сайт своим логином и паролем — ему открывается раздел «Клуб»: заказы на выдачу и кии для мастерской только этого клуба.
+            Уведомления — в Telegram (подключает в личном кабинете) или на почту.
+          </span>
+        </label>
+      )}
       {error && <span className="form-error">{error}</span>}
-    </label>
+      {ok && <span className="form-ok small">Сохранено</span>}
+    </div>
   );
 }
 

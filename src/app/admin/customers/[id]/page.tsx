@@ -6,6 +6,7 @@ import { fmtDate, fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
 import { orderStatus, TONE_PILL } from "@/lib/order-status";
 import { getActiveBan, requireAdmin } from "@/lib/viewer";
 import { unbanUser } from "../../actions";
+import { listClubs } from "@/lib/clubs";
 import { BanForm, BirthdayAdminForm, BonusForm, RoleForm } from "./forms";
 
 const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки" } as const;
@@ -58,7 +59,7 @@ export default async function CustomerPage({ params }: Props) {
             <span className="muted">Реферальный код:</span> {u.referralCode ?? "—"}
           </div>
           {me.role === "OWNER" && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
-          {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} />}
+          {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} clubId={u.clubId} clubs={(await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city }))} />}
         </div>
 
         <div className="panel stack">

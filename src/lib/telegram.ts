@@ -184,11 +184,13 @@ export async function handleUpdate(u: TgUpdate) {
       const user = await linkByCode(code, chatId);
       if (user) {
         const admin = user.role === "OWNER" || user.role === "MANAGER";
+        const clubStaff = user.role === "CLUB";
         return send(
           chatId,
           `Готово, ${esc(user.name.split(" ")[0])}! Telegram привязан к аккаунту Abramov Shop.\n\n` +
             `Сюда придут оплата, трек-номер СДЭК и вручение заказа, а ещё начисление бонусов.` +
             (admin ? `\n\n<b>Вы админ</b> — сюда же будут приходить новые оплаченные заказы.` : "") +
+            (clubStaff ? `\n\n<b>Вы администратор клуба</b> — сюда будут приходить заказы на выдачу в вашем клубе и кии для мастерской.` : "") +
             `\n\n/orders — мои заказы\n/bonus — мои бонусы`,
         );
       }
@@ -246,6 +248,8 @@ type OrderEvent = "paid" | "shipped" | "delivered" | "cancelled" | "refunded";
 /** Сообщение клиенту и (для оплаты) админам. Ошибки Telegram не ломают работу магазина. */
 export async function notifyOrder(orderId: string, event: OrderEvent, extra?: { note?: string }) {
   void emailOrderNotice(orderId, event);
+  // Самовывоз: администраторам клуба — что везём к ним и что отменили
+  void import("@/lib/club-staff").then((m) => m.notifyClubOrder(orderId, event)).catch((e) => console.error("[club] заказ:", e));
   if (!telegramEnabled()) return;
   // В фоне: если Telegram медленный или недоступен, оплата и кнопки в админке не ждут
   void sendOrderNotice(orderId, event, extra);
@@ -289,11 +293,12 @@ ${rub(o.giftCardAmount)} вернулись на подарочный серти
         .from(s.user)
         .where(and(inArray(s.user.role, ["OWNER", "MANAGER"]), isNotNull(s.user.telegramChatId)));
       const items = o.items.map((i) => `• ${esc(i.name)} × ${i.quantity}`).join("\n");
+      const club = o.pickupClubId ? await import("@/lib/clubs").then((m) => m.getClub(o.pickupClubId)) : null;
       // Без имени, телефона, адреса и комментария: Telegram — иностранный сервис, персональные данные
       // покупателей туда не передаём (152-ФЗ). Всё это — в админке по кнопке.
       const text =
         `🛒 <b>Новый заказ ${o.number}</b> — ${rub(o.total)}\n` +
-        `${o.deliveryType === "PICKUP" ? "Самовывоз из клуба" : o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}${o.city ? `, ${esc(o.city)}` : ""}\n\n${items}` +
+        `${o.deliveryType === "PICKUP" ? `Самовывоз: ${club ? `<b>${esc(club.name)}</b>` : "клуб"}` : o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}${o.city ? `, ${esc(o.city)}` : ""}\n\n${items}` +
         (o.comment ? `\n\n💬 Есть комментарий покупателя — в админке` : "") +
         (extra?.note || o.cancelReason ? `\n\n⚠️ ${esc(extra?.note ?? o.cancelReason ?? "")}` : "");
       for (const a of admins) {

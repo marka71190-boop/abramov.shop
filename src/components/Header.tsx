@@ -9,9 +9,12 @@ export function Header({
   admin,
   categories,
   cue = false,
+  club = false,
 }: {
   signedIn: boolean;
   admin: boolean;
+  /** Администратор клуба — ссылка на раздел выдачи */
+  club?: boolean;
   cue?: boolean;
   categories: { slug: string; name: string }[];
 }) {
@@ -31,6 +34,7 @@ export function Header({
           <Link href="/p/delivery">Доставка</Link>
           <Link href="/#support">Поддержка</Link>
           {admin && <Link href="/admin">Админка</Link>}
+          {club && <Link href="/club">Клуб</Link>}
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />

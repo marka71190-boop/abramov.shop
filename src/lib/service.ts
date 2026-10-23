@@ -100,6 +100,7 @@ export async function createServiceRequest(userId: string, input: ServiceInput) 
   await auditSystem(userId, "service.create", "service", row.id, { number: row.number });
   void mailCustomer(row, "NEW", null, null).catch((e) => console.error("[service] письмо:", e));
   void notifyAdminsNew(row).catch(() => {});
+  void import("@/lib/club-staff").then((m) => m.notifyClubService(row, "NEW")).catch(() => {});
   return row;
 }
 
@@ -133,6 +134,7 @@ export async function setServiceStatus(
   await db.insert(s.serviceEvent).values({ requestId: id, status, note, photo, createdById: opts.actorId });
   await mailCustomer(next, status, note, photo).catch((e) => console.error("[service] письмо:", e));
   await tgCustomer(next, status).catch(() => {});
+  if (status === "READY" || status === "CANCELLED") void import("@/lib/club-staff").then((m) => m.notifyClubService(next, status)).catch(() => {});
   return next;
 }
 

@@ -190,6 +190,13 @@
       "when": 1792679223619,
       "tag": "0026_bundles_videos",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792759535650,
+      "tag": "0027_club_staff",
+      "breakpoints": true
     }
   ]
 }

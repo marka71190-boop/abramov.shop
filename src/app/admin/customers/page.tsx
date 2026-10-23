@@ -82,7 +82,7 @@ export default async function CustomersPage({ searchParams }: Props) {
                     {ban ? (
                       <span className="pill pill--bad">Бан{ban.until ? ` до ${fmtDate(ban.until)}` : ""}</span>
                     ) : u.role !== "CUSTOMER" ? (
-                      <span className="pill pill--warn">{u.role === "OWNER" ? "Владелец" : "Менеджер"}</span>
+                      <span className="pill pill--warn">{u.role === "OWNER" ? "Владелец" : u.role === "CLUB" ? "Клуб" : "Менеджер"}</span>
                     ) : (
                       <span className="pill pill--ok">Активен</span>
                     )}

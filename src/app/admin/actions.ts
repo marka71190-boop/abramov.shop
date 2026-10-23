@@ -107,11 +107,18 @@ export async function adjustBonus(_: ActionState, form: FormData): Promise<Actio
   return { ok: `Готово. Баланс: ${res.balance} бонусов` };
 }
 
-export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OWNER") {
+export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB", clubId?: string | null) {
   const me = await requireAdmin("OWNER");
   if (userId === me.id && role !== "OWNER") throw new Error("Нельзя снять права владельца с самого себя");
-  await db.update(s.user).set({ role }).where(eq(s.user.id, userId));
-  await audit(me.id, "user.role", "user", userId, { role });
+  if (!["CUSTOMER", "MANAGER", "OWNER", "CLUB"].includes(role)) throw new Error("Неизвестная роль");
+  let club: string | null = null;
+  if (role === "CLUB") {
+    const c = clubId ? await db.query.club.findFirst({ where: eq(s.club.id, clubId), columns: { id: true } }) : null;
+    if (!c) throw new Error("Выберите клуб");
+    club = c.id;
+  }
+  await db.update(s.user).set({ role, clubId: club }).where(eq(s.user.id, userId));
+  await audit(me.id, "user.role", "user", userId, { role, clubId: club });
   revalidatePath(`/admin/customers/${userId}`);
 }
 

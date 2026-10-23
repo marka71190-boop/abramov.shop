@@ -41,7 +41,8 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 // использует библиотека входа Better Auth — их поля не переименовывать.
 // ============================================================
 
-export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER"]);
+// CLUB — администратор клуба: видит только выдачу заказов и приём киёв своего клуба
+export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB"]);
 export const tierEnum = pgEnum("loyalty_tier", ["SILVER", "GOLD", "BLACK"]);
 
 export const user = pgTable(
@@ -61,6 +62,7 @@ export const user = pgTable(
     birthdayBonusYear: integer("birthday_bonus_year"), // год, за который подарок уже выдан
     bonusReminderAt: ts("bonus_reminder_at"), // последнее напоминание о сгорающих бонусах
     role: roleEnum("role").default("CUSTOMER").notNull(),
+    clubId: text("club_id"), // для роли CLUB: в каком клубе работает
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.
     bannedAt: ts("banned_at"),

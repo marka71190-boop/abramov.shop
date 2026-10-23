@@ -121,6 +121,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           Здравствуйте, {firstName}
         </h1>
 
+        {user.role === "CLUB" && (
+          <div className="notice" style={{ margin: 0 }}>
+            Вы администратор клуба. <Link href="/club">Открыть раздел «Клуб» →</Link> — заказы на выдачу и кии для мастерской. Чтобы получать
+            уведомления в Telegram, подключите его ниже в «Настройках».
+          </div>
+        )}
+
         {sp.verified && sp.error ? (
           <div className="form-error" role="alert">
             {VERIFY_ERROR[sp.error] ?? "Не получилось подтвердить почту. Отправьте письмо ещё раз."}
