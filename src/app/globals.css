@@ -4504,3 +4504,309 @@ button.addr-card[aria-checked="true"] strong {
     grid-column: 1 / -1;
   }
 }
+
+/* ---- Клуб под ключ */
+.turnkey {
+  display: grid;
+  gap: 16px;
+}
+.turnkey__steps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.turnkey__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+  color: var(--c-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.turnkey__step span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 13px;
+}
+.turnkey__step.is-on {
+  color: var(--c-text);
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+}
+.turnkey__step.is-on span {
+  background: var(--c-gold);
+  border-color: var(--c-gold);
+  color: #0a0a0a;
+}
+.turnkey__step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.turnkey__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 20px;
+  align-items: start;
+}
+.turnkey__stage {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+.turnkey__view {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.turnkey__panel {
+  position: sticky;
+  top: 96px;
+  padding: 20px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+}
+.turnkey__dims {
+  grid-template-columns: 1fr 1fr !important;
+}
+.turnkey__models {
+  display: grid;
+  gap: 8px;
+}
+.turnkey__model {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 128px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.turnkey__model .select {
+  min-height: 38px;
+  font-size: 14px;
+}
+.turnkey__swatch {
+  width: 28px;
+  height: 18px;
+  border: 3px solid;
+  border-radius: 3px;
+}
+.turnkey__est {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.turnkey__est-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.turnkey__est-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--c-line-2);
+}
+.turnkey__est-total b {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--c-gold);
+}
+.plan-editor {
+  display: grid;
+  gap: 8px;
+}
+.plan-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 72vh;
+  background: #0f0f11;
+  border: 1px solid var(--c-line-2);
+  touch-action: none;
+  user-select: none;
+}
+.plan-svg--edit {
+  aspect-ratio: 16 / 10;
+  height: auto;
+}
+.plan-svg.is-drawing {
+  cursor: crosshair;
+}
+.plan-dim {
+  fill: #dcbf83;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+.plan-label {
+  fill: #fff;
+  font-family: var(--font-body);
+  pointer-events: none;
+}
+.plan-svg text {
+  font-family: var(--font-body);
+}
+.plan-handle {
+  fill: #0a0a0a;
+  stroke: #dcbf83;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+}
+.plan-handle.is-sel {
+  fill: #dcbf83;
+}
+.plan-add {
+  fill: rgba(220, 191, 131, 0.25);
+  stroke: #dcbf83;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: copy;
+}
+.plan-problems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--c-danger);
+}
+.scene3d {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 72vh;
+  background: #0b0b0d;
+  border: 1px solid var(--c-line-2);
+  overflow: hidden;
+  touch-action: none;
+}
+.scene3d canvas {
+  display: block;
+}
+.scene3d--loading {
+  display: grid;
+  place-items: center;
+  color: var(--c-muted);
+}
+.scene3d__hint {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+.scene3d__error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--c-muted);
+}
+.turnkey-result .plan-svg {
+  max-height: none;
+}
+@media (max-width: 980px) {
+  .turnkey__body {
+    grid-template-columns: 1fr;
+  }
+  .turnkey__panel {
+    position: static;
+  }
+  .plan-svg--edit,
+  .scene3d {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+/* КП для печати */
+.kp {
+  gap: 12px;
+}
+.kp__title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0;
+}
+.kp__lead {
+  margin: 0;
+  font-size: 14px;
+}
+.kp__plan .plan-svg {
+  background: #fff;
+  border: 1px solid #ccc;
+  max-height: 120mm;
+  color: #111;
+}
+.kp__legend {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.kp__legend i {
+  display: inline-block;
+  width: 18px;
+  height: 11px;
+  border: 2px solid;
+  border-radius: 2px;
+  margin-right: 8px;
+  vertical-align: -1px;
+}
+.kp__est {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.kp__est th,
+.kp__est td {
+  border-bottom: 1px solid #ccc;
+  padding: 5px 4px;
+  text-align: left;
+}
+.kp__est th {
+  border-bottom: 2px solid #111;
+}
+.kp__est .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.kp__est tfoot td {
+  border-top: 2px solid #111;
+  border-bottom: none;
+  font-size: 14px;
+}
+.kp__foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 2px solid #111;
+  font-size: 11.5px;
+}
+.tk-model {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--c-line);
+}
+.tk-model input[type="color"] {
+  width: 48px;
+  height: 40px;
+  border: 1px solid var(--c-line-2);
+  background: none;
+  padding: 2px;
+}

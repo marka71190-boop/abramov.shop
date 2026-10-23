@@ -107,6 +107,9 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
       .set({ name: "Удалено", phone: "", email: "", returnAddress: null, description: "", photos: [] })
       .where(others(s.serviceRequest.userId));
 
+    // Заявки «Клуб под ключ»: план и смета остаются, контакты стираются
+    await tx.update(s.turnkeyRequest).set({ name: "Удалено", phone: "", email: "", comment: null }).where(others(s.turnkeyRequest.userId));
+
     // Организации-оптовики: в заявке контактное лицо, телефон и почта — удаляем вместе с заявками
     await tx.delete(s.organization);
 

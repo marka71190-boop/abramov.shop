@@ -1187,3 +1187,30 @@ export const stockSubscriptionRelations = relations(stockSubscription, ({ one })
 export const bonusTransactionRelations = relations(bonusTransaction, ({ one }) => ({
   user: one(user, { fields: [bonusTransaction.userId], references: [user.id] }),
 }));
+
+/** Заявка «Клуб под ключ»: план зала, расстановка столов, смета */
+export const turnkeyRequest = pgTable(
+  "turnkey_request",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // KL-261024-7QX4
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    email: text("email").notNull(),
+    city: text("city").default("").notNull(),
+    comment: text("comment"),
+    plan: jsonb("plan").notNull(), // контур зала, колонны, зоны
+    tables: jsonb("tables").notNull(), // расстановка
+    models: jsonb("models").notNull(), // модели и цены на момент заявки
+    estimate: jsonb("estimate").notNull(), // строки сметы
+    area: integer("area").notNull(), // м² × 100
+    tableCount: integer("table_count").notNull(),
+    total: integer("total").notNull(), // копейки
+    status: text("status").default("NEW").notNull(), // NEW | IN_WORK | OFFER | WON | LOST
+    adminNote: text("admin_note"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("turnkey_request_status_idx").on(t.status)],
+);
