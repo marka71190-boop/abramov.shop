@@ -19,6 +19,8 @@ const In = z.object({
   email: z.email("Проверьте почту").max(200),
   city: z.string().trim().max(80).default(""),
   comment: z.string().trim().max(2000).optional(),
+  budget: z.number().int().min(0).max(100_000_000_000).nullish(),
+  tableGap: z.number().int().min(0).max(4000).optional(),
   plan: z.unknown(),
   tables: z.array(z.object({ modelId: z.string().max(20), x: z.number().finite(), y: z.number().finite(), rot: z.union([z.literal(0), z.literal(90)]) })).max(200),
 });
@@ -46,7 +48,10 @@ export async function createTurnkeyAction(raw: unknown): Promise<{ number?: stri
   // Цены — по текущему прайсу, не из браузера
   const est = estimate(tables, cfg);
   const area = Math.round(polygonArea(plan.points) / 10_000); // мм² → м² × 100
-  const problems = checkLayout(plan, tables, cfg.models, cfg.gaps).filter(Boolean).length;
+  // Расстояние между столами: выбор клиента, но не меньше минимума магазина
+  const tableGap = Math.max(cfg.gaps.table, d.tableGap ?? cfg.gaps.table);
+  const problems = checkLayout(plan, tables, cfg.models, { wall: cfg.gaps.wall, table: tableGap }).filter(Boolean).length;
+  const budget = d.budget && d.budget > 0 ? d.budget : null;
 
   const number = turnkeyNumber();
   const [row] = await db
@@ -65,6 +70,8 @@ export async function createTurnkeyAction(raw: unknown): Promise<{ number?: stri
       estimate: est.lines,
       area,
       tableCount: tables.length,
+      tableGap,
+      budget,
       total: est.total,
     })
     .returning();
@@ -73,7 +80,7 @@ export async function createTurnkeyAction(raw: unknown): Promise<{ number?: stri
   // Админам — без персональных данных
   const { notifyAdmins } = await import("@/lib/telegram");
   void notifyAdmins(
-    `🏗 <b>Клуб под ключ: заявка ${number}</b>\nСтолов: ${tables.length}, зал ${(area / 100).toLocaleString("ru-RU")} м²\nСмета: ${est.total ? `${rub(est.total)}${est.partial ? " + позиции по запросу" : ""}` : "цены по запросу"}`,
+    `🏗 <b>Клуб под ключ: заявка ${number}</b>\nСтолов: ${tables.length}, зал ${(area / 100).toLocaleString("ru-RU")} м², между столами ${(tableGap / 1000).toLocaleString("ru-RU")} м${budget ? `\nБюджет клиента: ${budget.toLocaleString("ru-RU")} ₽` : ""}\nСмета: ${est.total ? `${rub(est.total)}${est.partial ? " + позиции по запросу" : ""}` : "цены по запросу"}`,
     { text: "Открыть заявку", url: `${SITE.url}/admin/turnkey/${row.id}` },
   ).catch(() => {});
   const { mailEnabled, sendMail } = await import("@/lib/mail");

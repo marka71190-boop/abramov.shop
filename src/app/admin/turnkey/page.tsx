@@ -32,6 +32,7 @@ export default async function TurnkeyAdmin() {
                 <th>Заявка</th>
                 <th>Клиент</th>
                 <th>Зал</th>
+                <th>Бюджет</th>
                 <th>Смета</th>
                 <th>Статус</th>
               </tr>
@@ -52,6 +53,7 @@ export default async function TurnkeyAdmin() {
                     <td className="small">
                       {(r.area / 100).toLocaleString("ru-RU")} м² · {r.tableCount} ст.
                     </td>
+                    <td>{r.budget ? `${r.budget.toLocaleString("ru-RU")} ₽` : <span className="muted small">—</span>}</td>
                     <td>{r.total ? rub(r.total) : <span className="muted small">по запросу</span>}</td>
                     <td>
                       <span className={`pill ${TONE_PILL[st.tone]}`}>{st.text}</span>

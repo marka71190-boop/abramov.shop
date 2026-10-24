@@ -41,7 +41,8 @@ export default async function TurnkeyRequestPage({ params }: { params: Promise<{
         <div className="panel">
           <PlanSvg plan={r.plan as Plan} tables={r.tables as Placed[]} models={r.models as TableModel[]} />
           <div className="small muted" style={{ marginTop: 8 }}>
-            Зал {(r.area / 100).toLocaleString("ru-RU")} м² · столов: {r.tableCount}
+            Зал {(r.area / 100).toLocaleString("ru-RU")} м² · столов: {r.tableCount} · между столами {(r.tableGap / 1000).toLocaleString("ru-RU")} м
+            {r.budget ? ` · ваш бюджет ${r.budget.toLocaleString("ru-RU")} ₽` : ""}
           </div>
         </div>
         <div className="panel stack" style={{ gap: 8 }}>

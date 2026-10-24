@@ -1,5 +1,5 @@
 /** «Клуб под ключ»: прайс и нормы, смета. Общий для сервера и браузера. */
-import { DEFAULT_GAPS, TABLE_KINDS, type Gaps, type Placed, type TableKind, type TableModel } from "@/lib/turnkey-geom";
+import { DEFAULT_GAPS, TABLE_GAP_MIN, TABLE_KINDS, type Gaps, type Placed, type TableKind, type TableModel } from "@/lib/turnkey-geom";
 
 export interface CostItem {
   id: string;
@@ -85,7 +85,7 @@ export function mergeTurnkey(raw: unknown): TurnkeyConfig {
   return {
     enabled: typeof v.enabled === "boolean" ? v.enabled : d.enabled,
     intro: str(v.intro, d.intro),
-    gaps: { wall: int(v.gaps?.wall, d.gaps.wall, 600, 3000), table: int(v.gaps?.table, d.gaps.table, 600, 3000) },
+    gaps: { wall: int(v.gaps?.wall, d.gaps.wall, 600, 3000), table: int(v.gaps?.table, d.gaps.table, TABLE_GAP_MIN, 4000) },
     models,
     perTable: items(v.perTable, d.perTable),
     perClub: items(v.perClub, d.perClub),

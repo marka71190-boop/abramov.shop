@@ -38,6 +38,9 @@ export default async function TurnkeyRequestAdmin({ params }: { params: Promise<
           <div>
             <a href={`tel:${r.phone}`}>{prettyPhone(r.phone)}</a> · <a href={`mailto:${r.email}`}>{r.email}</a>
           </div>
+          <div>
+            Бюджет: <b>{r.budget ? `${r.budget.toLocaleString("ru-RU")} ₽` : "не указан"}</b>
+          </div>
           {r.userId && (
             <div className="small">
               <Link href={`/admin/customers/${r.userId}`}>Карточка клиента</Link>
@@ -66,7 +69,7 @@ export default async function TurnkeyRequestAdmin({ params }: { params: Promise<
       <div className="panel">
         <PlanSvg plan={r.plan as Plan} tables={tables} models={models} />
         <div className="small muted" style={{ marginTop: 8 }}>
-          Зал {(r.area / 100).toLocaleString("ru-RU")} м² · потолок {((r.plan as Plan).ceiling / 1000).toLocaleString("ru-RU")} м ·{" "}
+          Зал {(r.area / 100).toLocaleString("ru-RU")} м² · потолок {((r.plan as Plan).ceiling / 1000).toLocaleString("ru-RU")} м · между столами {(r.tableGap / 1000).toLocaleString("ru-RU")} м ·{" "}
           {models.map((m) => `${m.name}: ${tables.filter((t) => t.modelId === m.id).length}`).join(", ")}
         </div>
       </div>

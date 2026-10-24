@@ -55,6 +55,7 @@ export default async function KpPage({ params, searchParams }: { params: Promise
         <p className="kp__lead">
           Для: <b>{r.name}</b>
           {r.city ? `, ${r.city}` : ""}. Зал {(r.area / 100).toLocaleString("ru-RU")} м², высота потолка {(plan.ceiling / 1000).toLocaleString("ru-RU")} м, столов — {r.tableCount}.
+          {r.budget ? ` Бюджет: ${r.budget.toLocaleString("ru-RU")} ₽.` : ""}
         </p>
         <div className="kp__plan">
           <PlanSvg plan={plan} tables={tables} models={models} print />
@@ -68,7 +69,7 @@ export default async function KpPage({ params, searchParams }: { params: Promise
             </span>
           ))}
           <span className="sheet__muted">
-            Отступы: от борта до стены — {(cfg.gaps.wall / 1000).toLocaleString("ru-RU")} м, между столами — {(cfg.gaps.table / 1000).toLocaleString("ru-RU")} м.
+            Отступы: от борта до стены — {(cfg.gaps.wall / 1000).toLocaleString("ru-RU")} м, между столами — {(r.tableGap / 1000).toLocaleString("ru-RU")} м.
           </span>
         </div>
         <table className="kp__est">

@@ -32,8 +32,8 @@ export function TurnkeySettingsForm({ initial }: { initial: TurnkeyConfig }) {
             <input className="input" type="number" min={600} max={3000} value={c.gaps.wall} onChange={(e) => setC({ ...c, gaps: { ...c.gaps, wall: Number(e.target.value) } })} />
           </label>
           <label className="field">
-            Между столами, мм
-            <input className="input" type="number" min={600} max={3000} value={c.gaps.table} onChange={(e) => setC({ ...c, gaps: { ...c.gaps, table: Number(e.target.value) } })} />
+            Между столами — минимум, мм
+            <input className="input" type="number" min={1800} max={4000} value={c.gaps.table} onChange={(e) => setC({ ...c, gaps: { ...c.gaps, table: Number(e.target.value) } })} />
           </label>
           <label className="field">
             КП действует, дней

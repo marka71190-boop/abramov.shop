@@ -75,7 +75,9 @@ export const TABLE_KINDS: Record<TableKind, { label: string; field: string; leng
   SNOOKER12: { label: "Снукер 12 футов", field: "3569 × 1778 мм", length: 3820, width: 2030, cloth: "#2c7a3f", pockets: "narrow" },
 };
 
-export const DEFAULT_GAPS: Gaps = { wall: 1500, table: 1500 };
+/** Между столами — не меньше 1,8 м: так решил магазин, клиент может выбрать и больше */
+export const TABLE_GAP_MIN = 1800;
+export const DEFAULT_GAPS: Gaps = { wall: 1500, table: TABLE_GAP_MIN };
 
 // ---------------- Геометрия
 

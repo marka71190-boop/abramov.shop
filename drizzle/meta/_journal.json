@@ -211,6 +211,13 @@
       "when": 1792793132801,
       "tag": "0029_turnkey",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792844944289,
+      "tag": "0030_turnkey_budget",
+      "breakpoints": true
     }
   ]
 }

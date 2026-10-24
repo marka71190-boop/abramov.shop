@@ -9,6 +9,7 @@
  */
 import { relations } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   doublePrecision,
   customType,
@@ -1206,7 +1207,9 @@ export const turnkeyRequest = pgTable(
     estimate: jsonb("estimate").notNull(), // строки сметы
     area: integer("area").notNull(), // м² × 100
     tableCount: integer("table_count").notNull(),
-    total: integer("total").notNull(), // копейки
+    tableGap: integer("table_gap").default(1800).notNull(), // расстояние между столами, которое выбрал клиент, мм
+    budget: bigint("budget", { mode: "number" }), // бюджет клиента, ₽
+    total: bigint("total", { mode: "number" }).notNull(), // копейки
     status: text("status").default("NEW").notNull(), // NEW | IN_WORK | OFFER | WON | LOST
     adminNote: text("admin_note"),
     createdAt: createdAt(),

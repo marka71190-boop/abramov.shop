@@ -35,6 +35,10 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
   const [variants, setVariants] = useState<{ tables: Placed[]; count: number; rot: 0 | 90 }[]>([]);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"plan" | "3d">("plan");
+  // Расстояние между столами: не меньше, чем задал магазин, клиент может выбрать больше
+  const [tableGap, setTableGap] = useState(cfg.gaps.table);
+  const gaps = useMemo(() => ({ wall: cfg.gaps.wall, table: Math.max(cfg.gaps.table, tableGap) }), [cfg.gaps, tableGap]);
+  const gapOptions = useMemo(() => [...new Set([cfg.gaps.table, 2000, 2200, 2500, 3000].filter((g) => g >= cfg.gaps.table))].sort((a, b) => a - b), [cfg.gaps.table]);
 
   // Черновик в браузере: можно уйти и вернуться
   useEffect(() => {
@@ -46,15 +50,16 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
         if (Array.isArray(d?.tables)) setTables(d.tables.filter((t: Placed) => models.some((m) => m.id === t.modelId)));
         if (d?.tpl) setTpl(d.tpl);
         if (d?.step === 2 || d?.step === 3) setStep(d.step);
+        if (typeof d?.tableGap === "number") setTableGap(Math.max(cfg.gaps.table, Math.min(4000, d.tableGap)));
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT, JSON.stringify({ plan, tables, tpl, step }));
+      localStorage.setItem(DRAFT, JSON.stringify({ plan, tables, tpl, step, tableGap }));
     } catch {}
-  }, [plan, tables, tpl, step]);
+  }, [plan, tables, tpl, step, tableGap]);
 
   const applyTemplate = (t: Template, d = dims) => {
     setTpl(t);
@@ -73,7 +78,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
   };
 
   const area = polygonArea(plan.points);
-  const problems = useMemo(() => checkLayout(plan, tables, models, cfg.gaps), [plan, tables, models, cfg.gaps]);
+  const problems = useMemo(() => checkLayout(plan, tables, models, gaps), [plan, tables, models, gaps]);
   const est = useMemo(() => estimate(tables, cfg), [tables, cfg]);
 
   const addRect = (kind: "column" | ZoneKind) => {
@@ -106,7 +111,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
     if (!list.length) return;
     setBusy(true);
     setTimeout(() => {
-      const v = autoLayouts(plan, list, models, cfg.gaps, 3);
+      const v = autoLayouts(plan, list, models, gaps, 3);
       setVariants(v);
       setTables(v[0]?.tables ?? []);
       setSel(null);
@@ -117,7 +122,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
 
   const addTable = (modelId: string) => {
     const m = models.find((x) => x.id === modelId)!;
-    const spot = findSpot(plan, tables, m, models, cfg.gaps);
+    const spot = findSpot(plan, tables, m, models, gaps);
     if (spot) {
       setTables([...tables, spot]);
       setSel({ type: "table", id: spot.id });
@@ -168,7 +173,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
               tables={tables}
               onTables={setTables}
               models={models}
-              gaps={cfg.gaps}
+              gaps={gaps}
               mode={step === 1 ? "room" : "tables"}
               sel={sel}
               onSel={setSel}
@@ -321,6 +326,26 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
                   </div>
                 ))}
               </div>
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="small muted">Расстояние между столами:</span>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {gapOptions.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className="vchip"
+                      aria-current={gaps.table === g ? "true" : undefined}
+                      onClick={() => {
+                        setTableGap(g);
+                        setVariants([]);
+                      }}
+                    >
+                      {(g / 1000).toLocaleString("ru-RU")} м
+                    </button>
+                  ))}
+                </div>
+                <span className="small muted">Больше расстояние — свободнее играть и ходить между столами, но столов влезет меньше.</span>
+              </div>
               <button type="button" className="btn btn--gold" onClick={runAuto} disabled={busy || !Object.values(want).some((v) => v === "max" || v > 0)}>
                 {busy ? "Считаем варианты…" : "Расставить автоматически"}
               </button>
@@ -337,8 +362,8 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
                 </div>
               )}
               <p className="small muted" style={{ margin: 0 }}>
-                От борта до стены — не меньше {(cfg.gaps.wall / 1000).toLocaleString("ru-RU")} м, между столами — {(cfg.gaps.table / 1000).toLocaleString("ru-RU")} м: столько нужно для удара кием. Столы
-                можно двигать вручную — красным подсветится, если места не хватает.
+                От борта до стены — не меньше {(cfg.gaps.wall / 1000).toLocaleString("ru-RU")} м, между столами — {(gaps.table / 1000).toLocaleString("ru-RU")} м. Столы можно двигать вручную — красным подсветится, если места не
+                хватает.{tables.length > 0 && !variants.length ? " Поменяли расстояние — нажмите «Расставить» ещё раз." : ""}
               </p>
               {selected ? (
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -367,7 +392,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
             </div>
           )}
 
-          {step === 3 && <Summary cfg={cfg} est={est} problems={problems.filter(Boolean).length} plan={plan} tables={tables} user={user} onDone={() => localStorage.removeItem(DRAFT)} />}
+          {step === 3 && <Summary cfg={cfg} tableGap={gaps.table} est={est} problems={problems.filter(Boolean).length} plan={plan} tables={tables} user={user} onDone={() => localStorage.removeItem(DRAFT)} />}
         </aside>
       </div>
     </div>
@@ -376,6 +401,7 @@ export function TurnkeyApp({ cfg, user }: { cfg: TurnkeyConfig; user: { name: st
 
 function Summary({
   cfg,
+  tableGap,
   est,
   problems,
   plan,
@@ -384,6 +410,7 @@ function Summary({
   onDone,
 }: {
   cfg: TurnkeyConfig;
+  tableGap: number;
   est: ReturnType<typeof estimate>;
   problems: number;
   plan: Plan;
@@ -391,7 +418,7 @@ function Summary({
   user: { name: string; phone: string; email: string } | null;
   onDone: () => void;
 }) {
-  const [f, setF] = useState({ name: user?.name ?? "", phone: user?.phone ?? "", email: user?.email ?? "", city: "", comment: "" });
+  const [f, setF] = useState({ name: user?.name ?? "", phone: user?.phone ?? "", email: user?.email ?? "", city: "", budget: "", comment: "" });
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -400,7 +427,7 @@ function Summary({
     e.preventDefault();
     setSending(true);
     setError(null);
-    const r = await createTurnkeyAction({ ...f, plan, tables: tables.map((t) => ({ modelId: t.modelId, x: t.x, y: t.y, rot: t.rot })) }).catch(() => ({ error: "Нет связи с сервером" }) as { error: string; number?: string });
+    const r = await createTurnkeyAction({ ...f, budget: Math.round(Number(f.budget.replace(/[^\d]/g, ""))) || null, tableGap, plan, tables: tables.map((t) => ({ modelId: t.modelId, x: t.x, y: t.y, rot: t.rot })) }).catch(() => ({ error: "Нет связи с сервером" }) as { error: string; number?: string });
     if (r.number) {
       goal("turnkey_request", { tables: tables.length });
       try {
@@ -444,6 +471,20 @@ function Summary({
           <input className="input" placeholder="Телефон" inputMode="tel" value={f.phone} onChange={set("phone")} required />
           <input className="input" type="email" placeholder="Почта" value={f.email} onChange={set("email")} required />
           <input className="input" placeholder="Город, где открываете клуб" value={f.city} onChange={set("city")} />
+          <label className="field">
+            Бюджет на клуб, ₽
+            <input
+              className="input"
+              inputMode="numeric"
+              placeholder="Например, 3 000 000"
+              value={f.budget}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                setF({ ...f, budget: digits ? Number(digits).toLocaleString("ru-RU") : "" });
+              }}
+            />
+            <span className="small muted">Подберём столы и комплектацию под эту сумму и составим смету</span>
+          </label>
           <textarea className="textarea" placeholder="Комментарий: сроки, пожелания по столам и оформлению" value={f.comment} onChange={set("comment")} style={{ minHeight: 70, paddingTop: 10 }} />
           {error && <div className="form-error">{error}</div>}
           <button className="btn btn--gold" disabled={sending}>
