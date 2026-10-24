@@ -1217,3 +1217,26 @@ export const turnkeyRequest = pgTable(
   },
   (t) => [index("turnkey_request_status_idx").on(t.status)],
 );
+
+/** Журнал: статьи и советы */
+export const article = pgTable(
+  "article",
+  {
+    id: id(),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    excerpt: text("excerpt").default("").notNull(), // анонс в списке и в поиске
+    body: text("body").default("").notNull(), // простая разметка: ## заголовок, - список, ![](фото), [[product:slug]]
+    cover: text("cover"),
+    section: text("section").default("tips").notNull(), // choose | care | game | club | news | tips
+    productIds: text("product_ids").array().default([]).notNull(), // «Товары из статьи»
+    visibility: visibilityEnum("visibility").default("DRAFT").notNull(),
+    publishAt: ts("publish_at"),
+    previewToken: previewToken(),
+    seoTitle: text("seo_title"),
+    seoDescription: text("seo_description"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("article_section_idx").on(t.section)],
+);

@@ -43,6 +43,7 @@ import {
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
+import { STARTER_ARTICLES } from "../src/content/articles";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15_000 });
 const db = drizzle(pool, { schema: s });
@@ -197,6 +198,13 @@ async function main() {
       await db.insert(s.attribute).values({ ...a, options: a.options ?? [] }).onConflictDoNothing({ target: s.attribute.key });
     }
     await db.insert(s.setting).values({ key: "attributes_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
+  }
+
+  // Журнал: стартовые статьи — один раз, черновиками (владелец проверяет и публикует сам)
+  const articlesSeeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "articles_seeded") });
+  if (!articlesSeeded) {
+    for (const x of STARTER_ARTICLES) await db.insert(s.article).values({ ...x, visibility: "DRAFT" }).onConflictDoNothing({ target: s.article.slug });
+    await db.insert(s.setting).values({ key: "articles_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
   }
 
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();

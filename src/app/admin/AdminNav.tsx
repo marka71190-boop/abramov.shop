@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/admin/consents", label: "Журнал согласий", owner: true },
   { href: "/admin/home", label: "Главная страница", owner: true },
   { href: "/admin/pages", label: "Страницы", owner: true },
+  { href: "/admin/journal", label: "Журнал" },
   { href: "/admin/catalog", label: "Каталог" },
   { href: "/admin/stock", label: "Остатки" },
   { href: "/admin/cue", label: "Кий на заказ", owner: true },
