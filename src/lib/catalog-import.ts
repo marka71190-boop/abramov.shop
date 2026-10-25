@@ -438,13 +438,40 @@ function matchVariant(list: VariantRow[], v: { name: string | null; sku: string 
 
 // ---------- Фото по ссылке
 
-function privateIp(ip: string) {
+function privateIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split(".").map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a >= 224;
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 — внутренняя сеть провайдера
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
   }
   const v = ip.toLowerCase();
-  return v === "::1" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80") || v.startsWith("::ffff:127.") || v === "::";
+  // IPv4 внутри IPv6 (::ffff:10.0.0.1) проверяем как IPv4; остальные ::ffff:… не пускаем
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v);
+  if (mapped) return privateIp(mapped[1]);
+  return v === "::1" || v === "::" || v.startsWith("::ffff:") || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80");
+}
+
+const PHOTO_MAX = 15 * 1024 * 1024;
+
+/** Адрес можно скачивать: http(s) и сайт не во внутренней сети (проверяем все адреса из DNS). */
+async function assertPublicUrl(u: URL) {
+  if (!/^https?:$/.test(u.protocol)) throw new Error("ссылка должна начинаться с http");
+  const addrs = await Promise.race([
+    lookup(u.hostname, { all: true }),
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("сайт с фото не отвечает")), 8000)),
+  ]).catch((e) => {
+    throw new Error(e instanceof Error && e.message.startsWith("сайт") ? e.message : "сайт с фото не найден");
+  });
+  if (!addrs.length || addrs.some((a) => privateIp(a.address))) throw new Error("адрес недоступен");
 }
 
 /** Своя картинка — адрес как есть; чужая — скачиваем, уменьшаем и храним у себя. */
@@ -460,22 +487,40 @@ export async function importPhoto(url: string, userId: string): Promise<string> 
   // Google Диск: ссылка «поделиться» → прямая
   const gd = u.hostname === "drive.google.com" && u.pathname.match(/\/file\/d\/([^/]+)/);
   if (gd) u = new URL(`https://drive.google.com/uc?export=download&id=${gd[1]}`);
-  if (!/^https?:$/.test(u.protocol)) throw new Error("ссылка должна начинаться с http");
-  const { address } = await Promise.race([
-    lookup(u.hostname),
-    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("сайт с фото не отвечает")), 8000)),
-  ]).catch((e) => {
-    throw new Error(e instanceof Error && e.message.startsWith("сайт") ? e.message : "сайт с фото не найден");
-  });
-  if (privateIp(address)) throw new Error("адрес недоступен");
-  const res = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "AbramovShop/1.0 (catalog import)" } });
+  // Перенаправления проходим сами: каждый следующий адрес тоже проверяем, иначе
+  // внешняя ссылка могла бы увести запрос во внутреннюю сеть сервера
+  let res: Response | null = null;
+  for (let hop = 0; hop < 5 && !res; hop++) {
+    await assertPublicUrl(u);
+    const r = await fetch(u, { redirect: "manual", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "AbramovShop/1.0 (catalog import)" } });
+    const loc = r.status >= 300 && r.status < 400 ? r.headers.get("location") : null;
+    if (!loc) res = r;
+    else {
+      await r.body?.cancel().catch(() => {});
+      u = new URL(loc, u);
+    }
+  }
+  if (!res) throw new Error("слишком много перенаправлений");
   if (!res.ok) throw new Error(`не скачалось (${res.status})`);
   const type = res.headers.get("content-type") ?? "";
   const len = Number(res.headers.get("content-length") || 0);
-  if (len > 15 * 1024 * 1024) throw new Error("картинка больше 15 МБ");
+  if (len > PHOTO_MAX) throw new Error("картинка больше 15 МБ");
   if (!/^image\//.test(type) && !/octet-stream/.test(type)) throw new Error("по ссылке не картинка — нужна прямая ссылка на фото");
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > 15 * 1024 * 1024) throw new Error("картинка больше 15 МБ");
+  // Читаем по кускам: сервер мог не указать размер или указать неправду
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body?.getReader();
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > PHOTO_MAX) {
+      await reader.cancel().catch(() => {});
+      throw new Error("картинка больше 15 МБ");
+    }
+    chunks.push(value);
+  }
+  const buf = Buffer.concat(chunks);
   try {
     return await saveImageBuffer(buf, userId);
   } catch {

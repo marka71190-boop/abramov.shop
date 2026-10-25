@@ -103,7 +103,11 @@ export async function createReturn(userId: string, input: ReturnInput) {
   if (input.kind === "DEFECT" && !input.photos.length) throw new ReturnError("Приложите хотя бы одно фото недостатка — так мы решим быстрее");
   const resolution = input.kind === "QUALITY" ? "REFUND" : input.resolution;
 
-  const lines = input.items.filter((i) => i.quantity > 0);
+  // Одна позиция могла прийти в списке несколько раз — складываем, иначе каждая строка
+  // по отдельности проходила бы проверку остатка и вернуть можно было бы больше, чем куплено
+  const qty = new Map<string, number>();
+  for (const i of input.items) if (i.quantity > 0) qty.set(i.orderItemId, (qty.get(i.orderItemId) ?? 0) + i.quantity);
+  const lines = [...qty].map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
   if (!lines.length) throw new ReturnError("Отметьте, что возвращаете");
   for (const l of lines) {
     const it = info.items.find((i) => i.id === l.orderItemId);

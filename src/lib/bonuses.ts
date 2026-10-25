@@ -11,7 +11,7 @@ import { db, schema as s } from "@/db";
 import { fmtDate, num } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
-import { telegramEnabled } from "@/lib/telegram";
+import { esc, telegramEnabled } from "@/lib/telegram";
 
 type Reason = (typeof s.bonusReasonEnum.enumValues)[number];
 
@@ -138,7 +138,7 @@ export async function birthdayBonuses() {
       .returning({ id: s.user.id });
     if (!claimed) continue;
     await creditBonus(u.id, bonus, "BIRTHDAY", "С днём рождения!", { days: settings.loyalty.birthdayDays });
-    await tell(u, `🎂 С днём рождения, ${u.name.split(" ")[0]}! Дарим <b>${num(bonus)}</b> бонусов — они действуют ${settings.loyalty.birthdayDays} дн.`);
+    await tell(u, `🎂 С днём рождения, ${esc(u.name.split(" ")[0])}! Дарим <b>${num(bonus)}</b> бонусов — они действуют ${settings.loyalty.birthdayDays} дн.`);
   }
 }
 

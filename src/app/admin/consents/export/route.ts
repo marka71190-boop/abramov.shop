@@ -13,7 +13,9 @@ export async function GET(req: Request) {
   const rows = await consentRows(consentWhere(sp));
 
   const cell = (v: unknown) => {
-    const t = v == null ? "" : String(v);
+    let t = v == null ? "" : String(v);
+    // Имя и браузер присылает посетитель: «=…», «+…», «-…», «@…» Excel выполнил бы как формулу
+    if (/^[=+\-@\t\r]/.test(t) && !/^[+-]?\d[\d\s.,]*$/.test(t)) t = `'${t}`; // телефон +7… и суммы — не формулы
     return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
   const header = [

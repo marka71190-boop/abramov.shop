@@ -123,7 +123,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 Оплатить {rub(o.total - o.giftCardAmount)}
               </a>
             )}
-            {!yookassaEnabled() && isAdmin(user) && <TestPayButton number={o.number} />}
+            {!yookassaEnabled() && isAdmin(user) && user.role === "OWNER" && <TestPayButton number={o.number} />}
             {o.userId === user.id && <CancelButton number={o.number} />}
           </div>
           {from === "pay" && <AutoRefresh seconds={4} />}

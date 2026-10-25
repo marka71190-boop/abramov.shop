@@ -280,6 +280,8 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
 
   const price = rubToKop(d.price);
   if (!(price >= 100)) return { error: "Укажите цену в рублях" };
+  const badVariant = variants.data.find((v) => v.price.trim() && !(rubToKop(v.price) >= 100));
+  if (badVariant) return { error: `Цена варианта «${badVariant.name}» — в рублях, не меньше 1 ₽. Или оставьте поле пустым — будет цена товара` };
   const oldPrice = d.oldPrice?.trim() ? rubToKop(d.oldPrice) : null;
   if (oldPrice != null && oldPrice <= price) return { error: "Старая цена должна быть больше текущей — или оставьте поле пустым" };
   const isLimited = form.get("isLimited") === "on";

@@ -118,10 +118,10 @@ export async function cancelMyOrder(number: string) {
   revalidatePath(`/order/${number}`);
 }
 
-/** Тестовая оплата — только для админов, пока ЮKassa не подключена. */
+/** Тестовая оплата — только для владельца (как в админке), пока ЮKassa не подключена. */
 export async function testPay(number: string) {
   const user = await getViewer();
-  if (!isAdmin(user) || yookassaEnabled()) return;
+  if (!isAdmin(user) || user?.role !== "OWNER" || yookassaEnabled()) return;
   const o = await db.query.order.findFirst({ where: eq(s.order.number, number) });
   if (!o) return;
   await markPaid(o.id, `test:${user!.id}`);

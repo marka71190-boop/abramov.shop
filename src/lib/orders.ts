@@ -526,6 +526,8 @@ export async function markDelivered(orderId: string, actorId: string | null) {
 }
 
 export async function setStatus(orderId: string, status: "PAID" | "ASSEMBLING" | "SHIPPED", actorId: string, track?: string | null) {
+  // Статус приходит из формы: отмена, возврат и получение — только своими функциями (склад, бонусы, деньги)
+  if (!["PAID", "ASSEMBLING", "SHIPPED"].includes(status)) throw new OrderError("Неизвестный статус");
   const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId) });
   if (!o) throw new OrderError("Заказ не найден");
   if (["AWAITING_PAYMENT", "CANCELLED", "REFUNDED", "DELIVERED"].includes(o.status)) throw new OrderError("Этот заказ нельзя перевести в такой статус");

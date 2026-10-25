@@ -16,8 +16,10 @@ export const getViewer = cache(async (): Promise<UserRow | null> => {
   return u ?? null;
 });
 
-export function isAdmin(u: Pick<UserRow, "role"> | null | undefined) {
-  return u?.role === "OWNER" || u?.role === "MANAGER";
+/** Владелец или менеджер. Заблокированный сотрудник доступа к админке не имеет, пока бан действует. */
+export function isAdmin(u: (Pick<UserRow, "role"> & Partial<Pick<UserRow, "bannedAt" | "bannedUntil">>) | null | undefined) {
+  if (u?.role !== "OWNER" && u?.role !== "MANAGER") return false;
+  return !u.bannedAt || (!!u.bannedUntil && u.bannedUntil <= new Date());
 }
 
 export interface ActiveBan {

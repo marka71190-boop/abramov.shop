@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { CONSENT_COOKIE, CONSENT_TTL_MIN, recordConsent } from "@/lib/consent";
 import { normalizePhone } from "@/lib/format";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { metaFromHeaders } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
 
@@ -24,15 +25,9 @@ const Body = z.object({
 });
 
 // Простая защита от накрутки: не больше 20 отметок с одного IP за 10 минут
-const hits = new Map<string, number[]>();
-function tooMany(ip: string | null) {
-  if (!ip) return false;
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 10 * 60_000);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > 20;
-}
+// (общий ограничитель сам чистит старые адреса — своя карта росла бы без конца)
+const limiter = createRateLimiter({ limit: 20, windowMs: 10 * 60_000 });
+const tooMany = (ip: string | null) => !!ip && !limiter(ip);
 
 export async function POST(req: Request) {
   // Пауза приёма данных: ничего не записываем

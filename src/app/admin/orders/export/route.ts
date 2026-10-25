@@ -7,7 +7,9 @@ import { getViewer } from "@/lib/viewer";
 export const dynamic = "force-dynamic";
 
 const cell = (v: unknown) => {
-  const t = v == null ? "" : String(v);
+  let t = v == null ? "" : String(v);
+  // Имя, адрес и комментарий пишет покупатель: «=…», «+…», «-…», «@…» Excel выполнил бы как формулу
+  if (/^[=+\-@\t\r]/.test(t) && !/^[+-]?\d[\d\s.,]*$/.test(t)) t = `'${t}`; // телефон +7… и суммы — не формулы
   return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 };
 const money = (k: number) => (k / 100).toFixed(2).replace(".", ",");

@@ -335,6 +335,7 @@ export async function refundGiftCard(cardId: string) {
     .set({ status: "VOID" })
     .where(and(eq(s.giftCard.id, card.id), isNull(s.giftCard.refundedAt)))
     .returning();
+  if (!locked) throw new GiftError("Деньги уже возвращены");
   const amount = locked.balance;
   if (amount <= 0) throw new GiftError("На сертификате не осталось денег — возвращать нечего");
   try {

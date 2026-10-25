@@ -9,7 +9,7 @@
  */
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { trackUrl } from "@/lib/cdek";
 import { num, rub } from "@/lib/format";
@@ -245,6 +245,14 @@ export async function handleUpdate(u: TgUpdate) {
 
 type OrderEvent = "paid" | "shipped" | "delivered" | "cancelled" | "refunded";
 
+/** Владелец и менеджеры с привязанным Telegram; заблокированным сотрудникам заказы и заявки не шлём. */
+const staffWithTelegram = () =>
+  and(
+    inArray(s.user.role, ["OWNER", "MANAGER"]),
+    isNotNull(s.user.telegramChatId),
+    sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`,
+  );
+
 /** Сообщение клиенту и (для оплаты) админам. Ошибки Telegram не ломают работу магазина. */
 export async function notifyOrder(orderId: string, event: OrderEvent, extra?: { note?: string }) {
   void emailOrderNotice(orderId, event);
@@ -291,7 +299,7 @@ ${rub(o.giftCardAmount)} вернулись на подарочный серти
       const admins = await db
         .select({ chatId: s.user.telegramChatId })
         .from(s.user)
-        .where(and(inArray(s.user.role, ["OWNER", "MANAGER"]), isNotNull(s.user.telegramChatId)));
+        .where(staffWithTelegram());
       const items = o.items.map((i) => `• ${esc(i.name)} × ${i.quantity}`).join("\n");
       const club = o.pickupClubId ? await import("@/lib/clubs").then((m) => m.getClub(o.pickupClubId)) : null;
       // Без имени, телефона, адреса и комментария: Telegram — иностранный сервис, персональные данные
@@ -382,7 +390,7 @@ export async function notifyAdmins(html: string, button?: { text: string; url: s
     const admins = await db
       .select({ chatId: s.user.telegramChatId })
       .from(s.user)
-      .where(and(inArray(s.user.role, ["OWNER", "MANAGER"]), isNotNull(s.user.telegramChatId)));
+      .where(staffWithTelegram());
     for (const a of admins) if (a.chatId) await send(a.chatId, html, button ? [button] : undefined).catch(() => {});
   } catch (e) {
     console.error("[telegram] notifyAdmins:", e instanceof Error ? e.message : e);

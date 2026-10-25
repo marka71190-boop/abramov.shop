@@ -20,7 +20,10 @@ export function authErrorMessage(err: { code?: string; message?: string; status?
   return "Что-то пошло не так. Попробуйте ещё раз.";
 }
 
-/** Разрешаем возвращать пользователя только на страницы нашего сайта. */
+/**
+ * Разрешаем возвращать пользователя только на страницы нашего сайта. Браузер читает «\» как «/»
+ * и выкидывает табуляцию и переводы строк, поэтому «/\evil.com» и «/<Tab>/evil.com» — это чужой сайт.
+ */
 export function safeNext(next: string | null | undefined, fallback = "/account") {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  return next && /^\/(?![/\\])[^\\\u0000-\u001f\u007f]*$/.test(next) ? next : fallback;
 }
