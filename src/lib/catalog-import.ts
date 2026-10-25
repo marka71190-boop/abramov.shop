@@ -15,6 +15,8 @@ import { db, schema as s } from "@/db";
 import { saveImageBuffer } from "@/lib/media-upload";
 import { SITE } from "@/lib/site";
 import { slugify } from "@/lib/slug";
+import { listAttributes, normalizeAttr, type Attr } from "@/lib/attributes";
+import { parseVideoLines } from "@/lib/video";
 
 export const COLUMNS = [
   { key: "productSku", title: "Артикул товара", width: 20, note: "Обязательно. Строки с одинаковым артикулом — варианты одного товара (цвет, размер)." },
@@ -34,9 +36,20 @@ export const COLUMNS = [
   { key: "width", title: "Ширина, см", width: 10, note: "" },
   { key: "height", title: "Высота, см", width: 10, note: "" },
   { key: "limited", title: "Тираж", width: 10, note: "Для лимитированной серии — общий тираж. Пусто — обычный товар." },
+  { key: "videos", title: "Видео (ссылки)", width: 40, note: "Ссылки VK Видео, Rutube или YouTube — каждая с новой строки, после «|» можно подпись. «-» — убрать все видео." },
+  { key: "channel", title: "Где продаётся", width: 16, note: "Розница, Опт или Розница и опт. Пусто — не меняется (новый товар — розница)." },
+  { key: "wholesalePrice", title: "Оптовая цена, ₽", width: 14, note: "Для «Розница и опт». 0 — как в рознице." },
+  { key: "wholesaleMin", title: "Мин. партия, шт", width: 13, note: "Для опта: от скольких штук продаём." },
 ] as const;
 type ColKey = (typeof COLUMNS)[number]["key"];
-export type RawRow = { row: number } & Partial<Record<ColKey, string>>;
+/** attrs: id характеристики → значение из ячейки */
+export type RawRow = { row: number; attrs?: Record<string, string> } & Partial<Record<ColKey, string>>;
+
+/** Колонка характеристики: «Характеристика: Вес, г» — отличается от «Вес, г» для доставки */
+export const ATTR_PREFIX = "Характеристика: ";
+export const attrTitle = (a: Pick<Attr, "name" | "unit">) => `${ATTR_PREFIX}${a.name}${a.unit ? `, ${a.unit}` : ""}`;
+const CHANNEL: Record<string, "RETAIL" | "WHOLESALE" | "BOTH"> = { розница: "RETAIL", опт: "WHOLESALE", розницаиопт: "BOTH", оптирозница: "BOTH" };
+const CHANNEL_TEXT = { RETAIL: "Розница", WHOLESALE: "Опт", BOTH: "Розница и опт" } as const;
 
 // ---------- Разбор ячеек
 
@@ -79,19 +92,29 @@ export async function readWorkbook(buf: Buffer): Promise<{ rows: RawRow[]; error
   const ws = wb.getWorksheet("Товары") ?? wb.worksheets[0];
   if (!ws) return { rows: [], error: "В файле нет листов" };
   // Строка заголовков — первая, где есть «Артикул товара»
+  const attrs = await listAttributes();
   let headerRow = 0;
   const map = new Map<number, ColKey>();
+  const attrCols = new Map<number, string>();
   for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
     const row = ws.getRow(r);
     const found = new Map<number, ColKey>();
+    const foundAttr = new Map<number, string>();
     row.eachCell((c, col) => {
-      const h = norm(cellText(c.value));
-      const def = COLUMNS.find((x) => norm(x.title) === h || (h && norm(x.title).startsWith(h) && h.length > 3));
+      const raw = cellText(c.value).trim();
+      const h = norm(raw);
+      if (raw.toLowerCase().startsWith(ATTR_PREFIX.trim().toLowerCase())) {
+        const a = attrs.find((x) => norm(attrTitle(x)) === h || norm(`${ATTR_PREFIX}${x.name}`) === h);
+        if (a) foundAttr.set(col, a.id);
+        return;
+      }
+      const def = COLUMNS.find((x) => norm(x.title) === h) ?? COLUMNS.find((x) => h && norm(x.title).startsWith(h) && h.length > 3);
       if (def) found.set(col, def.key);
     });
     if ([...found.values()].includes("productSku")) {
       headerRow = r;
       found.forEach((v, k) => map.set(k, v));
+      foundAttr.forEach((v, k) => attrCols.set(k, v));
       break;
     }
   }
@@ -108,6 +131,13 @@ export async function readWorkbook(buf: Buffer): Promise<{ rows: RawRow[]; error
       const v = cellText(row.getCell(col).value).trim();
       if (v) {
         out[key] = v;
+        any = true;
+      }
+    });
+    attrCols.forEach((id, col) => {
+      const v = cellText(row.getCell(col).value).trim();
+      if (v) {
+        out.attrs = { ...out.attrs, [id]: v };
         any = true;
       }
     });
@@ -139,6 +169,13 @@ export const ProductImport = z.object({
   width: z.number().int().min(1).max(300).nullable(),
   height: z.number().int().min(1).max(300).nullable(),
   limited: z.number().int().min(1).max(1_000_000).nullable(),
+  /** Характеристики: значение или null — очистить; отсутствует — не менять */
+  attrs: z.record(z.string().max(64), z.string().max(200).nullable()).default({}),
+  /** Видео: массив (пустой — убрать) или null — не менять */
+  videos: z.array(z.object({ url: z.string().max(500), title: z.string().max(120) })).max(10).nullable().default(null),
+  channel: z.enum(["RETAIL", "WHOLESALE", "BOTH"]).nullable().default(null),
+  wholesalePrice: z.number().int().min(0).nullable().default(null), // 0 — как в рознице
+  wholesaleMin: z.number().int().min(1).max(10_000).nullable().default(null),
   variants: z.array(VariantImport).min(1).max(100),
 });
 export type ProductImportT = z.infer<typeof ProductImport>;
@@ -167,6 +204,8 @@ const ownPath = (u: string) => {
 const rub = (k: number) => `${(k / 100).toLocaleString("ru-RU")} ₽`;
 
 export async function buildPlan(rows: RawRow[]): Promise<Plan> {
+  let attrList: Attr[] | null = null;
+  const attrsCached = async () => (attrList ??= await listAttributes());
   const errors: Plan["errors"] = [];
   const groups = new Map<string, RawRow[]>();
   for (const r of rows) {
@@ -212,6 +251,50 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
         bad = true;
       }
       ints[k] = v != null && Number.isFinite(v) ? Math.round(v) : null;
+    }
+    // Характеристики: первая непустая ячейка по товару
+    const attrDefs = await attrsCached();
+    const attrIn: Record<string, string | null> = {};
+    for (const a of attrDefs) {
+      const raw = g.map((r) => r.attrs?.[a.id]).find((v) => v?.trim());
+      if (!raw) continue;
+      if (/^[-–—]$/.test(raw.trim())) {
+        attrIn[a.id] = null;
+        continue;
+      }
+      const r = normalizeAttr(a, raw);
+      if ("error" in r) {
+        rowErr(first.row, r.error);
+        bad = true;
+      } else attrIn[a.id] = r.value;
+    }
+    let videos: ProductImportT["videos"] = null;
+    const vRaw = pick("videos");
+    if (vRaw) {
+      if (/^[-–—]$/.test(vRaw.trim())) videos = [];
+      else {
+        const r = parseVideoLines(vRaw);
+        if (r.errors.length) {
+          rowErr(first.row, `видео не распознано: ${r.errors[0]} — нужна ссылка VK Видео, Rutube или YouTube`);
+          bad = true;
+        } else videos = r.videos;
+      }
+    }
+    const chRaw = pick("channel");
+    const channel = chRaw ? (CHANNEL[norm(chRaw)] ?? null) : null;
+    if (chRaw && !channel) {
+      rowErr(first.row, "«Где продаётся» — Розница, Опт или Розница и опт");
+      bad = true;
+    }
+    const wp = num(pick("wholesalePrice") ?? undefined);
+    if (wp != null && (!Number.isFinite(wp) || wp < 0)) {
+      rowErr(first.row, "оптовая цена — число, 0 — как в рознице");
+      bad = true;
+    }
+    const wm = num(pick("wholesaleMin") ?? undefined);
+    if (wm != null && (!Number.isFinite(wm) || wm < 1 || !Number.isInteger(wm))) {
+      rowErr(first.row, "минимальная партия — целое число от 1");
+      bad = true;
     }
     if (!prod && !pick("name")) {
       rowErr(first.row, "у нового товара нужно название");
@@ -276,12 +359,19 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
       width: ints.width ?? null,
       height: ints.height ?? null,
       limited: ints.limited ?? null,
+      attrs: attrIn,
+      videos,
+      channel,
+      wholesalePrice: wp != null && Number.isFinite(wp) ? Math.round(wp * 100) : null,
+      wholesaleMin: wm != null && Number.isFinite(wm) ? wm : null,
       variants,
     };
 
     // Что поменяется — для предпросмотра
     const changes: string[] = [];
     if (!prod) {
+      if (Object.keys(input.attrs).length) changes.push(`характеристики: ${Object.keys(input.attrs).length}`);
+      if (input.videos?.length) changes.push(`видео: ${input.videos.length}`);
       changes.push(`${variants.length > 1 ? `${variants.length} варианта(ов), ` : ""}цена ${rub(variants[0].price)}, остаток ${variants.reduce((a, v) => a + v.stock, 0)}`);
       const ph = variants.reduce((a, v) => a + v.photos.length, 0);
       if (ph) changes.push(`фото: ${ph}`);
@@ -302,6 +392,14 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
       if (input.description && input.description !== prod.description) changes.push("описание");
       if (variants.some((v, i) => v.photos.length && !samePhotos(prod, v, i, variants.length))) changes.push("фото");
       if (input.category && prod.categoryId !== cat?.id) changes.push("категория");
+      if (Object.keys(input.attrs).length) {
+        const have = new Map((await db.select().from(s.productAttribute).where(eq(s.productAttribute.productId, prod.id))).map((x) => [x.attributeId, x.value]));
+        const n = Object.entries(input.attrs).filter(([id, v]) => (have.get(id) ?? null) !== v).length;
+        if (n) changes.push(`характеристики: ${n}`);
+      }
+      if (input.videos && JSON.stringify(input.videos) !== JSON.stringify(prod.videos)) changes.push(input.videos.length ? "видео" : "убрать видео");
+      if (input.channel && input.channel !== prod.channel) changes.push(`продажа: ${CHANNEL_TEXT[input.channel].toLowerCase()}`);
+      if (input.wholesalePrice != null && (input.wholesalePrice || null) !== prod.wholesalePrice) changes.push("оптовая цена");
       if (!changes.length) changes.push("без изменений");
     }
     items.push({ input, rows: g.map((r) => r.row), action: prod ? "update" : "create", name: input.name || prod?.name || sku, changes });
@@ -465,6 +563,10 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
         ...(input.width ? { widthCm: input.width } : {}),
         ...(input.height ? { heightCm: input.height } : {}),
         ...(input.limited ? { isLimited: true, limitedTotal: input.limited } : {}),
+        ...(input.videos ? { videos: input.videos } : {}),
+        ...(input.channel ? { channel: input.channel } : {}),
+        ...(input.wholesalePrice != null ? { wholesalePrice: input.wholesalePrice || null } : {}),
+        ...(input.wholesaleMin != null ? { wholesaleMin: input.wholesaleMin } : {}),
         price: basePrice,
         ...(baseRow && baseRow.oldPrice != null ? { oldPrice: baseRow.oldPrice > baseRow.price ? baseRow.oldPrice : null } : {}),
       };
@@ -510,6 +612,18 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
         }
       }
 
+      // Характеристики: только те, что есть в файле; «-» — очистить
+      for (const [attributeId, value] of Object.entries(input.attrs)) {
+        if (value == null) {
+          await tx.delete(s.productAttribute).where(and(eq(s.productAttribute.productId, id!), eq(s.productAttribute.attributeId, attributeId)));
+        } else {
+          await tx
+            .insert(s.productAttribute)
+            .values({ productId: id!, attributeId, value })
+            .onConflictDoUpdate({ target: [s.productAttribute.productId, s.productAttribute.attributeId], set: { value } });
+        }
+      }
+
       // Фото: один вариант — фото товара целиком; несколько — фото своего варианта
       const totalVariants = Math.max(current.length, 0) + input.variants.filter((v) => !matchVariant(current, v, input.variants.length)).length;
       const single = totalVariants <= 1;
@@ -537,9 +651,18 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
 
 // ---------- Шаблон и выгрузка
 
-function sheet(wb: ExcelJS.Workbook) {
+function attrNote(a: Attr) {
+  if (a.type === "number") return `Число${a.unit ? ` в «${a.unit}»` : ""}. «-» — очистить.`;
+  if (a.type === "select") return `Одно из: ${a.options.join(", ")}. «-» — очистить.`;
+  return "Текст. «-» — очистить.";
+}
+
+function sheet(wb: ExcelJS.Workbook, attrs: Attr[]) {
   const ws = wb.addWorksheet("Товары", { views: [{ state: "frozen", ySplit: 1 }] });
-  ws.columns = COLUMNS.map((c) => ({ header: c.title, key: c.key, width: c.width }));
+  ws.columns = [
+    ...COLUMNS.map((c) => ({ header: c.title, key: c.key, width: c.width })),
+    ...attrs.map((a) => ({ header: attrTitle(a), key: `attr:${a.id}`, width: Math.max(14, attrTitle(a).length * 0.9) })),
+  ];
   const head = ws.getRow(1);
   head.font = { bold: true, color: { argb: "FF0A0A0A" } };
   head.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCBF83" } };
@@ -548,10 +671,35 @@ function sheet(wb: ExcelJS.Workbook) {
   COLUMNS.forEach((c, i) => {
     if (c.note) head.getCell(i + 1).note = c.note;
   });
+  attrs.forEach((a, i) => {
+    const cell = head.getCell(COLUMNS.length + i + 1);
+    cell.note = attrNote(a);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE9DDBF" } };
+  });
+  // Списки — выпадающим выбором
+  attrs.forEach((a, i) => {
+    if (a.type !== "select" || !a.options.length) return;
+    const list = `"${["-", ...a.options].join(",")}"`;
+    if (list.length > 255) return; // ограничение Excel на список
+    const col = ws.getColumn(COLUMNS.length + i + 1).letter;
+    (ws as unknown as { dataValidations: { add: (r: string, v: unknown) => void } }).dataValidations.add(`${col}2:${col}3001`, {
+      type: "list",
+      allowBlank: true,
+      formulae: [list],
+      showErrorMessage: false,
+    });
+  });
+  const chCol = ws.getColumn(COLUMNS.findIndex((c) => c.key === "channel") + 1).letter;
+  (ws as unknown as { dataValidations: { add: (r: string, v: unknown) => void } }).dataValidations.add(`${chCol}2:${chCol}3001`, {
+    type: "list",
+    allowBlank: true,
+    formulae: ['"Розница,Опт,Розница и опт"'],
+    showErrorMessage: false,
+  });
   return ws;
 }
 
-function howTo(wb: ExcelJS.Workbook) {
+function howTo(wb: ExcelJS.Workbook, attrs: Attr[]) {
   const ws = wb.addWorksheet("Как заполнить");
   ws.columns = [
     { header: "Колонка", key: "c", width: 22 },
@@ -559,6 +707,7 @@ function howTo(wb: ExcelJS.Workbook) {
   ];
   ws.getRow(1).font = { bold: true };
   for (const c of COLUMNS) ws.addRow({ c: c.title, n: c.note || "" });
+  for (const a of attrs) ws.addRow({ c: attrTitle(a), n: attrNote(a) });
   ws.addRow({});
   const tips = [
     "Одна строка — один вариант товара. Если вариантов нет, на товар — одна строка.",
@@ -567,6 +716,7 @@ function howTo(wb: ExcelJS.Workbook) {
     "Варианты, которых нет в файле, не удаляются. Удалить товар или вариант можно в карточке товара.",
     "Фото — прямые ссылки на картинки (заканчиваются на .jpg, .png, .webp) или ссылки Google Диска «Доступ: все, у кого есть ссылка».",
     "Новые товары создаются черновиками, если в «Показывать» не стоит «Да».",
+    "Колонки «Характеристика: …» — для карточки товара, фильтров и подбора кия. Новые характеристики добавляются в админке → Каталог → Характеристики, потом скачайте шаблон заново.",
     "Пример: товар с вариантами",
   ];
   for (const t of tips) ws.addRow({ n: t });
@@ -583,15 +733,22 @@ function howTo(wb: ExcelJS.Workbook) {
 export async function templateXlsx() {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Abramov Shop";
-  sheet(wb);
-  howTo(wb);
+  const attrs = await listAttributes();
+  sheet(wb, attrs);
+  howTo(wb, attrs);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 export async function exportXlsx() {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Abramov Shop";
-  const ws = sheet(wb);
+  const attrs = await listAttributes();
+  const ws = sheet(wb, attrs);
+  const values = new Map<string, Map<string, string>>();
+  for (const r of await db.select().from(s.productAttribute)) {
+    if (!values.has(r.productId)) values.set(r.productId, new Map());
+    values.get(r.productId)!.set(r.attributeId, r.value);
+  }
   const products = await db.query.product.findMany({
     orderBy: [asc(s.product.sortOrder), asc(s.product.name)],
     with: { category: true, variants: { orderBy: asc(s.productVariant.sortOrder) }, images: { orderBy: asc(s.productImage.sortOrder) } },
@@ -620,9 +777,14 @@ export async function exportXlsx() {
         width: i === 0 ? p.widthCm : "",
         height: i === 0 ? p.heightCm : "",
         limited: i === 0 && p.isLimited && p.limitedTotal ? p.limitedTotal : "",
+        videos: i === 0 ? p.videos.map((x) => (x.title ? `${x.url} | ${x.title}` : x.url)).join("\n") : "",
+        channel: i === 0 ? CHANNEL_TEXT[p.channel as keyof typeof CHANNEL_TEXT] ?? "" : "",
+        wholesalePrice: i === 0 && p.wholesalePrice ? p.wholesalePrice / 100 : "",
+        wholesaleMin: i === 0 && p.channel !== "RETAIL" ? p.wholesaleMin : "",
+        ...Object.fromEntries(attrs.map((a) => [`attr:${a.id}`, i === 0 ? (values.get(p.id)?.get(a.id)?.replace(".", a.type === "number" ? "," : ".") ?? "") : ""])),
       });
     });
   }
-  howTo(wb);
+  howTo(wb, attrs);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

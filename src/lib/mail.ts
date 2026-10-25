@@ -5,16 +5,16 @@
  * Например, Gmail: smtp.gmail.com, порт 465, пароль приложения из настроек аккаунта Google.
  */
 import "server-only";
-import nodemailer from "nodemailer";
+import { createTransport } from "nodemailer";
 import { isPlaceholderEmail, SITE } from "@/lib/site";
 
 export const mailEnabled = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-let transport: nodemailer.Transporter | null = null;
+let transport: ReturnType<typeof createTransport> | null = null;
 function getTransport() {
   if (!transport) {
     const port = Number(process.env.SMTP_PORT || 465);
-    transport = nodemailer.createTransport({
+    transport = createTransport({
       host: process.env.SMTP_HOST,
       port,
       secure: port === 465,
