@@ -56,7 +56,7 @@ const PlaceIn = QuoteIn.extend({
   expectedTotal: z.number().int(),
   savedAddressId: z.string().max(64).nullish(),
   saveAddress: z.object({ label: z.string().trim().max(30) }).nullish(),
-  paymentMethod: z.enum(["ONLINE", "INVOICE"]).optional(),
+  paymentMethod: z.enum(["ONLINE", "ROBOKASSA", "INVOICE"]).optional(),
 });
 
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
@@ -69,7 +69,8 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
   if (settings.maintenance && !isAdmin(user)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных" };
   const byInvoice = (raw as { paymentMethod?: string } | null)?.paymentMethod === "INVOICE";
-  if (!yookassaEnabled() && !isAdmin(user) && !byInvoice) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
+  const byRobokassa = (raw as { paymentMethod?: string } | null)?.paymentMethod === "ROBOKASSA";
+  if (!yookassaEnabled() && !isAdmin(user) && !byInvoice && !byRobokassa) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
   if (!placeLimit(user.id)) return { error: "Слишком много попыток. Подождите несколько минут" };
 
   const p = PlaceIn.safeParse(raw);

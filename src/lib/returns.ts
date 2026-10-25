@@ -290,7 +290,8 @@ export async function refundReturn(id: string, actorId: string, opts: { amount: 
   if (pay && amount > est.left) throw new ReturnError(`По заказу можно вернуть не больше ${rub(est.left)}`);
   if (!pay && yookassaEnabled() && amount > 0) throw new ReturnError("Не найден успешный платёж по заказу");
 
-  if (pay && amount > 0) {
+  // Робокасса: деньги возвращают в её личном кабинете, здесь только учитываем
+  if (pay && amount > 0 && pay.provider !== "robokassa") {
     const lines = receiptLines(
       r.items.map((i) => ({ name: i.orderItem.name, price: i.orderItem.price, quantity: i.quantity })),
       amount,

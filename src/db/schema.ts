@@ -18,6 +18,7 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
@@ -526,6 +527,9 @@ export const organization = pgTable(
   },
   (t) => [index("organization_status_idx").on(t.status)],
 );
+
+/** Номера счетов Робокассы (InvId — только число) */
+export const robokassaInvSeq = pgSequence("robokassa_inv_seq", { startWith: 100001 });
 
 export const payment = pgTable("payment", {
   id: id(),

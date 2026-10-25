@@ -10,6 +10,7 @@ import { isPlaceholderEmail } from "@/lib/site";
 import { getActiveBan, isAdmin, requireUser } from "@/lib/viewer";
 import { isPublic } from "@/lib/visibility";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
+import { robokassaEnabled } from "@/lib/robokassa";
 import { CheckoutForm } from "./CheckoutForm";
 import { clubMapUrl, listClubs } from "@/lib/clubs";
 import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
@@ -49,7 +50,7 @@ export default async function CheckoutPage() {
         Оформление
       </h1>
       {settings.checkout.notice && <div className="notice">{settings.checkout.notice}</div>}
-      {!payments && (
+      {!payments && !robokassaEnabled() && (
         <div className="notice notice--muted">
           {isAdmin(user)
             ? "ЮKassa ещё не подключена. Вы админ — заказ создастся, а на его странице будет кнопка тестовой оплаты."
@@ -81,6 +82,7 @@ export default async function CheckoutPage() {
         maxPerItem={settings.checkout.maxQtyPerItem}
         canPay={payments || isAdmin(user)}
         testMode={!payments}
+        robokassa={robokassaEnabled()}
         docs={{ offer: published("offer"), returns: published("returns") }}
         addresses={saved.map((a) => ({
           id: a.id,

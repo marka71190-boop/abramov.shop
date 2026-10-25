@@ -18,6 +18,8 @@ interface Props {
   maxPerItem: number;
   canPay: boolean;
   testMode: boolean;
+  /** Робокасса подключена: рассрочка, «Сплит», иностранные карты */
+  robokassa?: boolean;
   docs: { offer: boolean; returns: boolean };
   addresses: AddressCard[];
   maxAddresses: number;
@@ -44,7 +46,7 @@ function fromCard(a: AddressCard, cdek: boolean) {
 }
 
 
-export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
+export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, robokassa = false, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
   const cart = useCart();
   // Сохранённый адрес: основной (или последний использованный) подставляется сразу
   const first = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
@@ -87,7 +89,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   const [gift, setGift] = useState<string | null>(null);
   const [giftMsg, setGiftMsg] = useState<string | null>(null);
   const [useBonus, setUseBonus] = useState(false);
-  const [payMethod, setPayMethod] = useState<"ONLINE" | "INVOICE">("ONLINE");
+  const [payMethod, setPayMethod] = useState<"ONLINE" | "ROBOKASSA" | "INVOICE">(canPay || !robokassa ? "ONLINE" : "ROBOKASSA");
   const [referral, setReferral] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +159,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
   const pickupClub = type === "PICKUP" ? (clubs.find((c) => c.id === clubId) ?? null) : null;
   const needAddress = type === "COURIER" && address.trim().length < 5;
   const byInvoice = payMethod === "INVOICE" && !!quote?.wholesale.invoice;
+  const byRobokassa = payMethod === "ROBOKASSA" && robokassa && !!quote && quote.payable > 0;
   const ready = !quote?.wholesale.error && !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !loading;
 
   async function submit(e: React.FormEvent) {
@@ -178,7 +181,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
       savedAddressId: picked !== "new" ? picked : null,
       saveAddress: picked === "new" && saveNew && addresses.length < maxAddresses ? { label: saveLabel.trim() || "Адрес" } : null,
       expectedTotal: quote.payable,
-      paymentMethod: byInvoice ? "INVOICE" : "ONLINE",
+      paymentMethod: byInvoice ? "INVOICE" : byRobokassa ? "ROBOKASSA" : "ONLINE",
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
       goal("order_created", { order_price: quote.total / 100 });
@@ -513,19 +516,35 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
             +{num(quote.accrue / 100)} бонусов после получения · {quote.tierPercent}%
           </div>
         )}
-        {quote?.wholesale.invoice && (
+        {(quote?.wholesale.invoice || robokassa) && !!quote?.payable && (
           <div className="pay-method" role="radiogroup" aria-label="Способ оплаты">
-            <label className="check">
-              <input type="radio" name="payMethod" checked={payMethod === "ONLINE"} onChange={() => setPayMethod("ONLINE")} />
-              <span>Картой онлайн</span>
-            </label>
-            <label className="check">
-              <input type="radio" name="payMethod" checked={payMethod === "INVOICE"} onChange={() => setPayMethod("INVOICE")} />
-              <span>
-                По счёту для организации
-                {quote.wholesale.org && <span className="muted small"> · {quote.wholesale.org}</span>}
-              </span>
-            </label>
+            {canPay && (
+              <label className="check">
+                <input type="radio" name="payMethod" checked={payMethod === "ONLINE"} onChange={() => setPayMethod("ONLINE")} />
+                <span>
+                  Картой, СБП или SberPay
+                  <span className="muted small"> · ЮKassa</span>
+                </span>
+              </label>
+            )}
+            {robokassa && (
+              <label className="check">
+                <input type="radio" name="payMethod" checked={payMethod === "ROBOKASSA"} onChange={() => setPayMethod("ROBOKASSA")} />
+                <span>
+                  Частями, «Сплит» или картой зарубежного банка
+                  <span className="muted small"> · Робокасса</span>
+                </span>
+              </label>
+            )}
+            {quote.wholesale.invoice && (
+              <label className="check">
+                <input type="radio" name="payMethod" checked={payMethod === "INVOICE"} onChange={() => setPayMethod("INVOICE")} />
+                <span>
+                  По счёту для организации
+                  {quote.wholesale.org && <span className="muted small"> · {quote.wholesale.org}</span>}
+                </span>
+              </label>
+            )}
           </div>
         )}
         {quote?.wholesale.error && <div className="form-error">{quote.wholesale.error}</div>}
@@ -534,8 +553,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
             {error ?? quoteError}
           </div>
         )}
-        <button className="btn btn--gold btn--block" disabled={!ready || submitting || (!canPay && !byInvoice) || (byInvoice && !!gift)}>
-          {submitting ? "Создаём заказ…" : byInvoice ? "Получить счёт на оплату" : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
+        <button className="btn btn--gold btn--block" disabled={!ready || submitting || (!canPay && !byInvoice && !byRobokassa) || (byInvoice && !!gift)}>
+          {submitting ? "Создаём заказ…" : byInvoice ? "Получить счёт на оплату" : byRobokassa ? `Оплатить ${rub(quote!.payable)} через Робокассу` : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
         </button>
         <p className="muted small" style={{ margin: 0 }}>
           {!deliveryInput
@@ -548,6 +567,8 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, do
                   ? gift
                     ? "Сертификатом можно заплатить только картой — уберите сертификат или выберите оплату картой."
                     : "Счёт с реквизитами и QR-кодом откроется сразу и придёт на почту. Товар зарезервируем до оплаты."
+                  : byRobokassa
+                    ? "На странице Робокассы выберите способ: частями, «Сплит», карта российского или зарубежного банка."
                   : quote?.payable === 0
                   ? "Заказ полностью оплачивается сертификатом — платить картой не нужно."
                   : "Оплата картой, через СБП или SberPay на защищённой странице ЮKassa."}

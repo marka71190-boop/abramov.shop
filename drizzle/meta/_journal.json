@@ -232,6 +232,13 @@
       "when": 1792952751739,
       "tag": "0032_gift_service_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792956994098,
+      "tag": "0033_robokassa",
+      "breakpoints": true
     }
   ]
 }

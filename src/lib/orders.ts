@@ -78,8 +78,8 @@ export interface PlaceInput extends QuoteInput {
   comment?: string | null;
   referralCode?: string | null;
   expectedTotal: number;
-  /** ONLINE — ЮKassa, INVOICE — счёт для организации */
-  paymentMethod?: "ONLINE" | "INVOICE";
+  /** ONLINE — ЮKassa, ROBOKASSA — Робокасса (рассрочка, иностранные карты), INVOICE — счёт для организации */
+  paymentMethod?: "ONLINE" | "ROBOKASSA" | "INVOICE";
 }
 
 export async function placeOrder(user: UserRow, input: PlaceInput, origin: string, who?: GiftWho) {
@@ -92,6 +92,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (input.promoCode?.trim() && quote.promoError) throw new OrderError(quote.promoError, quote);
   if (quote.wholesale.error) throw new OrderError(quote.wholesale.error, quote);
   const invoice = input.paymentMethod === "INVOICE";
+  const robokassa = input.paymentMethod === "ROBOKASSA";
+  if (robokassa && !(await import("@/lib/robokassa")).robokassaEnabled()) throw new OrderError("Оплата через Робокассу сейчас недоступна — выберите другой способ", quote);
   if (invoice && !quote.wholesale.invoice) throw new OrderError("Оплата по счёту — только для одобренных организаций", quote);
   if (invoice && input.giftCode?.trim()) throw new OrderError("Подарочным сертификатом можно заплатить только картой", quote);
   const org = invoice || quote.wholesale.sum > 0 ? await import("@/lib/wholesale").then((m) => m.approvedOrg(user)) : null;
@@ -201,7 +203,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         giftCardAmount: quote.gift?.applied ?? 0,
         bonusAccrued: quote.accrue,
         promoCodeId: promoId,
-        paymentMethod: invoice ? "INVOICE" : "ONLINE",
+        paymentMethod: invoice ? "INVOICE" : robokassa ? "ROBOKASSA" : "ONLINE",
         organizationId: org?.id ?? null,
         deliveryType: d.type,
         city: club ? club.city : d.cityName?.trim() || null,
@@ -270,6 +272,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
     void import("@/lib/invoice").then((m) => m.invoiceCreated(order.id)).catch((e) => console.error("[invoice]", e));
     return { number: order.number, payUrl: `/order/${order.number}?invoice=1` };
   }
+  // Робокасса: страница-прокладка отправляет форму оплаты (POST — чек может быть длинным)
+  if (robokassa) return { number: order.number, payUrl: `/pay/robokassa/${order.number}` };
   if (!yookassaEnabled()) return { number: order.number, payUrl: `/order/${order.number}` };
   try {
     const items = quote.lines.map((l) => ({ name: l.variantName ? `${l.name}, ${l.variantName}` : l.name, price: l.price, quantity: l.qty }));
@@ -437,21 +441,48 @@ export async function applyPayment(p: YkPayment, source: string) {
 
 /** Проверить оплату заказа прямо сейчас (покупатель вернулся со страницы оплаты). */
 export async function syncPayment(orderId: string) {
-  if (!yookassaEnabled()) return;
   const row = await db.query.payment.findFirst({
     where: and(eq(s.payment.orderId, orderId), inArray(s.payment.status, ["PENDING", "WAITING_FOR_CAPTURE"])),
     orderBy: desc(s.payment.createdAt),
   });
   if (!row) return;
   try {
+    if (row.provider === "robokassa") {
+      const rk = await import("@/lib/robokassa");
+      if (!rk.robokassaEnabled()) return;
+      const st = await rk.opState(Number(row.externalId));
+      if (st.state === "paid") await applyRobokassaPaid(row.externalId, st.sum ?? row.amount, "robokassa:sync");
+      return;
+    }
+    if (!yookassaEnabled()) return;
     await applyPayment(await getPayment(row.externalId), "sync");
   } catch (e) {
     console.error("[orders] syncPayment:", e);
   }
 }
 
+/**
+ * Робокасса сообщила об оплате (Result URL или проверка статуса). Сумма меньше счёта — не засчитываем,
+ * сообщаем админам. Повторный вызов безопасен.
+ */
+export async function applyRobokassaPaid(invId: string, paidKop: number, source: string) {
+  const row = await db.query.payment.findFirst({ where: and(eq(s.payment.provider, "robokassa"), eq(s.payment.externalId, invId)) });
+  if (!row) return null;
+  if (paidKop < row.amount) {
+    console.error(`[robokassa] счёт ${invId}: оплачено ${paidKop} из ${row.amount}`);
+    const { notifyAdmins } = await import("@/lib/telegram");
+    await notifyAdmins(`⚠️ Робокасса: по счёту ${invId} пришло меньше суммы заказа. Проверьте в кабинете Робокассы.`).catch(() => {});
+    return row.orderId;
+  }
+  if (row.status === "PENDING") await db.update(s.payment).set({ status: "SUCCEEDED", raw: { source, paid: paidKop, at: new Date().toISOString() } }).where(eq(s.payment.id, row.id));
+  await markPaid(row.orderId, source);
+  return row.orderId;
+}
+
 /** Новая ссылка на оплату, если покупатель закрыл страницу ЮKassa. */
 export async function getPayUrl(orderId: string) {
+  const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), columns: { paymentMethod: true, number: true } });
+  if (o?.paymentMethod === "ROBOKASSA") return `/pay/robokassa/${o.number}`;
   const row = await db.query.payment.findFirst({
     where: and(eq(s.payment.orderId, orderId), eq(s.payment.status, "PENDING")),
     orderBy: desc(s.payment.createdAt),
@@ -487,7 +518,10 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
 
   const pay = o.payments.find((p) => p.status === "SUCCEEDED");
   let refunded = 0;
-  if (pay) {
+  if (pay?.provider === "robokassa") {
+    // У Робокассы возврат делается в личном кабинете — здесь только отмечаем
+    refunded = pay.amount - pay.refundedAmount;
+  } else if (pay) {
     const amount = pay.amount - pay.refundedAmount;
     const items = o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity }));
     // Возвращаем деньгами только то, что платили онлайн; часть сертификата вернётся на сертификат
@@ -698,7 +732,8 @@ export async function expireUnpaidOrders() {
  * для уведомлений у магазина один (он ведёт на Kamui), поэтому оплату узнаём сами — раз в минуту.
  */
 export async function pollPendingPayments() {
-  if (!yookassaEnabled()) return;
+  const rk = (await import("@/lib/robokassa")).robokassaEnabled();
+  if (!yookassaEnabled() && !rk) return;
   const rows = await db
     .select({ orderId: s.payment.orderId })
     .from(s.payment)

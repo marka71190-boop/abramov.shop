@@ -53,6 +53,13 @@ export async function orderAction(_: ActionState, form: FormData): Promise<Actio
       case "refund":
         if (me.role !== "OWNER") return { error: "Вернуть деньги может только владелец" };
         await refundOrder(id, me.id, { restock: form.get("restock") === "on", reason: String(form.get("reason") || "Возврат денег") });
+        {
+          const rk = await db.query.payment.findFirst({ where: and(eq(s.payment.orderId, id), eq(s.payment.provider, "robokassa")) });
+          if (rk) {
+            revalidatePath(`/admin/orders/${id}`);
+            return { ok: `Заказ отмечен возвращённым. Сами деньги верните в кабинете Робокассы: Операции → счёт № ${rk.externalId} → «Возврат».` };
+          }
+        }
         break;
       case "cdek":
         await shipWithCdek(id, me.id);

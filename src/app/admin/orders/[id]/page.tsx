@@ -243,7 +243,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         </div>
         {o.payments.map((p) => (
           <div key={p.id} className="muted small">
-            ЮKassa {p.externalId}: {PAY[p.status]}, {rub(p.amount)}
+            {p.provider === "robokassa" ? "Робокасса, счёт №" : "ЮKassa"} {p.externalId}: {PAY[p.status]}, {rub(p.amount)}
             {p.refundedAmount ? `, возвращено ${rub(p.refundedAmount)}` : ""} · {fmtDateTime(p.createdAt)}
           </div>
         ))}
