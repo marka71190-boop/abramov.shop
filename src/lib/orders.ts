@@ -11,7 +11,7 @@ import { cueKey, parseCueKey } from "@/lib/cue-config";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
-import { chargeGift, rechargeGift, releaseGift, splitGift } from "@/lib/giftcards";
+import { chargeGift, rechargeGift, releaseGift, splitGift, type GiftWho } from "@/lib/giftcards";
 import { cdekEnabled, CDEK_IN_TRANSIT, createShipment, getShipment, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
 import { notifyOrder } from "@/lib/telegram";
@@ -82,9 +82,9 @@ export interface PlaceInput extends QuoteInput {
   paymentMethod?: "ONLINE" | "INVOICE";
 }
 
-export async function placeOrder(user: UserRow, input: PlaceInput, origin: string) {
+export async function placeOrder(user: UserRow, input: PlaceInput, origin: string, who?: GiftWho) {
   const settings = await getSettings();
-  const quote = await computeQuote(input, user);
+  const quote = await computeQuote(input, user, who);
   const d = input.delivery;
 
   if (!quote.lines.length) throw new OrderError("Корзина пуста", quote);
@@ -115,6 +115,10 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   const address = club ? `${club.name}, ${club.address}` : d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
 
   const order = await db.transaction(async (tx) => {
+    // 0. Заказы одного покупателя оформляются по очереди: лимиты промокода «на покупателя»,
+    //    «только первый заказ» и код друга проверяются ниже уже без гонки двух вкладок
+    await tx.select({ id: s.user.id }).from(s.user).where(eq(s.user.id, user.id)).for("update");
+
     // 1. Резервируем товар: остаток не может уйти в минус
     for (const l of quote.lines) {
       if (l.spec) continue; // кий на заказ — делаем под покупателя, остатка нет
@@ -139,9 +143,20 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
             or(isNull(s.promoCode.maxUses), lt(s.promoCode.usedCount, s.promoCode.maxUses)),
           ),
         )
-        .returning({ id: s.promoCode.id });
+        .returning({ id: s.promoCode.id, maxUsesPerUser: s.promoCode.maxUsesPerUser, firstOrderOnly: s.promoCode.firstOrderOnly });
       if (!r.length) throw new OrderError("Промокод больше не действует");
       promoId = r[0].id;
+      if (r[0].maxUsesPerUser != null) {
+        const [{ n }] = await tx
+          .select({ n: count() })
+          .from(s.promoUsage)
+          .innerJoin(s.order, eq(s.order.id, s.promoUsage.orderId))
+          .where(and(eq(s.promoUsage.promoId, promoId), eq(s.promoUsage.userId, user.id), ne(s.order.status, "CANCELLED")));
+        if (n >= r[0].maxUsesPerUser) throw new OrderError("Вы уже использовали этот промокод");
+      }
+      if (r[0].firstOrderOnly && (await tx.$count(s.order, and(eq(s.order.userId, user.id), ne(s.order.status, "CANCELLED")))) > 0) {
+        throw new OrderError("Промокод действует только на первый заказ");
+      }
     }
 
     // 3. Бонусы
@@ -287,20 +302,58 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
 // Оплата
 // ============================================================
 
+/** Что уже вернули по заявкам на возврат (часть заказа): полный возврат не должен повторить это. */
+interface Returned {
+  restocked: Map<string, number>; // позиция заказа → сколько штук уже на складе
+  bonusBack: number; // бонусов, которыми платили, уже вернули на счёт
+  accruedBack: number; // начисленных за заказ бонусов уже списали
+  money: number; // копейки, уже вернули деньгами (и вычли из суммы покупок)
+}
+const NOTHING_RETURNED: Returned = { restocked: new Map(), bonusBack: 0, accruedBack: 0, money: 0 };
+
+async function returnedByRequests(tx: Tx, orderId: string): Promise<Returned> {
+  // По очереди: внутри транзакции у базы одно соединение
+  const restocked = await tx
+    .select({ orderItemId: s.returnItem.orderItemId, qty: sql<number>`sum(${s.returnItem.quantity})::int` })
+    .from(s.returnItem)
+    .innerJoin(s.returnRequest, eq(s.returnRequest.id, s.returnItem.requestId))
+    .where(and(eq(s.returnRequest.orderId, orderId), eq(s.returnRequest.restocked, true)))
+    .groupBy(s.returnItem.orderItemId);
+  const [done] = await tx
+    .select({
+      bonusBack: sql<number>`coalesce(sum(${s.returnRequest.bonusReturned}), 0)::int`,
+      money: sql<number>`coalesce(sum(${s.returnRequest.refundAmount}), 0)::int`,
+    })
+    .from(s.returnRequest)
+    .where(and(eq(s.returnRequest.orderId, orderId), eq(s.returnRequest.status, "COMPLETED")));
+  // Списания начисленных бонусов по заявкам — отрицательные «Возврат» по этому заказу
+  const [accrued] = await tx
+    .select({ n: sql<number>`coalesce(-sum(${s.bonusTransaction.amount}), 0)::int` })
+    .from(s.bonusTransaction)
+    .where(and(eq(s.bonusTransaction.orderId, orderId), eq(s.bonusTransaction.reason, "REFUND"), lt(s.bonusTransaction.amount, 0)));
+  return {
+    restocked: new Map(restocked.map((r) => [r.orderItemId, Number(r.qty)])),
+    bonusBack: Number(done?.bonusBack ?? 0),
+    accruedBack: Number(accrued?.n ?? 0),
+    money: Number(done?.money ?? 0),
+  };
+}
+
 /** Возвращает резерв: товар на склад, бонусы на счёт, промокод — снова доступен. */
-async function release(tx: Tx, o: OrderRow, restock: boolean) {
+async function release(tx: Tx, o: OrderRow, restock: boolean, already: Returned = NOTHING_RETURNED) {
   if (restock) {
     const items = await tx.select().from(s.orderItem).where(eq(s.orderItem.orderId, o.id));
     for (const i of items) {
-      if (!i.variantId) continue;
+      const qty = i.quantity - (already.restocked.get(i.id) ?? 0);
+      if (!i.variantId || qty <= 0) continue;
       await tx
         .update(s.productVariant)
-        .set({ stock: sql`${s.productVariant.stock} + ${i.quantity}` })
+        .set({ stock: sql`${s.productVariant.stock} + ${qty}` })
         .where(eq(s.productVariant.id, i.variantId));
     }
   }
-  if (o.bonusSpent > 0 && o.userId) {
-    const n = o.bonusSpent / 100;
+  const n = o.bonusSpent / 100 - already.bonusBack;
+  if (n > 0 && o.userId) {
     await tx.update(s.user).set({ bonusBalance: sql`${s.user.bonusBalance} + ${n}` }).where(eq(s.user.id, o.userId));
     await tx.insert(s.bonusTransaction).values({ userId: o.userId, amount: n, reason: "REFUND", orderId: o.id, comment: `Возврат бонусов за заказ ${o.number}` });
   }
@@ -348,6 +401,11 @@ export async function markPaid(orderId: string, source: string) {
       else problems.push("бонусы клиента уже потрачены");
     }
     if (o.giftCardAmount > 0 && !(await rechargeGift(tx, o.id))) problems.push("сертификат уже потрачен");
+    // Промокод: при отмене его использование сняли — заказ всё-таки оплачен, снова учитываем
+    if (o.promoCodeId) {
+      await tx.update(s.promoCode).set({ usedCount: sql`${s.promoCode.usedCount} + 1` }).where(eq(s.promoCode.id, o.promoCodeId));
+      await tx.insert(s.promoUsage).values({ promoId: o.promoCodeId, userId: o.userId, orderId: o.id });
+    }
     await tx
       .update(s.order)
       .set({ status: "PAID", paidAt: new Date(), cancelReason: problems.length ? `Оплата пришла после отмены: ${problems.join(", ")}` : null })
@@ -456,14 +514,16 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
         .set({ status: "REFUNDED", refundedAmount: pay.refundedAmount + refunded })
         .where(eq(s.payment.id, pay.id));
     }
-    await release(tx, cur, opts.restock);
+    // Часть заказа могли уже вернуть по заявке — товар, бонусы и сумму покупок второй раз не трогаем
+    const already = await returnedByRequests(tx, cur.id);
+    await release(tx, cur, opts.restock, already);
     if (cur.bonusCredited && cur.userId) {
-      const n = cur.bonusAccrued / 100;
+      const n = Math.max(0, cur.bonusAccrued / 100 - already.accruedBack);
       await tx
         .update(s.user)
         .set({
           bonusBalance: sql`greatest(${s.user.bonusBalance} - ${n}, 0)`,
-          totalSpent: sql`greatest(${s.user.totalSpent} - ${cur.total - cur.shippingCost}, 0)`,
+          totalSpent: sql`greatest(${s.user.totalSpent} - ${Math.max(0, cur.total - cur.shippingCost - already.money)}, 0)`,
         })
         .where(eq(s.user.id, cur.userId));
       if (n > 0) {

@@ -909,6 +909,7 @@ export const giftCard = pgTable(
     paidAt: ts("paid_at"),
     payExpiresAt: ts("pay_expires_at"),
     refundedAt: ts("refunded_at"),
+    voidedAt: ts("voided_at"), // аннулирован в админке — поздняя оплата его уже не включит
 
     note: text("note"), // заметка админа
     createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
@@ -1047,8 +1048,9 @@ export const serviceRequest = pgTable(
     price: integer("price"), // итоговая цена от мастера, копейки
     readyBy: ts("ready_by"), // к какому дню будет готов
     paymentId: text("payment_id"),
-    paymentStatus: text("payment_status"), // PENDING | SUCCEEDED | CANCELED | OFFLINE
+    paymentStatus: text("payment_status"), // PENDING | SUCCEEDED | CANCELED | OFFLINE | UNDERPAID (оплатили меньше цены)
     payUrl: text("pay_url"),
+    oldPaymentIds: text("old_payment_ids").array().default([]).notNull(), // прежние счета: оплату по старой ссылке тоже засчитываем
     paidAt: ts("paid_at"),
     createdAt: createdAt(),
     updatedAt: ts("updated_at").defaultNow().notNull(),

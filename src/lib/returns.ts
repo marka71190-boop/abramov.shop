@@ -54,17 +54,22 @@ function returnNumber() {
 
 const daysSince = (d: Date) => (Date.now() - d.getTime()) / 86400_000;
 
-/** Что можно вернуть по заказу: по каждой позиции — сколько ещё не заявлено. */
-export async function returnable(orderId: string) {
-  const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true } });
-  if (!o) return null;
-  const claimed = await db
+/** Сколько штук каждой позиции заказа уже заявлено в действующих заявках. */
+async function claimedQty(q: Pick<Tx, "select">, orderId: string) {
+  const claimed = await q
     .select({ orderItemId: s.returnItem.orderItemId, qty: sql<number>`sum(${s.returnItem.quantity})::int` })
     .from(s.returnItem)
     .innerJoin(s.returnRequest, eq(s.returnRequest.id, s.returnItem.requestId))
     .where(and(eq(s.returnRequest.orderId, orderId), inArray(s.returnRequest.status, OPEN)))
     .groupBy(s.returnItem.orderItemId);
-  const used = new Map(claimed.map((c) => [c.orderItemId, Number(c.qty)]));
+  return new Map(claimed.map((c) => [c.orderItemId, Number(c.qty)]));
+}
+
+/** Что можно вернуть по заказу: по каждой позиции — сколько ещё не заявлено. */
+export async function returnable(orderId: string) {
+  const o = await db.query.order.findFirst({ where: eq(s.order.id, orderId), with: { items: true } });
+  if (!o) return null;
+  const used = await claimedQty(db, orderId);
   const items = o.items.map((i) => ({ ...i, available: Math.max(0, i.quantity - (used.get(i.id) ?? 0)) }));
   const deliveredAt = o.deliveredAt ?? (o.status === "DELIVERED" ? o.updatedAt : null);
   const age = deliveredAt ? daysSince(deliveredAt) : null;
@@ -116,6 +121,14 @@ export async function createReturn(userId: string, input: ReturnInput) {
   }
 
   const req = await db.transaction(async (tx) => {
+    // Две заявки по одному заказу одновременно: вторая ждёт первую и проверяет остаток уже с её учётом
+    await tx.select({ id: s.order.id }).from(s.order).where(eq(s.order.id, o.id)).for("update");
+    const used = await claimedQty(tx, o.id);
+    for (const l of lines) {
+      const it = info.items.find((i) => i.id === l.orderItemId)!;
+      const left = it.quantity - (used.get(it.id) ?? 0);
+      if (l.quantity > left) throw new ReturnError(left > 0 ? `«${it.name}»: можно вернуть не больше ${left} шт.` : `«${it.name}» уже есть в другой заявке`);
+    }
     const [r] = await tx
       .insert(s.returnRequest)
       .values({

@@ -14,6 +14,7 @@ import { db, schema as s } from "@/db";
 import { trackUrl } from "@/lib/cdek";
 import { num, rub } from "@/lib/format";
 import { orderStatus } from "@/lib/order-status";
+import { serverSecret } from "@/lib/secret";
 import { SITE } from "@/lib/site";
 
 const API = () => `${process.env.TELEGRAM_API_URL || "https://api.telegram.org"}/bot${process.env.TELEGRAM_BOT_TOKEN}`;
@@ -22,7 +23,7 @@ export const telegramEnabled = () => !!process.env.TELEGRAM_BOT_TOKEN;
 /** Секрет для заголовка вебхука — выводится из BETTER_AUTH_SECRET, отдельная переменная не нужна. */
 export const webhookSecret = () =>
   createHash("sha256")
-    .update(`${process.env.BETTER_AUTH_SECRET ?? ""}:telegram`)
+    .update(`${serverSecret("")}:telegram`)
     .digest("hex")
     .slice(0, 48);
 

@@ -18,6 +18,7 @@ import { escHtml, mailEnabled, sendMail, type MailExtra } from "@/lib/mail";
 import { isPlaceholderEmail, PLACEHOLDER_DOMAIN, SITE } from "@/lib/site";
 import { send as tgSend, esc as tgEsc, notifyAdmins, telegramEnabled } from "@/lib/telegram";
 import { mskUntil } from "@/lib/promo-timer";
+import { serverSecret } from "@/lib/secret";
 
 /** Акция по таймеру: до какого момента промокод действует для того, кому письмо уходит прямо сейчас */
 const timerUntil = (p: Promo | null) => (p?.personalHours ? new Date(Date.now() + p.personalHours * 3600_000) : null);
@@ -31,7 +32,7 @@ type Promo = typeof s.promoCode.$inferSelect;
 
 // ---------- Отписка
 
-const secret = () => process.env.BETTER_AUTH_SECRET || "dev-secret";
+const secret = () => serverSecret("dev-secret");
 const sign = (userId: string) => createHmac("sha256", secret()).update(`unsub:${userId}`).digest("base64url").slice(0, 32);
 
 export function unsubscribeUrl(userId: string) {

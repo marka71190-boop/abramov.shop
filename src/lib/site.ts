@@ -23,9 +23,8 @@ export const SELLER = {
 } as const;
 
 /**
- * Служебная почта для входа через VK без указанной почты.
- * Такой адрес никуда не пишет — в кабинете клиента просим указать настоящий (для чеков).
+ * Служебная почта у аккаунтов, созданных входом через VK без почты (вход через VK убран, аккаунты остались).
+ * Такой адрес никуда не пишет — в кабинете клиента просим указать настоящий (для чеков и входа).
  */
 export const PLACEHOLDER_DOMAIN = "no-email.abramov.shop";
-export const placeholderEmail = (provider: string, id: string | number) => `${provider}-${id}@${PLACEHOLDER_DOMAIN}`;
-export const isPlaceholderEmail = (email: string | null | undefined) => !!email?.endsWith(`@${PLACEHOLDER_DOMAIN}`);
+export const isPlaceholderEmail = (email: string | null | undefined) => !!email?.toLowerCase().endsWith(`@${PLACEHOLDER_DOMAIN}`);

@@ -9,7 +9,8 @@ import { isPlaceholderEmail, SITE } from "@/lib/site";
 import { getTurnkey, turnkeyNumber } from "@/lib/turnkey";
 import { estimate } from "@/lib/turnkey-config";
 import { checkLayout, polygonArea, sanePlan, type Placed } from "@/lib/turnkey-geom";
-import { getActiveBan, getViewer } from "@/lib/viewer";
+import { getSettings } from "@/lib/settings";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 
 const limit = createRateLimiter({ limit: 5, windowMs: 3600_000 });
 
@@ -29,6 +30,8 @@ export async function createTurnkeyAction(raw: unknown): Promise<{ number?: stri
   const me = await getViewer();
   if (!me) return { error: "Войдите в аккаунт, чтобы получить КП" };
   if (getActiveBan(me)) return { error: "Аккаунт заблокирован" };
+  const settings = await getSettings();
+  if (settings.maintenance && !isAdmin(me)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(me.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных — откройте личный кабинет" };
   if (!limit(me.id)) return { error: "Слишком много заявок подряд — попробуйте через час" };
   const p = In.safeParse(raw);

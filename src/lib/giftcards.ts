@@ -14,11 +14,12 @@
  */
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
 import { fmtDate, rub } from "@/lib/format";
 import { escHtml, sendMail } from "@/lib/mail";
+import { createGuessGuard } from "@/lib/rate-limit";
 import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
 import type { UserRow } from "@/lib/viewer";
@@ -77,11 +78,26 @@ async function insertCard(values: Omit<typeof s.giftCard.$inferInsert, "code" | 
 
 export type GiftCheck = { card: GiftCard } | { error: string };
 
-export async function checkGiftCode(code: string): Promise<GiftCheck> {
+/** Кто проверяет код — для защиты от подбора: IP посетителя и аккаунт, если вошёл. */
+export interface GiftWho {
+  ip: string | null;
+  userId?: string | null;
+}
+
+// 10 разных неверных кодов за час с одного IP или аккаунта — дальше проверка закрыта на час (даже верного кода)
+const guesses = createGuessGuard({ limit: 10, windowMs: 3600_000 });
+const whoKeys = (w: GiftWho) => [`ip:${w.ip ?? "?"}`, ...(w.userId ? [`u:${w.userId}`] : [])];
+
+export async function checkGiftCode(code: string, who?: GiftWho): Promise<GiftCheck> {
+  const keys = who ? whoKeys(who) : [];
+  if (guesses.blocked(keys)) return { error: "Слишком много неверных кодов сертификата. Попробуйте через час или напишите в поддержку" };
   const c = normalizeCode(code);
   if (!c) return { error: "Код сертификата — 12 букв и цифр, например ABCD-EFGH-2345" };
   const card = await db.query.giftCard.findFirst({ where: eq(s.giftCard.code, c) });
-  if (!card) return { error: "Сертификат с таким кодом не найден" };
+  if (!card) {
+    guesses.miss(keys, c);
+    return { error: "Сертификат с таким кодом не найден" };
+  }
   if (card.status === "PENDING") return { error: "Сертификат ещё не оплачен" };
   if (card.status === "VOID") return { error: "Сертификат недействителен" };
   if (isExpired(card)) return { error: `Срок действия сертификата закончился ${fmtDate(card.expiresAt!)}` };
@@ -128,11 +144,23 @@ export async function chargeGift(tx: Tx, code: string, orderId: string, amount: 
   return true;
 }
 
+/**
+ * Сумма вернулась на сертификат. Если остаток по нему уже вернули деньгами (сертификат закрыт),
+ * он снова действует на эту сумму — иначе она пропала бы. Аннулированный в админке так и остаётся закрытым.
+ */
+async function creditGift(tx: Tx, cardId: string, amount: number) {
+  await tx.update(s.giftCard).set({ balance: sql`${s.giftCard.balance} + ${amount}`, updatedAt: new Date() }).where(eq(s.giftCard.id, cardId));
+  await tx
+    .update(s.giftCard)
+    .set({ status: "ACTIVE" })
+    .where(and(eq(s.giftCard.id, cardId), eq(s.giftCard.status, "VOID"), isNotNull(s.giftCard.refundedAt), isNull(s.giftCard.voidedAt)));
+}
+
 /** Заказ отменён или возвращён — сумма возвращается на сертификат. */
 export async function releaseGift(tx: Tx, orderId: string) {
   const uses = await tx.select().from(s.giftCardUse).where(and(eq(s.giftCardUse.orderId, orderId), isNull(s.giftCardUse.reversedAt)));
   for (const u of uses) {
-    await tx.update(s.giftCard).set({ balance: sql`${s.giftCard.balance} + ${u.amount}`, updatedAt: new Date() }).where(eq(s.giftCard.id, u.giftCardId));
+    await creditGift(tx, u.giftCardId, u.amount);
     await tx.update(s.giftCardUse).set({ reversedAt: new Date() }).where(eq(s.giftCardUse.id, u.id));
   }
   return uses.reduce((a, u) => a + u.amount, 0);
@@ -144,7 +172,7 @@ export async function returnToGift(tx: Tx, orderId: string, amount: number) {
   const [u] = await tx.select().from(s.giftCardUse).where(and(eq(s.giftCardUse.orderId, orderId), isNull(s.giftCardUse.reversedAt))).limit(1);
   if (!u) return 0;
   const back = Math.min(amount, u.amount);
-  await tx.update(s.giftCard).set({ balance: sql`${s.giftCard.balance} + ${back}`, updatedAt: new Date() }).where(eq(s.giftCard.id, u.giftCardId));
+  await creditGift(tx, u.giftCardId, back);
   if (back === u.amount) await tx.update(s.giftCardUse).set({ reversedAt: new Date() }).where(eq(s.giftCardUse.id, u.id));
   else await tx.update(s.giftCardUse).set({ amount: u.amount - back }).where(eq(s.giftCardUse.id, u.id));
   return back;
@@ -239,10 +267,28 @@ export async function buyGiftCard(user: UserRow, input: BuyInput, origin: string
 export async function applyGiftPayment(p: YkPayment) {
   const card = await db.query.giftCard.findFirst({ where: eq(s.giftCard.paymentId, p.id) });
   if (!card || card.refundedAt) return null;
+  if (p.status === "succeeded" && card.voidedAt) {
+    // Аннулирован в админке, а оплата всё-таки прошла: сертификат не включаем, деньги нужно вернуть
+    const [paid] = await db
+      .update(s.giftCard)
+      .set({ paymentStatus: "SUCCEEDED", paidAt: new Date() })
+      .where(and(eq(s.giftCard.id, card.id), isNull(s.giftCard.paidAt)))
+      .returning({ id: s.giftCard.id });
+    if (paid) {
+      const { notifyAdmins } = await import("@/lib/telegram");
+      await notifyAdmins(`⚠️ Пришла оплата за аннулированный сертификат на ${rub(card.initialAmount)} — им платить нельзя. Верните деньги: Админка → Сертификаты → «Вернуть деньги».`, {
+        text: "Открыть сертификат",
+        url: `${SITE.url}/admin/gift-cards/${card.id}`,
+      });
+    }
+    return card.id;
+  }
   if (p.status === "succeeded" && fromMoney(p.amount) >= card.initialAmount) {
     await activate(card.id);
   } else if (p.status === "canceled" && card.status === "PENDING") {
     await db.update(s.giftCard).set({ status: "VOID", paymentStatus: "CANCELED" }).where(and(eq(s.giftCard.id, card.id), eq(s.giftCard.status, "PENDING")));
+  } else if (p.status === "canceled" && card.voidedAt) {
+    await db.update(s.giftCard).set({ paymentStatus: "CANCELED" }).where(eq(s.giftCard.id, card.id)); // больше не проверяем
   }
   return card.id;
 }
@@ -270,7 +316,15 @@ async function activate(cardId: string) {
       expiresAt: days > 0 ? new Date(now.getTime() + days * 86400_000) : null,
     })
     // Оплата могла прийти и после автоотмены (VOID без возврата денег)
-    .where(and(eq(s.giftCard.id, cardId), inArray(s.giftCard.status, ["PENDING", "VOID"]), isNull(s.giftCard.refundedAt), isNull(s.giftCard.paidAt)))
+    .where(
+      and(
+        eq(s.giftCard.id, cardId),
+        inArray(s.giftCard.status, ["PENDING", "VOID"]),
+        isNull(s.giftCard.refundedAt),
+        isNull(s.giftCard.paidAt),
+        isNull(s.giftCard.voidedAt), // аннулированный в админке не включаем
+      ),
+    )
     .returning();
   if (!card) return;
   await auditSystem(null, "gift.paid", "gift", card.id, { amount: card.initialAmount });
@@ -312,7 +366,11 @@ export async function issueGiftCard(adminId: string, input: IssueInput) {
 
 /** Аннулировать: сертификатом больше нельзя платить. Деньги не возвращаются. */
 export async function voidGiftCard(cardId: string) {
-  const r = await db.update(s.giftCard).set({ status: "VOID" }).where(and(eq(s.giftCard.id, cardId), inArray(s.giftCard.status, ["ACTIVE", "PENDING"]))).returning();
+  const r = await db
+    .update(s.giftCard)
+    .set({ status: "VOID", voidedAt: new Date() })
+    .where(and(eq(s.giftCard.id, cardId), inArray(s.giftCard.status, ["ACTIVE", "PENDING"])))
+    .returning();
   if (!r.length) throw new GiftError("Сертификат уже недействителен");
 }
 
@@ -415,7 +473,17 @@ export async function giftJobs() {
     const pending = await db
       .select({ id: s.giftCard.id, payExpiresAt: s.giftCard.payExpiresAt })
       .from(s.giftCard)
-      .where(and(eq(s.giftCard.status, "PENDING"), isNotNull(s.giftCard.paymentId), gte(s.giftCard.createdAt, new Date(now.getTime() - 2 * 86400_000))))
+      .where(
+        and(
+          // Ждут оплату — и аннулированные в админке до оплаты: если деньги всё же придут, админ узнает и вернёт их
+          or(
+            eq(s.giftCard.status, "PENDING"),
+            and(isNotNull(s.giftCard.voidedAt), isNull(s.giftCard.paidAt), or(isNull(s.giftCard.paymentStatus), ne(s.giftCard.paymentStatus, "CANCELED"))),
+          ),
+          isNotNull(s.giftCard.paymentId),
+          gte(s.giftCard.createdAt, new Date(now.getTime() - 2 * 86400_000)),
+        ),
+      )
       .orderBy(asc(s.giftCard.createdAt))
       .limit(50);
     for (const p of pending) await syncGiftPayment(p.id);

@@ -9,7 +9,7 @@
  * В Telegram — только номер заявки и этап, без имени, телефона и адреса.
  */
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { auditSystem } from "@/lib/audit";
 import { fmtDate, rub } from "@/lib/format";
@@ -150,6 +150,15 @@ export async function billService(id: string) {
   if (!r.price || r.price < 100) throw new ServiceError("Сначала укажите итоговую цену");
   if (r.paidAt) throw new ServiceError("Заявка уже оплачена");
   if (!yookassaEnabled()) throw new ServiceError("ЮKassa не подключена — отметьте оплату на месте");
+  // Прежний счёт могли уже оплатить — сначала спрашиваем ЮKassa
+  const waiting = r.paymentId && r.paymentStatus === "PENDING" ? r.paymentId : null;
+  for (const old of [...(waiting ? [waiting] : []), ...r.oldPaymentIds]) {
+    const prev = await getPayment(old).catch(() => null);
+    if (prev?.status === "succeeded") {
+      await applyServicePayment(prev);
+      throw new ServiceError("Покупатель уже оплатил прежний счёт — обновите страницу");
+    }
+  }
   const attempt = Date.now().toString(36);
   const p = await createPaymentFor({
     key: `svc-${r.id}-${r.price}-${attempt}`,
@@ -161,7 +170,17 @@ export async function billService(id: string) {
     receipt: [{ name: `Ремонт кия по заявке ${r.number}: ${r.items.map((i) => i.name).join(", ")}`.slice(0, 128), quantity: 1, price: r.price, kind: "service" }],
   });
   const url = p.confirmation!.confirmation_url!;
-  await db.update(s.serviceRequest).set({ paymentId: p.id, paymentStatus: "PENDING", payUrl: url, updatedAt: new Date() }).where(eq(s.serviceRequest.id, r.id));
+  await db
+    .update(s.serviceRequest)
+    .set({
+      paymentId: p.id,
+      paymentStatus: "PENDING",
+      payUrl: url,
+      updatedAt: new Date(),
+      // Старая ссылка из письма ещё может сработать — её оплату тоже засчитаем
+      ...(waiting ? { oldPaymentIds: sql`array_append(${s.serviceRequest.oldPaymentIds}, ${waiting})` } : {}),
+    })
+    .where(eq(s.serviceRequest.id, r.id));
   if (mailEnabled() && !isPlaceholderEmail(r.email)) {
     await sendMail(
       r.email,
@@ -175,39 +194,99 @@ export async function billService(id: string) {
 }
 
 export async function markServicePaidOffline(id: string, actorId: string) {
-  await db
+  const [r] = await db
     .update(s.serviceRequest)
     .set({ paymentStatus: "OFFLINE", paidAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(s.serviceRequest.id, id)));
+    .where(and(eq(s.serviceRequest.id, id), isNull(s.serviceRequest.paidAt)))
+    .returning({ id: s.serviceRequest.id });
+  if (!r) throw new ServiceError("Заявка уже оплачена");
   await auditSystem(actorId, "service.paid_offline", "service", id);
 }
 
-/** Уведомление ЮKassa или возврат покупателя со страницы оплаты */
+/** Заявка по номеру платежа ЮKassa — текущего или одного из прежних счетов */
+export function findServiceByPayment(paymentId: string) {
+  return db.query.serviceRequest.findFirst({
+    where: or(eq(s.serviceRequest.paymentId, paymentId), sql`${paymentId} = any(${s.serviceRequest.oldPaymentIds})`),
+  });
+}
+
+/** Уведомление ЮKassa, фоновая проверка или возврат покупателя со страницы оплаты */
 export async function applyServicePayment(p: YkPayment) {
-  const r = await db.query.serviceRequest.findFirst({ where: eq(s.serviceRequest.paymentId, p.id) });
-  if (!r || r.paidAt) return r?.id ?? null;
-  if (p.status === "succeeded" && r.price && fromMoney(p.amount) >= r.price) {
+  const r = await findServiceByPayment(p.id);
+  if (!r) return null;
+  const { notifyAdmins } = await import("@/lib/telegram");
+  const link = { text: "Открыть", url: `${SITE.url}/admin/service/${r.id}` };
+  if (p.status === "succeeded" && r.paidAt) {
+    // Заплатили второй раз (по старой и новой ссылке) — деньги нужно вернуть
+    if (p.id !== r.paymentId) {
+      await notifyAdmins(`⚠️ По заявке <b>${r.number}</b> пришла вторая оплата — ${rub(fromMoney(p.amount))}. Верните лишнее в ЮKassa (платёж ${p.id}).`, link);
+    }
+    return r.id;
+  }
+  if (r.paidAt) return r.id;
+  if (p.status === "succeeded") {
+    if (!r.price || fromMoney(p.amount) < r.price) {
+      // Цену подняли после счёта: оплату не теряем — просим админа разобраться
+      await notifyAdmins(`⚠️ По заявке <b>${r.number}</b> оплатили ${rub(fromMoney(p.amount))}, а цена сейчас ${r.price ? rub(r.price) : "не указана"}. Проверьте и отметьте оплату вручную.`, link);
+      // Этот платёж больше не проверяем, чтобы не напоминать каждые 5 минут
+      await db
+        .update(s.serviceRequest)
+        .set(p.id === r.paymentId ? { paymentStatus: "UNDERPAID" } : { oldPaymentIds: sql`array_remove(${s.serviceRequest.oldPaymentIds}, ${p.id})` })
+        .where(eq(s.serviceRequest.id, r.id));
+      return r.id;
+    }
     const [done] = await db
       .update(s.serviceRequest)
-      .set({ paymentStatus: "SUCCEEDED", paidAt: new Date(), updatedAt: new Date() })
-      .where(eq(s.serviceRequest.id, r.id))
+      .set({ paymentId: p.id, paymentStatus: "SUCCEEDED", paidAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(s.serviceRequest.id, r.id), isNull(s.serviceRequest.paidAt)))
       .returning();
-    await auditSystem(null, "service.paid", "service", r.id, { amount: r.price });
-    const { notifyAdmins } = await import("@/lib/telegram");
-    await notifyAdmins(`💳 Оплачена заявка в мастерскую <b>${r.number}</b> — ${rub(r.price)}`, { text: "Открыть", url: `${SITE.url}/admin/service/${r.id}` });
+    if (!done) return r.id;
+    await auditSystem(null, "service.paid", "service", r.id, { amount: fromMoney(p.amount), paymentId: p.id });
+    await notifyAdmins(`💳 Оплачена заявка в мастерскую <b>${r.number}</b> — ${rub(r.price)}`, link);
     return done.id;
   }
-  if (p.status === "canceled") await db.update(s.serviceRequest).set({ paymentStatus: "CANCELED" }).where(eq(s.serviceRequest.id, r.id));
+  if (p.status === "canceled") {
+    // Отменённый текущий счёт — отмечаем; отменённый старый — больше не проверяем
+    await db
+      .update(s.serviceRequest)
+      .set(p.id === r.paymentId ? { paymentStatus: "CANCELED" } : { oldPaymentIds: sql`array_remove(${s.serviceRequest.oldPaymentIds}, ${p.id})` })
+      .where(eq(s.serviceRequest.id, r.id));
+  }
   return r.id;
 }
 
+/** Проверить в ЮKassa текущий и прежние счета заявки */
 export async function syncServicePayment(r: ServiceRow) {
-  if (!r.paymentId || r.paidAt || !yookassaEnabled()) return;
-  try {
-    await applyServicePayment(await getPayment(r.paymentId));
-  } catch (e) {
-    console.error("[service] sync:", e);
+  if (r.paidAt || !yookassaEnabled()) return;
+  const ids = [...(r.paymentId && r.paymentStatus === "PENDING" ? [r.paymentId] : []), ...r.oldPaymentIds];
+  for (const id of ids) {
+    try {
+      const p = await getPayment(id);
+      await applyServicePayment(p);
+      if (p.status === "succeeded") return;
+    } catch (e) {
+      console.error("[service] sync:", e);
+    }
   }
+}
+
+/**
+ * Раз в несколько минут: оплаты мастерской. Уведомления ЮKassa уходят на общий с Kamui адрес,
+ * поэтому, как и для заказов, оплату узнаём сами — даже если покупатель закрыл страницу.
+ */
+export async function pollServicePayments() {
+  if (!yookassaEnabled()) return;
+  const rows = await db.query.serviceRequest.findMany({
+    where: and(
+      isNull(s.serviceRequest.paidAt),
+      isNotNull(s.serviceRequest.paymentId),
+      ne(s.serviceRequest.status, "CANCELLED"),
+      or(eq(s.serviceRequest.paymentStatus, "PENDING"), sql`cardinality(${s.serviceRequest.oldPaymentIds}) > 0`),
+      gte(s.serviceRequest.updatedAt, new Date(Date.now() - 7 * 86400_000)),
+    ),
+    limit: 50,
+  });
+  for (const r of rows) await syncServicePayment(r);
 }
 
 // ---------- Письма и Telegram

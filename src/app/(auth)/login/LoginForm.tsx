@@ -1,11 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { IconGoogle, IconVk } from "@/components/Icons";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
 
-export function LoginForm({ next, google, vk }: { next: string; google: boolean; vk: boolean }) {
+export function LoginForm({ next }: { next: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,12 +25,6 @@ export function LoginForm({ next, google, vk }: { next: string; google: boolean;
     window.location.href = next;
   }
 
-  async function onSocial(provider: "google" | "vk") {
-    setBusy(true);
-    // Новых пользователей сервер без галочки не создаст и вернёт на регистрацию
-    await authClient.signIn.social({ provider, callbackURL: next, errorCallbackURL: `/register?from=${provider}` });
-  }
-
   return (
     <form className="auth__form" onSubmit={onSubmit}>
       <nav className="tabs" aria-label="Вход или регистрация">
@@ -46,18 +39,6 @@ export function LoginForm({ next, google, vk }: { next: string; google: boolean;
           {error}
         </div>
       )}
-
-      {vk && (
-        <button type="button" className="btn btn--vk" onClick={() => onSocial("vk")} disabled={busy}>
-          <IconVk /> Войти через VK ID
-        </button>
-      )}
-      {google && (
-        <button type="button" className="btn btn--light" onClick={() => onSocial("google")} disabled={busy}>
-          <IconGoogle /> Войти через Google
-        </button>
-      )}
-      {(vk || google) && <div className="divider">или по почте</div>}
 
       <label className="field">
         Email

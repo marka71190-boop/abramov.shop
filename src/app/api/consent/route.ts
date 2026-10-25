@@ -1,7 +1,7 @@
 /**
  * Фиксирует отметку галочки ДО создания аккаунта.
  *
- * Форма регистрации (и кнопка «Продолжить с Google») сначала вызывает этот адрес:
+ * Форма регистрации сначала вызывает этот адрес:
  *   - согласие на обработку ПДн записывается в журнал с IP, браузером и редакцией документа;
  *   - браузеру ставится cookie с токеном;
  *   - при создании аккаунта сервер входа проверяет токен (без него аккаунт не создаётся)
@@ -18,7 +18,7 @@ import { getSettings } from "@/lib/settings";
 const Body = z.object({
   personalData: z.literal(true, { message: "Нужно согласие на обработку персональных данных" }),
   marketing: z.boolean().default(false),
-  source: z.enum(["REGISTRATION", "GOOGLE", "VK"]),
+  source: z.literal("REGISTRATION"),
   name: z.string().trim().max(100).optional(),
   phone: z.string().trim().max(30).optional(),
   email: z.string().trim().max(200).optional(),
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   }
   const b = parsed.data;
   const phone = b.phone ? normalizePhone(b.phone) : null;
-  if (b.source === "REGISTRATION" && b.phone && !phone) {
+  if (b.phone && !phone) {
     return NextResponse.json({ error: "Проверьте номер телефона" }, { status: 400 });
   }
 
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     source: b.source,
     name: b.name || null,
     phone,
-    email: b.source === "REGISTRATION" ? b.email || null : null,
+    email: b.email || null,
     ip: meta.ip,
     userAgent: meta.userAgent,
     linkToken,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(CONSENT_COOKIE, linkToken, {
     httpOnly: true,
-    sameSite: "lax", // cookie должна вернуться с Google на наш сайт
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: CONSENT_TTL_MIN * 60,

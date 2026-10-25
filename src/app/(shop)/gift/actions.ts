@@ -7,7 +7,7 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { getOrigin, getRequestMeta } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
 import { isPlaceholderEmail, SITE } from "@/lib/site";
-import { getActiveBan, getViewer } from "@/lib/viewer";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 
 const BuyIn = z.object({
   amount: z.number().int().positive(), // рубли
@@ -31,6 +31,7 @@ export async function buyGiftAction(raw: unknown): Promise<{ payUrl?: string; er
   if (getActiveBan(user)) return { error: "Аккаунт заблокирован" };
   const settings = await getSettings();
   if (settings.pdPause) return { error: settings.pdPauseMessage };
+  if (settings.maintenance && !isAdmin(user)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных — откройте личный кабинет" };
   if (!buyLimit(user.id)) return { error: "Слишком много попыток. Подождите несколько минут" };
 
@@ -74,7 +75,7 @@ export async function buyGiftAction(raw: unknown): Promise<{ payUrl?: string; er
 export async function checkBalanceAction(code: string): Promise<{ ok?: string; error?: string }> {
   const ip = (await getRequestMeta()).ip ?? "?";
   if (!checkLimit(ip)) return { error: "Слишком много проверок. Подождите 10 минут" };
-  const r = await checkGiftCode(String(code ?? "").slice(0, 40));
+  const r = await checkGiftCode(String(code ?? "").slice(0, 40), { ip: (await getRequestMeta()).ip, userId: (await getViewer())?.id });
   if ("error" in r) return { error: r.error };
   return { ok: `На сертификате ${rub(r.card.balance)}${r.card.expiresAt ? `, действует до ${fmtDate(r.card.expiresAt)}` : ""}` };
 }

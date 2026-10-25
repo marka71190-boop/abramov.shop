@@ -10,7 +10,7 @@ import { db, schema as s } from "@/db";
 import { decorate } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { score, swapLayout, tokens } from "@/lib/search-text";
-import { isPublic, publicWhere, retailWhere } from "@/lib/visibility";
+import { isPublic, isRetail, publicWhere, retailWhere } from "@/lib/visibility";
 
 export const SORTS = {
   relevance: "По совпадению",
@@ -274,14 +274,28 @@ async function productsInOrder(ids: string[]) {
   return ids.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
 }
 
+/** Подсказки дёргаются на каждую букву — каталог для них держим в памяти 30 секунд, а не читаем каждый раз целиком. */
+let suggestRows: { at: number; data: ReturnType<typeof loadRows> } | null = null;
+function rowsForSuggest() {
+  if (!suggestRows || Date.now() - suggestRows.at > 30_000) {
+    const data = loadRows();
+    suggestRows = { at: Date.now(), data };
+    data.catch(() => {
+      if (suggestRows?.data === data) suggestRows = null;
+    });
+  }
+  return suggestRows.data;
+}
+
 /** Подсказки в строке поиска: до 6 товаров и подходящие категории. */
 export async function suggest(q: string) {
   const query = q.trim().slice(0, 100);
   if (!query) return { products: [], categories: [], total: 0, corrected: null };
-  const { rows, cats } = await loadRows();
+  const { rows, cats } = await rowsForSuggest();
   const { found, corrected } = searchWithLayout(rows, query);
   found.sort((a, b) => Number(b.r.stock > 0) - Number(a.r.stock > 0) || b.score - a.score || a.r.sortOrder - b.r.sortOrder);
-  const top = await productsInOrder(found.slice(0, 6).map((x) => x.r.id));
+  // Карточки читаем свежими: товар, скрытый за эти 30 секунд, в подсказки не попадёт
+  const top = (await productsInOrder(found.slice(0, 6).map((x) => x.r.id))).filter((p) => isRetail(p));
   const t = tokens(corrected ?? query);
   const categories = cats
     .filter((c) => score({ name: c.name, extra: "" }, t) > 0)

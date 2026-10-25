@@ -1,8 +1,10 @@
 "use server";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema as s } from "@/db";
 import { getActiveConsent, recordConsent, revokeConsent } from "@/lib/consent";
+import { requestEmailChange } from "@/lib/email-change";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { getRequestMeta } from "@/lib/request";
 import { isPlaceholderEmail } from "@/lib/site";
 import { createLinkUrl } from "@/lib/telegram";
@@ -39,25 +41,23 @@ export async function unlinkTelegram() {
   revalidatePath("/account");
 }
 
-/** Настоящая почта для тех, кто вошёл через VK без почты: на неё придут чеки и статусы заказов. */
+const emailLimit = createRateLimiter({ limit: 5, windowMs: 3600_000 });
+
+/**
+ * Настоящая почта для старых аккаунтов VK без почты. В аккаунт она попадает только после
+ * перехода по ссылке из письма (см. lib/email-change) — так нельзя занять чужой адрес.
+ */
 export async function setRealEmail(_: { error?: string; ok?: string }, form: FormData): Promise<{ error?: string; ok?: string }> {
   const u = await requireActiveUser();
   if (!isPlaceholderEmail(u.email)) return { error: "Почта уже указана" };
-  const email = String(form.get("email") || "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || isPlaceholderEmail(email)) return { error: "Проверьте адрес почты" };
-  const taken = await db.query.user.findFirst({
-    where: and(eq(sql`lower(${s.user.email})`, email), ne(s.user.id, u.id)),
-    columns: { id: true },
+  if (!emailLimit(u.id)) return { error: "Слишком много попыток — попробуйте через час" };
+  const email = String(form.get("email") || "");
+  const error = await requestEmailChange(u.id, email).catch((e) => {
+    console.error("[mail] email change:", e instanceof Error ? e.message : e);
+    return "Не получилось отправить письмо. Попробуйте позже или напишите в поддержку";
   });
-  if (taken) return { error: "Эта почта уже привязана к другому аккаунту. Войдите в него или напишите в поддержку." };
-  await db.update(s.user).set({ email, emailVerified: false }).where(eq(s.user.id, u.id));
-  // Письмо со ссылкой для подтверждения новой почты
-  const { auth } = await import("@/lib/auth");
-  await auth.api
-    .sendVerificationEmail({ body: { email, callbackURL: "/account?verified=1" } })
-    .catch((e) => console.error("[mail] verify:", e instanceof Error ? e.message : e));
-  revalidatePath("/account");
-  return { ok: "Почта сохранена" };
+  if (error) return { error };
+  return { ok: `Отправили письмо на ${email.trim().toLowerCase()}. Откройте его и нажмите «Подтвердить почту» — после этого почта появится в аккаунте.` };
 }
 
 /** День рождения — указывается один раз; изменить можно через поддержку. */

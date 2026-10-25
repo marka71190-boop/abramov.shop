@@ -10,7 +10,7 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { BirthdayForm, CopyButton, RealEmailForm, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
+import { BirthdayForm, CopyButton, RealEmailForm, SetPasswordNotice, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
 import { mailEnabled } from "@/lib/mail";
 import { expiringSoon } from "@/lib/bonuses";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -53,6 +53,7 @@ const VERIFY_ERROR: Record<string, string> = {
   INVALID_TOKEN: "Ссылка для подтверждения неверная или уже использована. Отправьте письмо ещё раз — кнопка ниже.",
   INVALID_USER: "Эта ссылка — для другого аккаунта. Выйдите и откройте её снова.",
   USER_NOT_FOUND: "Аккаунт для этой ссылки не найден.",
+  EMAIL_TAKEN: "Эта почта уже привязана к другому аккаунту. Укажите другую или напишите в поддержку.",
 };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ verified?: string; error?: string }> }) {
@@ -73,12 +74,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const [orders, pd, mk, referrals, bonusLog] = await Promise.all([
+  const [orders, pd, mk, referrals, bonusLog, hasPassword] = await Promise.all([
     db.query.order.findMany({ where: eq(s.order.userId, user.id), orderBy: desc(s.order.createdAt), limit: 10, with: { items: true } }),
     getActiveConsent(user.id, "PERSONAL_DATA"),
     getActiveConsent(user.id, "MARKETING"),
     db.$count(s.user, eq(s.user.referredById, user.id)),
     db.query.bonusTransaction.findMany({ where: eq(s.bonusTransaction.userId, user.id), orderBy: desc(s.bonusTransaction.createdAt), limit: 8 }),
+    // Пароль есть? Раньше входили через Google или VK — пароля могло не быть
+    db.$count(s.account, and(eq(s.account.userId, user.id), eq(s.account.providerId, "credential"))).then((n) => n > 0),
   ]);
 
   // Без действующего согласия на обработку ПДн кабинетом пользоваться нельзя
@@ -153,6 +156,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </div>
         ) : null}
         {isPlaceholderEmail(user.email) && <RealEmailForm />}
+        {!isPlaceholderEmail(user.email) && !hasPassword && mailEnabled() && <SetPasswordNotice email={user.email} />}
         {!user.emailVerified && !isPlaceholderEmail(user.email) && mailEnabled() && (
           <VerifyEmailNotice email={user.email} welcome={settings.loyalty.welcomeBonus} />
         )}

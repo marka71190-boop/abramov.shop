@@ -194,32 +194,6 @@ h3 {
   border-color: var(--c-gold);
   color: var(--c-gold);
 }
-.btn--light {
-  background: var(--c-text);
-  color: #0a0a0a;
-  font-family: var(--font-body);
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: 15px;
-}
-.btn--light:hover:not(:disabled) {
-  background: #fff;
-  color: #0a0a0a;
-}
-.btn--vk {
-  background: #0077ff;
-  color: #fff;
-  font-family: var(--font-body);
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: 15px;
-}
-.btn--vk:hover:not(:disabled) {
-  background: #0069e0;
-  color: #fff;
-}
 .btn--dark {
   background: #0a0a0a;
   color: var(--c-text);
@@ -985,21 +959,6 @@ h3 {
   color: #9ee8c4;
   font-size: 14px;
 }
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--c-dim);
-  font-size: 13px;
-}
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
 /* ---------- Вход и регистрация ---------- */
 .auth {
   min-height: 100vh;

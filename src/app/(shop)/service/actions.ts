@@ -5,7 +5,8 @@ import { normalizePhone } from "@/lib/format";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { createServiceRequest, ServiceError } from "@/lib/service";
 import { isPlaceholderEmail } from "@/lib/site";
-import { getActiveBan, getViewer } from "@/lib/viewer";
+import { getSettings } from "@/lib/settings";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 
 const limit = createRateLimiter({ limit: 5, windowMs: 3600_000 });
 
@@ -26,6 +27,8 @@ export async function createServiceAction(raw: unknown): Promise<{ number?: stri
   const user = await getViewer();
   if (!user) return { error: "Войдите в аккаунт, чтобы оставить заявку" };
   if (getActiveBan(user)) return { error: "Аккаунт заблокирован" };
+  const settings = await getSettings();
+  if (settings.maintenance && !isAdmin(user)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных — откройте личный кабинет" };
   if (!limit(user.id)) return { error: "Слишком много заявок подряд — попробуйте через час" };
   const p = In.safeParse(raw);

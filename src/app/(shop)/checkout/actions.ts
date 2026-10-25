@@ -37,17 +37,14 @@ const QuoteIn = z.object({
 const quoteLimit = createRateLimiter({ limit: 120, windowMs: 60_000 });
 const placeLimit = createRateLimiter({ limit: 6, windowMs: 10 * 60_000 });
 
-async function ipKey() {
-  return (await getRequestMeta()).ip ?? "?";
-}
-
 /** Пересчёт корзины / страницы оформления. */
 export async function quoteAction(raw: unknown): Promise<{ quote?: Quote; error?: string }> {
-  if (!quoteLimit(await ipKey())) return { error: "Слишком много запросов, подождите минуту" };
+  const ip = (await getRequestMeta()).ip;
+  if (!quoteLimit(ip ?? "?")) return { error: "Слишком много запросов, подождите минуту" };
   const p = QuoteIn.safeParse(raw);
   if (!p.success) return { error: "Некорректные данные корзины" };
   const viewer = await getViewer();
-  return { quote: await computeQuote(p.data, viewer && !getActiveBan(viewer) ? viewer : null) };
+  return { quote: await computeQuote(p.data, viewer && !getActiveBan(viewer) ? viewer : null, { ip, userId: viewer?.id }) };
 }
 
 const PlaceIn = QuoteIn.extend({
@@ -68,6 +65,8 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
   if (getActiveBan(user)) return { error: "Аккаунт заблокирован" };
   const settings = await getSettings();
   if (settings.pdPause && !isAdmin(user)) return { error: settings.pdPauseMessage };
+  // Техработы: покупатели видят заглушку — и оформить заказ в обход неё тоже нельзя
+  if (settings.maintenance && !isAdmin(user)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных" };
   const byInvoice = (raw as { paymentMethod?: string } | null)?.paymentMethod === "INVOICE";
   if (!yookassaEnabled() && !isAdmin(user) && !byInvoice) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
@@ -81,7 +80,7 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
 
   try {
     const origin = await getOrigin(SITE.url);
-    const r = await placeOrder(user, { ...p.data, phone }, origin);
+    const r = await placeOrder(user, { ...p.data, phone }, origin, { ip: (await getRequestMeta()).ip, userId: user.id });
     // «Мои адреса»: отметить использованный или сохранить новый (ошибки сохранения заказ не ломают)
     const d = p.data.delivery;
     if (p.data.savedAddressId) await touchAddress(user.id, p.data.savedAddressId).catch(() => {});

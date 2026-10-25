@@ -2,7 +2,7 @@
  * Google Диск магазина: папки с фото и видео проверки товаров.
  *
  * Подключение — один раз в админке (OAuth, кнопка «Подключить Google Диск»), ключ клиента —
- * переменные GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET (те же, что для входа через Google).
+ * переменные GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET (вход покупателей через Google на сайте не используется).
  * Доступ к Диску только к файлам, которые создал сам сайт (scope drive.file) — остальное
  * содержимое Диска сайту не видно.
  *
@@ -15,6 +15,7 @@ import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { serverSecret } from "@/lib/secret";
 import { SITE } from "@/lib/site";
 
 const API = () => (process.env.GOOGLE_API_URL || "https://www.googleapis.com").replace(/\/$/, "");
@@ -36,7 +37,7 @@ interface Stored {
 
 // ---------- Шифрование токена
 
-const key = () => createHash("sha256").update(`${process.env.BETTER_AUTH_SECRET || "dev"}:gdrive`).digest();
+const key = () => createHash("sha256").update(`${serverSecret("dev")}:gdrive`).digest();
 function encrypt(text: string) {
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", key(), iv);

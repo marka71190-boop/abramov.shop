@@ -89,16 +89,45 @@ export function RealEmailForm() {
     <form action={action} className="panel stack" style={{ borderColor: "var(--c-gold)" }}>
       <div>
         <strong>Укажите почту</strong>
-        <div className="muted small">Вы вошли через VK ID без почты. На неё придут кассовые чеки и статусы заказов, а после сохранения — письмо для подтверждения.</div>
+        <div className="muted small">
+          Вход через VK ID больше не работает — без почты вы не сможете снова войти в аккаунт. На почту придут чеки и статусы заказов, а
+          войти можно будет по почте и паролю. Почта сохранится после перехода по ссылке из письма.
+        </div>
       </div>
       <div className="row">
         <input className="input" type="email" name="email" required placeholder="you@example.com" style={{ flex: "1 1 240px", width: "auto" }} />
         <button className="btn btn--gold" disabled={pending}>
-          Сохранить
+          Отправить письмо
         </button>
       </div>
       {state.error && <div className="form-error">{state.error}</div>}
+      {state.ok && <div className="form-ok">{state.ok}</div>}
     </form>
+  );
+}
+
+/** Аккаунт без пароля (раньше входили через Google или VK): ссылка «задать пароль» на почту. */
+export function SetPasswordNotice({ email }: { email: string }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  async function send() {
+    setState("sending");
+    const { error } = await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
+    setState(error ? "error" : "sent");
+  }
+  return (
+    <div className="panel stack" style={{ borderColor: "var(--c-gold)" }}>
+      <div>
+        <strong>Задайте пароль</strong>
+        <div className="muted small">Вход через Google и VK ID больше не работает. Чтобы входить снова, задайте пароль — пришлём ссылку на {email}.</div>
+      </div>
+      <div className="row" style={{ gap: 12 }}>
+        <button type="button" className="btn btn--line btn--sm" onClick={send} disabled={state === "sending" || state === "sent"}>
+          {state === "sending" ? "Отправляем…" : "Прислать ссылку"}
+        </button>
+        {state === "sent" && <span className="small" style={{ color: "var(--c-success)" }}>Письмо отправлено — ссылка действует 1 час</span>}
+        {state === "error" && <span className="small" style={{ color: "var(--c-danger)" }}>Не получилось — попробуйте через несколько минут</span>}
+      </div>
+    </div>
   );
 }
 

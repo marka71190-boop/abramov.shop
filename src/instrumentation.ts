@@ -6,6 +6,7 @@
  *   • каждую минуту — очередная партия писем рассылки;
  *   • каждые 30 минут — напоминания о брошенных корзинах;
  *   • каждые 2 минуты — подарочные сертификаты: оплата, письма получателям в выбранный день;
+ *   • каждые 5 минут — оплата заявок в мастерскую (в том числе по старым ссылкам);
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании,
  *     напоминание админам о заявках на возврат, срок ответа по которым истекает,
  *     проверка «заканчивается товар», письма «оцените покупку».
@@ -35,6 +36,10 @@ export async function register() {
   const { processCampaigns } = await import("@/lib/campaigns");
   setTimeout(safe("mailing", processCampaigns), 90_000);
   setInterval(safe("mailing", processCampaigns), 60_000);
+
+  // Оплаты мастерской (уведомления ЮKassa уходят на общий адрес с Kamui)
+  const { pollServicePayments } = await import("@/lib/service");
+  setInterval(safe("service", pollServicePayments), 5 * 60_000);
 
   // Подарочные сертификаты
   const { giftJobs } = await import("@/lib/giftcards");

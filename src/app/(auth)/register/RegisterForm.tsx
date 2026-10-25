@@ -1,19 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { IconGoogle, IconVk } from "@/components/Icons";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { goal } from "@/lib/track";
-
-interface Props {
-  next: string;
-  google: boolean;
-  vk: boolean;
-  socialFailed: "google" | "vk" | null;
-}
-
-const SOCIAL_NAME = { google: "Google", vk: "VK ID" } as const;
 
 /** Галочку записываем на сервере ДО создания аккаунта — без неё сервер аккаунт не создаст. */
 async function saveConsent(body: Record<string, unknown>) {
@@ -28,15 +18,11 @@ async function saveConsent(body: Record<string, unknown>) {
   }
 }
 
-export function RegisterForm({ next, google, vk, socialFailed }: Props) {
+export function RegisterForm({ next }: { next: string }) {
   const [pd, setPd] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(
-    socialFailed
-      ? `Не получилось войти через ${SOCIAL_NAME[socialFailed]}. Если вы у нас впервые — отметьте согласие ниже и нажмите «Продолжить с ${SOCIAL_NAME[socialFailed]}».`
-      : null,
-  );
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,23 +48,6 @@ export function RegisterForm({ next, google, vk, socialFailed }: Props) {
     }
   }
 
-  async function onSocial(provider: "google" | "vk") {
-    if (!pd) return setError("Отметьте согласие на обработку персональных данных");
-    setBusy(true);
-    setError(null);
-    try {
-      await saveConsent({ source: provider === "vk" ? "VK" : "GOOGLE", marketing });
-      await authClient.signIn.social({
-        provider,
-        callbackURL: next,
-        errorCallbackURL: `/register?from=${provider}`,
-      });
-    } catch (err) {
-      setError(authErrorMessage(err as { message?: string }));
-      setBusy(false);
-    }
-  }
-
   return (
     <form className="auth__form" onSubmit={onSubmit} noValidate={false}>
       <nav className="tabs" aria-label="Вход или регистрация">
@@ -93,18 +62,6 @@ export function RegisterForm({ next, google, vk, socialFailed }: Props) {
           {error}
         </div>
       )}
-
-      {vk && (
-        <button type="button" className="btn btn--vk" onClick={() => onSocial("vk")} disabled={!pd || busy}>
-          <IconVk /> Продолжить с VK ID
-        </button>
-      )}
-      {google && (
-        <button type="button" className="btn btn--light" onClick={() => onSocial("google")} disabled={!pd || busy}>
-          <IconGoogle /> Продолжить с Google
-        </button>
-      )}
-      {(vk || google) && <div className="divider">или по почте</div>}
 
       <label className="field">
         Имя

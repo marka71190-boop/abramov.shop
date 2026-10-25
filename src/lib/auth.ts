@@ -3,37 +3,14 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/consent";
-import { normalizePhone } from "@/lib/format";
-import { isPlaceholderEmail, placeholderEmail, SITE } from "@/lib/site";
+import { isPlaceholderEmail, SITE } from "@/lib/site";
 
-// Вход покупателей через Google — только если явно включён (GOOGLE_LOGIN=true). Ключи GOOGLE_CLIENT_ID/SECRET
-// нужны и для Google Диска (фото проверки), а вход через Google — это отдельная передача данных, её включаем осознанно
-const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_LOGIN === "true");
-const vkEnabled = Boolean(process.env.VK_CLIENT_ID && process.env.VK_CLIENT_SECRET);
+// Вход — только по почте и паролю. Вход через VK ID и Google убран: так никто не войдёт в чужой
+// аккаунт через внешний сервис с той же почтой.
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase() || null;
-
-const socialProviders: Parameters<typeof betterAuth>[0]["socialProviders"] = {};
-if (googleEnabled) {
-  socialProviders.google = {
-    clientId: process.env.GOOGLE_CLIENT_ID as string,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    prompt: "select_account",
-  };
-}
-if (vkEnabled) {
-  socialProviders.vk = {
-    clientId: process.env.VK_CLIENT_ID as string,
-    clientSecret: process.env.VK_CLIENT_SECRET as string,
-    // У части пользователей VK нет почты: тогда ставим служебный адрес, а в кабинете просим указать настоящий
-    mapProfileToUser: (profile) => ({
-      email: profile.user.email || placeholderEmail("vk", profile.user.user_id),
-      phone: normalizePhone(String(profile.user.phone ?? "")) ?? undefined,
-    }),
-  };
-}
 
 export const auth = betterAuth({
   appName: SITE.name,
@@ -110,15 +87,12 @@ export const auth = betterAuth({
       await grantWelcomeBonus(user.id).catch((e) => console.error("[bonus] welcome:", e));
     },
   },
-  socialProviders,
   user: {
-    // Телефон приходит из VK ID; из форм его напрямую не принимаем (input: false)
+    // Телефон из формы регистрации записываем сами (из журнала согласий), напрямую его не принимаем
     additionalFields: { phone: { type: "string", required: false, input: false } },
   },
-  account: {
-    // Зарегистрировался по почте, а потом зашёл через Google или VK с той же почтой — это один аккаунт
-    accountLinking: { enabled: true, trustedProviders: ["google", "vk"] },
-  },
+  // Привязка входа через другие сервисы выключена: вход только по почте и паролю
+  account: { accountLinking: { enabled: false } },
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 дней
     updateAge: 60 * 60 * 24,
@@ -131,35 +105,12 @@ export const auth = betterAuth({
     customRules: { "/send-verification-email": { window: 600, max: 3 } },
   },
   databaseHooks: {
-    account: {
-      create: {
-        /*
-         * Защита от «захвата» аккаунта: злоумышленник мог заранее зарегистрироваться
-         * по чужой почте с паролем (войти можно и без подтверждения почты). Когда настоящий
-         * владелец почты входит через Google или VK, сервис подтверждает почту — и мы удаляем
-         * пароль, заданный без подтверждения. Дальше вход — через Google или VK.
-         */
-        after: async (acc) => {
-          if (acc.providerId !== "google" && acc.providerId !== "vk") return;
-          const u = await db.query.user.findFirst({ where: eq(s.user.id, acc.userId), columns: { emailVerified: true } });
-          // Пароль удаляем, только если почту не подтверждали: если подтвердили по ссылке — пароль задал сам владелец
-          if (!u?.emailVerified) {
-            await db
-              .delete(s.account)
-              .where(and(eq(s.account.userId, acc.userId), eq(s.account.providerId, "credential")));
-            await db.update(s.user).set({ emailVerified: true }).where(eq(s.user.id, acc.userId));
-          }
-          const { grantWelcomeBonus } = await import("@/lib/bonuses");
-          await grantWelcomeBonus(acc.userId).catch((e) => console.error("[bonus] welcome:", e));
-        },
-      },
-    },
     user: {
       create: {
         /**
          * Главная защита: аккаунт НЕ создаётся без отметки согласия на обработку ПДн.
          * Отметка записывается в журнал в момент нажатия галочки (/api/consent),
-         * а здесь мы проверяем её по cookie — и для регистрации по почте, и для Google.
+         * а здесь мы проверяем её по cookie.
          */
         before: async (newUser, ctx) => {
           // Пауза приёма данных (админка → Настройки): новые аккаунты не создаются, кроме владельца
@@ -184,7 +135,7 @@ export const auth = betterAuth({
           // Владелец магазина (OWNER_EMAIL) сразу получает доступ к админке
           const role = ownerEmail && created.email.toLowerCase() === ownerEmail ? ("OWNER" as const) : undefined;
           if (phone || role) await db.update(s.user).set({ ...(phone ? { phone } : {}), ...(role ? { role } : {}) }).where(eq(s.user.id, created.id));
-          // Приветственные бонусы: сразу — если почта уже подтверждена (Google) или почта на сайте не настроена
+          // Приветственные бонусы: сразу — если почта уже подтверждена или почта на сайте не настроена
           // и подтвердить её нечем; иначе — после перехода по ссылке из письма (afterEmailVerification)
           const { mailEnabled } = await import("@/lib/mail");
           if (created.emailVerified || !mailEnabled()) {
@@ -198,5 +149,3 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
 });
 
-export const isGoogleEnabled = googleEnabled;
-export const isVkEnabled = vkEnabled;

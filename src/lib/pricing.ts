@@ -9,7 +9,7 @@ import { and, asc, count, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { calculate, cdekEnabled, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
-import { checkGiftCode, giftApplicable } from "@/lib/giftcards";
+import { checkGiftCode, giftApplicable, type GiftWho } from "@/lib/giftcards";
 import { getSettings } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import type { UserRow } from "@/lib/viewer";
@@ -250,7 +250,8 @@ export async function checkPromo(code: string, user: UserRow | null, subtotal: n
   return p;
 }
 
-export async function computeQuote(input: QuoteInput, user: UserRow | null): Promise<Quote> {
+/** who — кто считает (IP, аккаунт): защита кодов сертификатов от подбора */
+export async function computeQuote(input: QuoteInput, user: UserRow | null, who?: GiftWho): Promise<Quote> {
   const settings = await getSettings();
   const org = await approvedOrg(user);
   const { lines, removed, adjusted } = await loadLines(input.lines ?? [], settings, org);
@@ -367,7 +368,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null): Pro
   let gift: Quote["gift"] = null;
   let giftError: string | null = null;
   if (input.giftCode?.trim() && lines.length) {
-    const r = await checkGiftCode(input.giftCode);
+    const r = await checkGiftCode(input.giftCode, who);
     if ("error" in r) giftError = r.error;
     else {
       const applied = shipping || !d ? giftApplicable(r.card.balance, total) : 0;

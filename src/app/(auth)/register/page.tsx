@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isGoogleEnabled, isVkEnabled } from "@/lib/auth";
 import { safeNext } from "@/lib/auth-errors";
 import { getSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
@@ -8,10 +7,10 @@ import { RegisterForm } from "./RegisterForm";
 
 export const metadata: Metadata = { title: "Регистрация", robots: { index: false } };
 
-type Props = { searchParams: Promise<{ next?: string; from?: string }> };
+type Props = { searchParams: Promise<{ next?: string }> };
 
 export default async function RegisterPage({ searchParams }: Props) {
-  const { next, from } = await searchParams;
+  const { next } = await searchParams;
   if (await getViewer()) redirect(safeNext(next));
   const settings = await getSettings();
   if (settings.pdPause) {
@@ -25,5 +24,5 @@ export default async function RegisterPage({ searchParams }: Props) {
       </div>
     );
   }
-  return <RegisterForm next={safeNext(next)} google={isGoogleEnabled} vk={isVkEnabled} socialFailed={from === "google" || from === "vk" ? from : null} />;
+  return <RegisterForm next={safeNext(next)} />;
 }

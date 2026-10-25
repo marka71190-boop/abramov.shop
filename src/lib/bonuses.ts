@@ -4,9 +4,11 @@
  * Сгорание считается без отдельного учёта «остатков» каждого начисления:
  * бонусы тратятся начиная с тех, что сгорают раньше, поэтому сгореть может только
  * max(0, баланс − сумма ещё не истёкших начислений). Начисления без срока не сгорают никогда.
+ * Возврат потраченных бонусов (отмена заказа, возврат) — не новое начисление, а отмена списания:
+ * бонусы возвращаются со своим прежним сроком, поэтому в «живые» начисления он не входит.
  */
 import "server-only";
-import { and, eq, gt, isNull, or, sql, sum } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, or, sql, sum } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { fmtDate, num } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
@@ -28,8 +30,8 @@ export async function creditBonus(userId: string, amount: number, reason: Reason
 }
 
 /**
- * Приветственные бонусы — один раз на аккаунт и только с подтверждённой почтой
- * (или после входа через Google/VK). Так за бонусами не заводят аккаунты на выдуманные адреса.
+ * Приветственные бонусы — один раз на аккаунт и только с подтверждённой почтой.
+ * Так за бонусами не заводят аккаунты на выдуманные адреса.
  * Повторный вызов ничего не начислит. Возвращает число начисленных бонусов.
  */
 export async function grantWelcomeBonus(userId: string) {
@@ -67,6 +69,7 @@ async function liveAt(userId: string, at: Date) {
       and(
         eq(s.bonusTransaction.userId, userId),
         gt(s.bonusTransaction.amount, 0),
+        ne(s.bonusTransaction.reason, "REFUND"),
         or(isNull(s.bonusTransaction.expiresAt), gt(s.bonusTransaction.expiresAt, at)),
       ),
     );

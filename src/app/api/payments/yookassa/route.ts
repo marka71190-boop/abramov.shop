@@ -30,9 +30,8 @@ export async function POST(request: Request) {
       const gift = await db.query.giftCard.findFirst({ where: eq(s.giftCard.paymentId, String(id).slice(0, 64)), columns: { id: true } });
       if (!gift) {
         // Оплата заявки в мастерскую
-        const svc = await db.query.serviceRequest.findFirst({ where: eq(s.serviceRequest.paymentId, String(id).slice(0, 64)), columns: { id: true } });
-        if (!svc) return Response.json({ ok: true, skipped: true });
-        const { applyServicePayment } = await import("@/lib/service");
+        const { applyServicePayment, findServiceByPayment } = await import("@/lib/service");
+        if (!(await findServiceByPayment(String(id).slice(0, 64)))) return Response.json({ ok: true, skipped: true });
         await applyServicePayment(await getPayment(id));
         return Response.json({ ok: true });
       }

@@ -9,7 +9,7 @@ import { normalizePhone } from "@/lib/format";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
-import { getActiveBan, getViewer } from "@/lib/viewer";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 import { lookupInn, ORG_KIND, validInn, type InnInfo } from "@/lib/wholesale";
 
 const limit = createRateLimiter({ limit: 5, windowMs: 3600_000 });
@@ -48,6 +48,7 @@ export async function submitOrgAction(_: unknown, form: FormData): Promise<{ ok?
   if (getActiveBan(me)) return { error: "Аккаунт заблокирован" };
   const settings = await getSettings();
   if (!settings.b2b.enabled) return { error: "Приём заявок сейчас закрыт" };
+  if (settings.maintenance && !isAdmin(me)) return { error: settings.maintenanceMessage || "Сайт на техработах — оформить сейчас нельзя. Загляните чуть позже" };
   if (!(await getActiveConsent(me.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных — откройте личный кабинет" };
   if (!limit(me.id)) return { error: "Слишком много попыток — попробуйте через час" };
   const p = In.safeParse(Object.fromEntries(form));
