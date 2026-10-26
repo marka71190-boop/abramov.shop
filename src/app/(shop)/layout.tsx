@@ -6,6 +6,10 @@ import { CompareBar } from "@/components/product/Compare";
 import { Analytics } from "@/components/analytics/Analytics";
 import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { TopStrip } from "@/components/banners/TopStrip";
+import { activeBanners } from "@/lib/banners";
+import { STRIP_COOKIE } from "@/lib/banners-shared";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Logo } from "@/components/Logo";
@@ -41,14 +45,19 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   }
 
   const cueOn = (await import("@/lib/cue").then((m) => m.getCueConfig())).enabled;
-  const [footerPages, categories] = await Promise.all([
+  const [footerPages, categories, strip, jar] = await Promise.all([
     db
       .select({ slug: s.page.slug, title: s.page.title })
       .from(s.page)
       .where(and(publicWhere(s.page), eq(s.page.showInFooter, true)))
       .orderBy(asc(s.page.sortOrder)),
     getPublicCategories(),
+    activeBanners("STRIP", 5),
+    cookies(),
   ]);
+  // Объявления, которые посетитель закрыл крестиком, не показываем неделю
+  const hidden = new Set(decodeURIComponent(jar.get(STRIP_COOKIE)?.value ?? "").split("."));
+  const stripItems = strip.filter((b) => !hidden.has(b.id));
 
   const ban = admin ? null : getActiveBan(viewer);
   // Номер счётчика Яндекс Метрики — из переменной YANDEX_METRIKA_ID в Timeweb
@@ -77,6 +86,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           <div className="notice">{settings.pdPauseMessage}</div>
         ))}
       <div className="ban-shell" inert={ban ? true : undefined}>
+        {stripItems.length > 0 && <TopStrip items={stripItems} />}
         <Header signedIn={!!viewer} admin={admin} club={viewer?.role === "CLUB"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />

@@ -1246,3 +1246,30 @@ export const article = pgTable(
   },
   (t) => [index("article_section_idx").on(t.section)],
 );
+
+/** Рекламные баннеры: слайдер вверху главной и тонкая полоса над шапкой на всех страницах */
+export const bannerPlaceEnum = pgEnum("banner_place", ["HOME", "STRIP"]);
+export const banner = pgTable(
+  "banner",
+  {
+    id: id(),
+    place: bannerPlaceEnum("place").default("HOME").notNull(),
+    label: text("label").default("").notNull(), // маленькая надпись над заголовком: «Акция», «Новинка»
+    title: text("title").default("").notNull(),
+    text: text("text").default("").notNull(),
+    image: text("image"), // компьютер, 2400×800
+    imageMobile: text("image_mobile"), // телефон, 1080×1080
+    buttonText: text("button_text").default("").notNull(),
+    url: text("url").default("").notNull(),
+    tone: text("tone").default("dark").notNull(), // полоса: gold | dark | red; слайд: dark (светлый текст) | light (тёмный текст)
+    countdown: boolean("countdown").default(false).notNull(), // показывать «до конца акции» по endsAt
+    startsAt: ts("starts_at"),
+    endsAt: ts("ends_at"),
+    isActive: boolean("is_active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    clicks: integer("clicks").default(0).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("banner_place_idx").on(t.place, t.sortOrder)],
+);

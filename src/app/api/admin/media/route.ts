@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/media — загрузка фото товара (только для админов).
- * Фото уменьшаем до 1600 px по длинной стороне и сохраняем в WebP прямо в базе.
+ * Фото уменьшаем до 1600 px по длинной стороне (баннеры — ?wide=1 — до 2400 px) и сохраняем в WebP прямо в базе.
  */
 import { db, schema as s } from "@/db";
 import { getViewer, isAdmin } from "@/lib/viewer";
@@ -19,11 +19,12 @@ export async function POST(request: Request) {
   if (file.size > MAX) return Response.json({ error: "Файл больше 15 МБ" }, { status: 400 });
   if (!/^image\/(jpeg|png|webp|avif|heic|heif)$/.test(file.type)) return Response.json({ error: "Нужна картинка JPG, PNG или WebP" }, { status: 400 });
 
+  const side = new URL(request.url).searchParams.get("wide") === "1" ? 2400 : 1600;
   try {
     const sharp = (await import("sharp")).default;
     const out = await sharp(Buffer.from(await file.arrayBuffer()))
       .rotate()
-      .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+      .resize({ width: side, height: side, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 84 })
       .toBuffer({ resolveWithObject: true });
     const [row] = await db

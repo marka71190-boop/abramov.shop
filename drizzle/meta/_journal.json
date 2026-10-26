@@ -239,6 +239,13 @@
       "when": 1792956994098,
       "tag": "0033_robokassa",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793027759190,
+      "tag": "0034_banners",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,8 @@ import { num, rub } from "@/lib/format";
 import { favoriteIds, ratingsFor, shortName } from "@/lib/reviews";
 import { getSettings } from "@/lib/settings";
 import { getHomeContent } from "@/lib/home-content";
+import { activeBanners } from "@/lib/banners";
+import { PromoSlider } from "@/components/banners/PromoSlider";
 import { getViewer } from "@/lib/viewer";
 import { ldJson } from "@/lib/seo";
 import { SITE } from "@/lib/site";
@@ -62,7 +64,7 @@ function Rail({
 }
 
 export default async function HomePage() {
-  const [categories, drop, settings, hits, fresh, reviews, viewer, home] = await Promise.all([
+  const [categories, drop, settings, hits, fresh, reviews, viewer, home, slides] = await Promise.all([
     getPublicCategories(),
     getFeaturedLimited(),
     getSettings(),
@@ -71,6 +73,7 @@ export default async function HomePage() {
     getLatestReviews(),
     getViewer(),
     getHomeContent(),
+    activeBanners("HOME"),
   ]);
   // Новинки не повторяют хиты
   const hitIds = new Set(hits.map((p) => p.id));
@@ -83,6 +86,7 @@ export default async function HomePage() {
 
   return (
     <>
+      {slides.length > 0 && <PromoSlider slides={slides} />}
       <section id="top" className="hero">
         <div className="container hero__grid">
           <div className="hero__copy">

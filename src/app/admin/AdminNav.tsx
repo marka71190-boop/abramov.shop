@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/orgs", label: "Организации" },
   { href: "/admin/consents", label: "Журнал согласий", owner: true },
   { href: "/admin/home", label: "Главная страница", owner: true },
+  { href: "/admin/banners", label: "Баннеры" },
   { href: "/admin/pages", label: "Страницы", owner: true },
   { href: "/admin/journal", label: "Журнал" },
   { href: "/admin/catalog", label: "Каталог" },
