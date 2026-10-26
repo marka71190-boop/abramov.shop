@@ -43,6 +43,7 @@ import {
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
+import { installProAttributes } from "../src/lib/attributes-pro";
 import { STARTER_ARTICLES } from "../src/content/articles";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15_000 });
@@ -198,6 +199,13 @@ async function main() {
       await db.insert(s.attribute).values({ ...a, options: a.options ?? [] }).onConflictDoNothing({ target: s.attribute.key });
     }
     await db.insert(s.setting).values({ key: "attributes_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
+  }
+  // Характеристики по категориям (кии, наклейки, мел, перчатки…) для карточки, фильтров и сравнения — один раз
+  const proSeeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "attributes_pro_seeded") });
+  if (!proSeeded) {
+    const r = await installProAttributes(db);
+    console.log(`[сид] Характеристики по категориям: добавлено ${r.created}, обновлено ${r.updated}`);
+    await db.insert(s.setting).values({ key: "attributes_pro_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
   }
 
   // Журнал: стартовые статьи — один раз, черновиками (владелец проверяет и публикует сам)

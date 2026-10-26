@@ -6,6 +6,7 @@ import { attrValues, formatAttr, listAttributes } from "@/lib/attributes";
 import { getPublicProductsByIds } from "@/lib/catalog";
 import { rub } from "@/lib/format";
 import { ratingsFor } from "@/lib/reviews";
+import { getViewer, isAdmin } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Сравнение товаров", robots: { index: false } };
 
@@ -27,7 +28,10 @@ export default async function ComparePage({ searchParams }: Props) {
   }
   const found = await getPublicProductsByIds(ids);
   const products = ids.map((id) => found.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
-  const [defs, vals, ratings] = await Promise.all([listAttributes(), attrValues(products.map((p) => p.id)), ratingsFor(products.map((p) => p.id))]);
+  const [defs, vals, ratings, viewer] = await Promise.all([listAttributes(), attrValues(products.map((p) => p.id)), ratingsFor(products.map((p) => p.id)), getViewer()]);
+  const admin = isAdmin(viewer);
+  // Товары без единой характеристики — для подсказки администратору
+  const empty = products.filter((p) => !vals.get(p.id)?.size);
   const rows = defs
     .map((a) => ({ a, cells: products.map((p) => vals.get(p.id)?.get(a.id) ?? null) }))
     .filter((r) => r.cells.some((c) => c != null));
@@ -39,7 +43,13 @@ export default async function ComparePage({ searchParams }: Props) {
         Сравнение
       </h1>
       {products.length < 2 && <p className="muted" style={{ margin: 0 }}>Добавьте ещё товар — кнопка «Сравнить» в карточке.</p>}
-      <div className="table-wrap">
+      {products.length > 1 && rows.length > 0 && (
+        <label className="check small compare-only">
+          <input type="checkbox" id="compare-diff" />
+          <span>Только различия</span>
+        </label>
+      )}
+      <div className="table-wrap compare-wrap">
         <table className="table compare-table">
           <thead>
             <tr>
@@ -67,13 +77,13 @@ export default async function ComparePage({ searchParams }: Props) {
                 </td>
               ))}
             </tr>
-            <tr>
+            <tr className={diff(products.map((p) => String(p.stock > 0))) ? "is-diff" : undefined}>
               <td className="muted">Наличие</td>
               {products.map((p) => (
                 <td key={p.id}>{p.stock > 0 ? "В наличии" : <span className="muted">Нет в наличии</span>}</td>
               ))}
             </tr>
-            <tr>
+            <tr className={diff(products.map((p) => String(ratings.get(p.id)?.avg ?? ""))) ? "is-diff" : undefined}>
               <td className="muted">Оценка</td>
               {products.map((p) => {
                 const r = ratings.get(p.id);
@@ -92,6 +102,12 @@ export default async function ComparePage({ searchParams }: Props) {
         </table>
       </div>
       {rows.length === 0 && <p className="muted small" style={{ margin: 0 }}>У этих товаров пока не заполнены характеристики.</p>}
+      {admin && empty.length > 0 && (
+        <div className="notice notice--muted small" style={{ textAlign: "left" }}>
+          Для администратора: без характеристик — {empty.map((p) => p.name).join(", ")}.{" "}
+          <Link href={`/admin/catalog/attributes/fill${empty[0].categoryId ? `?cat=${empty[0].categoryId}` : ""}`}>Заполнить таблицей</Link>
+        </div>
+      )}
       <p className="muted small" style={{ margin: 0 }}>Подсвечены строки, где товары отличаются.</p>
     </section>
   );

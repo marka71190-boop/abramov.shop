@@ -5330,3 +5330,82 @@ a.strip__link:hover .strip__more {
 .banner-preview .promo__slide {
   min-height: clamp(260px, 28vw, 420px);
 }
+
+/* ---------- Админка: заполнение характеристик таблицей ---------- */
+.attr-grid {
+  max-height: 72vh;
+  overflow: auto;
+}
+.attr-grid table {
+  min-width: max-content;
+}
+.attr-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--c-panel-2);
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.attr-grid td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.attr-grid__name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--c-panel);
+  min-width: 220px;
+  max-width: 280px;
+}
+.attr-grid th.attr-grid__name {
+  z-index: 3;
+  background: var(--c-panel-2);
+}
+.attr-grid .input,
+.attr-grid .select {
+  height: 38px;
+  min-width: 130px;
+  padding-inline: 10px;
+  font-size: 14px;
+}
+.attr-grid .is-empty {
+  border-style: dashed;
+}
+.attr-grid__save {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0;
+  background: var(--c-bg);
+  z-index: 4;
+}
+
+/* Сравнение: «Только различия» и закреплённый первый столбец */
+body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
+  display: none;
+}
+.compare-table tbody td:first-child,
+.compare-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--c-bg);
+  min-width: 130px;
+  width: 160px;
+}
+.compare-table tr.is-diff td:first-child {
+  background: linear-gradient(rgba(220, 191, 131, 0.06), rgba(220, 191, 131, 0.06)), var(--c-bg);
+}
+@media (max-width: 640px) {
+  .compare-table th,
+  .compare-table td {
+    min-width: 150px;
+  }
+  .compare-table tbody td:first-child,
+  .compare-table thead th:first-child {
+    min-width: 100px;
+    width: 100px;
+    font-size: 13px;
+  }
+}
