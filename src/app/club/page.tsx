@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PushToggle } from "@/components/pwa/PushToggle";
+import { pushPublicKey } from "@/lib/push";
 import { clubQueue, requireClubStaff } from "@/lib/club-staff";
 import { fmtDate, fmtDateTime, prettyPhone, rub } from "@/lib/format";
 import { estimate, SERVICE_STATUS, type ServiceRow } from "@/lib/service";
@@ -50,6 +52,7 @@ export default async function ClubPage({ searchParams }: Props) {
         <div className="muted">
           {club.city}, {club.address}
         </div>
+        {pushPublicKey() && <PushToggle publicKey={pushPublicKey()} signedIn what="заказы на выдачу и кии из мастерской" />}
         {clubs.length > 1 && (
           <nav className="cchips" aria-label="Клубы">
             {clubs.map((x) => (

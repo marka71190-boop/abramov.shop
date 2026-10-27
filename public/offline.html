@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a0a0a">
+<title>Нет соединения — Abramov Shop</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0a;color:#f3f2ef;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{min-height:100%;display:grid;place-items:center;text-align:center;padding:24px;box-sizing:border-box}
+  svg{width:120px;height:auto;margin:0 auto 28px;display:block}
+  h1{font:600 30px/1.1 "Arial Narrow",system-ui,sans-serif;letter-spacing:.02em;text-transform:uppercase;margin:0}
+  p{color:#a3a3a8;max-width:420px;margin:14px auto 26px}
+  button{font:600 14px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;background:#dcbf83;color:#0a0a0a;border:0;padding:16px 28px;cursor:pointer}
+  button:hover{background:#ecd39f}
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <svg viewBox="86 150 456 320" aria-hidden="true"><path d="M277,163 Q279,163 281,167 L413,389 L338,389 Q330,389 325,381 L276,301 L184,450 Q178,459 167,459 L95,459 L273,167 Q275,163 277,163 Z" fill="#dcbf83"/><path d="M302,164 L372,164 Q382,164 387,172 L525,389 L439,389 Z" fill="#b1afb0"/></svg>
+    <h1>Нет соединения</h1>
+    <p>Похоже, пропал интернет. Корзина сохранилась — как только связь вернётся, продолжите с того же места.</p>
+    <button type="button" onclick="location.reload()">Обновить</button>
+  </div>
+</main>
+<script>window.addEventListener("online",function(){location.reload()})</script>
+</body>
+</html>

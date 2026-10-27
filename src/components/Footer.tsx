@@ -34,6 +34,7 @@ export function Footer({ pages, telegram, email, cue = false }: Props) {
           <Link href="/service">Мастерская: ремонт киёв</Link>
           <Link href="/gift">Подарочные сертификаты</Link>
           <Link href="/account">Личный кабинет</Link>
+          <Link href="/app">Приложение для телефона</Link>
         </div>
         <div className="footer__col">
           <div className="footer__title">Покупателям</div>

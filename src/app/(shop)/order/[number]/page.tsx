@@ -11,6 +11,8 @@ import { getSettings } from "@/lib/settings";
 import { isAdmin, requireUser } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { PurchaseTracker } from "@/components/analytics/PurchaseTracker";
+import { OrderPushHint } from "@/components/pwa/OrderPushHint";
+import { pushPublicKey } from "@/lib/push";
 import { AutoRefresh, CancelButton, TestPayButton } from "./OrderActions";
 import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns, returnable } from "@/lib/returns";
@@ -88,6 +90,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </p>
         </div>
       )}
+
+      {o.userId === user.id && ["AWAITING_PAYMENT", "PAID", "ASSEMBLING", "SHIPPED"].includes(o.status) && <OrderPushHint publicKey={pushPublicKey()} pickup={o.deliveryType === "PICKUP"} />}
 
       {awaiting && o.paymentMethod === "INVOICE" && (
         <div className="panel stack pay-box">

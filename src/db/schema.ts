@@ -1273,3 +1273,22 @@ export const banner = pgTable(
   },
   (t) => [index("banner_place_idx").on(t.place, t.sortOrder)],
 );
+
+/** Уведомления на телефон (Web Push): подписки браузеров. Только для вошедших: покупателей, сотрудников и клубов */
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(), // адрес службы уведомлений браузера (Google, Apple, Mozilla, Microsoft)
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    device: text("device").default("").notNull(), // «Android · Chrome» — чтобы человек узнал своё устройство
+    failures: integer("failures").default(0).notNull(),
+    lastSentAt: ts("last_sent_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscription_user_idx").on(t.userId)],
+);

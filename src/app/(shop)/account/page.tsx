@@ -17,6 +17,8 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { getPublicProductsByIds } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { telegramEnabled } from "@/lib/telegram";
+import { pushPublicKey } from "@/lib/push";
+import { PushToggle } from "@/components/pwa/PushToggle";
 import { isPlaceholderEmail } from "@/lib/site";
 import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns } from "@/lib/returns";
@@ -398,6 +400,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 {user.telegramChatId && <Toggle label="Уведомления в Telegram" on={user.notifyTelegram} action={setTelegramNotify} />}
                 <TelegramConnect linked={!!user.telegramChatId} />
               </div>
+            </div>
+          )}
+          {pushPublicKey() && (
+            <div className="row-line" id="push">
+              <div>
+                <div>Уведомления на телефон</div>
+                <div className="muted small">
+                  Оплата, трек-номер и готовность заказа — прямо на экран. Удобнее всего в <Link href="/app">приложении</Link>
+                </div>
+              </div>
+              <PushToggle publicKey={pushPublicKey()} signedIn />
             </div>
           )}
           {settings.loyalty.birthdayBonus > 0 && (

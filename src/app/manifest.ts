@@ -4,6 +4,7 @@ import { SITE } from "@/lib/site";
 /** Значок и название сайта, если покупатель добавит его на экран телефона («Установить приложение»). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: SITE.title,
     short_name: SITE.name,
     description: SITE.description,
@@ -18,10 +19,13 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
+    categories: ["shopping", "sports"],
+    prefer_related_applications: false,
     shortcuts: [
-      { name: "Каталог", url: "/catalog" },
-      { name: "Корзина", url: "/cart" },
-      { name: "Мои заказы", url: "/account#orders" },
+      { name: "Каталог", url: "/catalog?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Корзина", url: "/cart?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Мои заказы", url: "/account?utm_source=pwa#orders", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Подбор кия", url: "/podbor-kiya?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

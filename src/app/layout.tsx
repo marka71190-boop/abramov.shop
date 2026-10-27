@@ -3,6 +3,7 @@ import { DEFAULT_OG } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 import { montserrat, oswald } from "./fonts";
 import "./globals.css";
+import { SwRegister } from "@/components/pwa/SwRegister";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -23,7 +24,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru" className={`${oswald.variable} ${montserrat.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <SwRegister />
+      </body>
     </html>
   );
 }

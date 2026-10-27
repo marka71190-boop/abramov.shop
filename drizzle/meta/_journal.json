@@ -246,6 +246,13 @@
       "when": 1793027759190,
       "tag": "0034_banners",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793137703390,
+      "tag": "0035_push",
+      "breakpoints": true
     }
   ]
 }

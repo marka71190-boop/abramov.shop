@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE.url}/podbor-kiya`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/opt`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE.url}/klub-pod-klyuch`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE.url}/app`, changeFrequency: "yearly", priority: 0.3 },
     ...(cue.enabled ? [{ url: `${SITE.url}/cue`, changeFrequency: "monthly" as const, priority: 0.7 }] : []),
     ...cats.map((c) => ({ url: `${SITE.url}/catalog/${c.slug}`, lastModified: c.updatedAt })),
     ...products.map((p) => ({ url: `${SITE.url}/product/${p.slug}`, lastModified: p.updatedAt })),

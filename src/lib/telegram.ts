@@ -257,6 +257,8 @@ const staffWithTelegram = () =>
 /** Сообщение клиенту и (для оплаты) админам. Ошибки Telegram не ломают работу магазина. */
 export async function notifyOrder(orderId: string, event: OrderEvent, extra?: { note?: string }) {
   void emailOrderNotice(orderId, event);
+  // Уведомление на телефон (если покупатель или сотрудники их включили)
+  void import("@/lib/push").then((m) => m.pushOrder(orderId, event)).catch((e) => console.error("[push] заказ:", e));
   // Самовывоз: администраторам клуба — что везём к ним и что отменили
   void import("@/lib/club-staff").then((m) => m.notifyClubOrder(orderId, event)).catch((e) => console.error("[club] заказ:", e));
   if (!telegramEnabled()) return;
@@ -386,6 +388,7 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
 
 /** Сообщение всем админам и менеджерам с привязанным Telegram. */
 export async function notifyAdmins(html: string, button?: { text: string; url: string }) {
+  void import("@/lib/push").then((m) => m.pushToStaff(m.fromHtml(html, m.sitePath(button?.url)))).catch(() => {});
   if (!telegramEnabled()) return;
   try {
     const admins = await db
@@ -400,6 +403,7 @@ export async function notifyAdmins(html: string, button?: { text: string; url: s
 
 /** Личное сообщение клиенту, если он привязал Telegram и не выключил уведомления. */
 export async function notifyUser(userId: string, html: string, button?: { text: string; url: string }) {
+  void import("@/lib/push").then((m) => m.pushToUser(userId, m.fromHtml(html, m.sitePath(button?.url)))).catch(() => {});
   if (!telegramEnabled()) return false;
   const u = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { telegramChatId: true, notifyTelegram: true } });
   if (!u?.telegramChatId || !u.notifyTelegram) return false;

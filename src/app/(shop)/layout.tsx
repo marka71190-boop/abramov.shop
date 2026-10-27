@@ -8,6 +8,7 @@ import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { TopStrip } from "@/components/banners/TopStrip";
+import { InstallHint } from "@/components/pwa/InstallHint";
 import { activeBanners } from "@/lib/banners";
 import { STRIP_COOKIE } from "@/lib/banners-shared";
 import { Footer } from "@/components/Footer";
@@ -72,6 +73,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         <Analytics metrikaId={metrikaId} />
       </Suspense>
       <CookieBanner analytics={!!metrikaId} />
+      <InstallHint />
       {settings.maintenance && admin && (
         <div className="notice">
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>

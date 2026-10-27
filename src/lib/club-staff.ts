@@ -46,6 +46,10 @@ export async function notifyClub(clubId: string | null, html: string, button?: {
     });
     const live = staff.filter((u) => !u.bannedAt || (u.bannedUntil && u.bannedUntil <= new Date()));
     if (!live.length) return;
+    // На телефоны сотрудников клуба, если они включили уведомления
+    void import("@/lib/push")
+      .then((m) => m.pushToUsers(live.map((u) => u.id), m.fromHtml(html, m.sitePath(button?.url))))
+      .catch(() => {});
     const { send, telegramEnabled } = await import("@/lib/telegram");
     const { mailEnabled, sendMail } = await import("@/lib/mail");
     const title = html.split("\n")[0].replace(/<[^>]+>/g, "").replace(/^[^\p{L}\p{N}]+/u, "").slice(0, 120);

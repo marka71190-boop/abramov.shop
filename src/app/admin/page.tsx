@@ -6,6 +6,8 @@ import { openReturnsCount } from "@/lib/returns";
 import { lowStockCount } from "@/lib/low-stock";
 import { getSettings } from "@/lib/settings";
 import { requireAdmin } from "@/lib/viewer";
+import { PushToggle } from "@/components/pwa/PushToggle";
+import { pushPublicKey } from "@/lib/push";
 
 export default async function AdminHome() {
   const me = await requireAdmin();
@@ -55,6 +57,18 @@ export default async function AdminHome() {
   return (
     <>
       <h1>Обзор</h1>
+      {pushPublicKey() && (
+        <details className="panel" style={{ marginBottom: 16 }}>
+          <summary>Уведомления о новых заказах на этот телефон или компьютер</summary>
+          <div className="stack" style={{ marginTop: 12, gap: 8 }}>
+            <p className="small muted" style={{ margin: 0 }}>
+              Придут оплаченные заказы, возвраты, заявки в мастерскую и «Клуб под ключ» — то же, что в Telegram. На телефоне удобнее из установленного
+              приложения: <Link href="/app">как установить</Link>.
+            </p>
+            <PushToggle publicKey={pushPublicKey()} signedIn what="новые заказы и заявки" />
+          </div>
+        </details>
+      )}
       {settings.maintenance && (
         <div className="form-error">
           Включён режим техработ — покупатели видят заглушку. <Link href="/admin/settings">Настройки</Link>
