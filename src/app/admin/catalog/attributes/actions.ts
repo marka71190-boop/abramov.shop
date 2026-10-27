@@ -21,12 +21,18 @@ const In = z.object({
 });
 
 export async function saveAttribute(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireAdmin("OWNER");
+  const me = await requireAdmin();
   const p = In.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
   const d = p.data;
-  const key = (d.key?.trim() || slugify(d.name)).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
+  const dup = (await db.select({ id: s.attribute.id, name: s.attribute.name }).from(s.attribute)).find(
+    (a) => a.id !== d.id && a.name.trim().toLowerCase() === d.name.toLowerCase(),
+  );
+  if (dup) return { error: `Характеристика «${dup.name}» уже есть — откройте её в списке и добавьте нужные категории` };
+  const typed = d.key?.trim();
+  let key = (typed || slugify(d.name)).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
   if (!key) return { error: "Код — латиницей, например weight" };
+  if (!typed && !d.id) key = await freeKey(key);
   const options = d.type === "select" ? [...new Set(d.options.split(/\n|,/).map((x) => x.trim()).filter(Boolean))].slice(0, 100) : [];
   if (d.type === "select" && !options.length) return { error: "Для списка укажите варианты — по одному в строке" };
   const values = {
@@ -39,6 +45,11 @@ export async function saveAttribute(_: ActionState, form: FormData): Promise<Act
     filterable: form.get("filterable") === "on" && d.type !== "text",
     sortOrder: d.sortOrder,
   };
+  if (!d.id && !form.get("sortOrder")?.toString().trim().replace(/^0$/, "")) {
+    // Новая — в конец списка
+    const rows = await db.select({ o: s.attribute.sortOrder }).from(s.attribute);
+    values.sortOrder = rows.reduce((m, r) => Math.max(m, r.o), 0) + 10;
+  }
   try {
     if (d.id) await db.update(s.attribute).set(values).where(eq(s.attribute.id, d.id));
     else await db.insert(s.attribute).values(values);
@@ -49,6 +60,64 @@ export async function saveAttribute(_: ActionState, form: FormData): Promise<Act
   await audit(me.id, d.id ? "attribute.update" : "attribute.create", "attribute", d.id ?? null, { key });
   revalidatePath("/", "layout");
   return { ok: d.id ? "Сохранено" : "Характеристика добавлена" };
+}
+
+/** Свободный код характеристики: weight, weight-2, weight-3… */
+async function freeKey(base: string) {
+  const taken = new Set((await db.select({ k: s.attribute.key }).from(s.attribute)).map((r) => r.k));
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 1000; i++) if (!taken.has(`${base.slice(0, 36)}-${i}`)) return `${base.slice(0, 36)}-${i}`;
+  return `${base.slice(0, 30)}-${Date.now().toString(36)}`;
+}
+
+const Quick = z.object({
+  name: z.string().trim().min(2, "Название характеристики — от 2 букв").max(60),
+  type: z.enum(["number", "select", "text"]),
+  unit: z.string().trim().max(12).default(""),
+  options: z.string().max(3000).default(""),
+  categoryId: z.string().max(64).default(""),
+  forAll: z.boolean().default(false),
+});
+
+export type QuickAttr = { id: string; name: string; unit: string; type: string; options: string[]; categoryIds: string[] };
+
+/**
+ * Быстро добавить характеристику прямо из карточки товара или таблицы заполнения.
+ * Если такая уже есть (по названию) — не плодим дубль, а добавляем её к категории.
+ */
+export async function quickAddAttribute(input: z.input<typeof Quick>): Promise<{ attr?: QuickAttr; error?: string; existed?: boolean }> {
+  const me = await requireAdmin();
+  const p = Quick.safeParse(input);
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const d = p.data;
+  const cat = d.categoryId ? await db.query.category.findFirst({ where: eq(s.category.id, d.categoryId), columns: { id: true } }) : null;
+  const categoryIds = d.forAll || !cat ? [] : [cat.id];
+  const options = d.type === "select" ? [...new Set(d.options.split(/\n|,|;/).map((x) => x.trim()).filter(Boolean))].slice(0, 100) : [];
+  if (d.type === "select" && !options.length) return { error: "Впишите варианты через запятую, например: Клён, Граб, Ясень" };
+
+  const all = await listAttributes();
+  const same = all.find((a) => a.name.trim().toLowerCase() === d.name.toLowerCase());
+  if (same) {
+    const patch: Partial<typeof s.attribute.$inferInsert> = {};
+    if (same.categoryIds.length && (categoryIds.length === 0 || !same.categoryIds.includes(categoryIds[0])))
+      patch.categoryIds = categoryIds.length ? [...same.categoryIds, categoryIds[0]] : [];
+    if (same.type === "select" && options.length) {
+      const extra = options.filter((o) => !same.options.some((x) => x.toLowerCase() === o.toLowerCase()));
+      if (extra.length) patch.options = [...same.options, ...extra];
+    }
+    if (Object.keys(patch).length) await db.update(s.attribute).set(patch).where(eq(s.attribute.id, same.id));
+    revalidatePath("/", "layout");
+    return { existed: true, attr: { id: same.id, name: same.name, unit: same.unit, type: same.type, options: patch.options ?? same.options, categoryIds: patch.categoryIds ?? same.categoryIds } };
+  }
+  const key = await freeKey(slugify(d.name).replace(/[^a-z0-9_-]/g, "").slice(0, 40) || "attr");
+  const sortOrder = all.reduce((m, a) => Math.max(m, a.sortOrder), 0) + 10;
+  const [row] = await db
+    .insert(s.attribute)
+    .values({ key, name: d.name, unit: d.unit, type: d.type, options, categoryIds, filterable: d.type !== "text", sortOrder })
+    .returning();
+  await audit(me.id, "attribute.create", "attribute", row.id, { key, quick: true });
+  revalidatePath("/", "layout");
+  return { attr: { id: row.id, name: row.name, unit: row.unit, type: row.type, options: row.options, categoryIds: row.categoryIds } };
 }
 
 export async function deleteAttribute(id: string) {

@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/viewer";
 import { GridForm } from "./GridForm";
 
 export default async function FillAttributes({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
-  const me = await requireAdmin();
+  await requireAdmin();
   const { cat } = await searchParams;
   const [cats, attrs, counts] = await Promise.all([
     db.select({ id: s.category.id, name: s.category.name }).from(s.category).orderBy(asc(s.category.sortOrder), asc(s.category.name)),
@@ -55,15 +55,11 @@ export default async function FillAttributes({ searchParams }: { searchParams: P
         <p className="muted">Категорий пока нет.</p>
       ) : !products.length ? (
         <p className="muted">В категории «{current.name}» пока нет товаров.</p>
-      ) : !mine.length ? (
-        <p className="muted">
-          Для категории «{current.name}» нет характеристик.{" "}
-          {me.role === "OWNER" && <Link href="/admin/catalog/attributes">Добавить</Link>}
-        </p>
       ) : (
         <GridForm
           key={current.id}
           categoryId={current.id}
+          categoryName={current.name}
           products={products}
           attrs={mine.map((a) => ({ id: a.id, name: a.name, unit: a.unit, type: a.type as "number" | "select" | "text", options: a.options }))}
           values={values}

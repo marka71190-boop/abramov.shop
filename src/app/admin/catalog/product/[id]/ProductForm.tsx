@@ -1,4 +1,5 @@
 "use client";
+import { NewAttribute } from "../../attributes/NewAttribute";
 import { useActionState, useRef, useState } from "react";
 import { slugify } from "@/lib/slug";
 import { deleteProduct, saveProduct } from "../../../shop-actions";
@@ -50,15 +51,28 @@ type Brief = { id: string; name: string; sku: string | null; visibility: "DRAFT"
 export type AttrDef = { id: string; name: string; unit: string; type: string; options: string[]; categoryIds: string[] };
 
 /** Характеристики товара: показываем общие и те, что для выбранной категории */
-function AttrPanel({ defs, values, onChange, categoryId }: { defs: AttrDef[]; values: Record<string, string>; onChange: (v: Record<string, string>) => void; categoryId: string }) {
+function AttrPanel({
+  defs: initial,
+  values,
+  onChange,
+  categoryId,
+  categoryName,
+}: {
+  defs: AttrDef[];
+  values: Record<string, string>;
+  onChange: (v: Record<string, string>) => void;
+  categoryId: string;
+  categoryName?: string;
+}) {
+  const [defs, setDefs] = useState(initial);
   const shown = defs.filter((a) => !a.categoryIds.length || a.categoryIds.includes(categoryId) || values[a.id]);
-  if (!defs.length) return null;
   const set = (id: string, v: string) => onChange({ ...values, [id]: v });
   return (
     <div className="panel stack">
       <h2 style={{ marginBottom: 0 }}>Характеристики</h2>
       <p className="small muted" style={{ margin: 0 }}>
-        Видны в карточке, фильтрах и сравнении. Пустые не показываются. Список характеристик — <a href="/admin/catalog/attributes">Каталог → Характеристики</a>.
+        Видны в карточке, фильтрах и сравнении. Пустые не показываются. Нет нужной — добавьте свою кнопкой ниже. Все характеристики —{" "}
+        <a href="/admin/catalog/attributes">Каталог → Характеристики</a>.
       </p>
       <div className="form-grid">
         {shown.map((a) => (
@@ -80,6 +94,11 @@ function AttrPanel({ defs, values, onChange, categoryId }: { defs: AttrDef[]; va
           </label>
         ))}
       </div>
+      <NewAttribute
+        categoryId={categoryId}
+        categoryName={categoryName}
+        onCreated={(a) => setDefs((d) => (d.some((x) => x.id === a.id) ? d.map((x) => (x.id === a.id ? a : x)) : [...d, a]))}
+      />
     </div>
   );
 }
@@ -502,7 +521,7 @@ export function ProductForm({
         </div>
       </div>
 
-      <AttrPanel defs={attrDefs} values={attrs} onChange={setAttrs} categoryId={categoryId} />
+      <AttrPanel defs={attrDefs} values={attrs} onChange={setAttrs} categoryId={categoryId} categoryName={categories.find((c) => c.id === categoryId)?.name} />
 
       <RelatedPicker all={allProducts} value={related} onChange={setRelated} />
 

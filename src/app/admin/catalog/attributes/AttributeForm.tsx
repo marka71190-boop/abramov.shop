@@ -14,45 +14,36 @@ interface A {
   sortOrder: number;
 }
 
-export function AttributeForm({ attr, cats, used }: { attr: A | null; cats: { id: string; name: string }[]; used: number }) {
+export function AttributeForm({ attr, cats, used, canDelete = false }: { attr: A | null; cats: { id: string; name: string }[]; used: number; canDelete?: boolean }) {
   const [state, action, pending] = useActionState(saveAttribute, {});
   const [type, setType] = useState(attr?.type ?? "select");
   return (
-    <form action={action} className="panel stack" style={{ gap: 10 }}>
+    <form action={action} className="stack" style={{ gap: 10 }}>
       {attr && <input type="hidden" name="id" value={attr.id} />}
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <b>{attr ? attr.name : "Новая характеристика"}</b>
-        {attr && <span className="muted small">заполнено у {used} товаров</span>}
-      </div>
+      {attr && <span className="muted small">Заполнено у {used} товаров</span>}
       <div className="form-grid">
         <label className="field">
           Название
-          <input className="input" name="name" defaultValue={attr?.name ?? ""} required placeholder="Вес" />
+          <input className="input" name="name" defaultValue={attr?.name ?? ""} required maxLength={60} placeholder="Например: Покрытие" />
         </label>
         <label className="field">
-          Тип
+          Что вписывать
           <select className="select" name="type" value={type} onChange={(e) => setType(e.target.value as A["type"])}>
-            <option value="select">Выбор из списка</option>
-            <option value="number">Число</option>
-            <option value="text">Текст (только в карточке)</option>
+            <option value="select">Выбор из вариантов (фильтр галочками)</option>
+            <option value="number">Число (фильтр «от–до»)</option>
+            <option value="text">Любой текст (только в карточке)</option>
           </select>
         </label>
-        <label className="field">
-          Единица (необязательно)
-          <input className="input" name="unit" defaultValue={attr?.unit ?? ""} maxLength={12} placeholder="г, см, мм" />
-        </label>
-        <label className="field">
-          Код для адреса (латиницей)
-          <input className="input" name="key" defaultValue={attr?.key ?? ""} maxLength={40} placeholder="weight" />
-        </label>
-        <label className="field">
-          Порядок
-          <input className="input" name="sortOrder" type="number" defaultValue={attr?.sortOrder ?? 0} />
-        </label>
+        {type === "number" && (
+          <label className="field">
+            Единица
+            <input className="input" name="unit" defaultValue={attr?.unit ?? ""} maxLength={12} placeholder="г, см, мм, шт" />
+          </label>
+        )}
       </div>
       {type === "select" && (
         <label className="field">
-          Варианты — по одному в строке
+          Варианты — по одному в строке или через запятую
           <textarea className="textarea" name="options" defaultValue={attr?.options.join("\n") ?? ""} style={{ minHeight: 90, paddingTop: 10 }} />
         </label>
       )}
@@ -75,13 +66,26 @@ export function AttributeForm({ attr, cats, used }: { attr: A | null; cats: { id
           <span>Показывать в фильтрах каталога</span>
         </label>
       )}
+      <details className="small">
+        <summary className="muted">Дополнительно</summary>
+        <div className="form-grid" style={{ marginTop: 10 }}>
+          <label className="field">
+            Код для адреса фильтра (латиницей)
+            <input className="input" name="key" defaultValue={attr?.key ?? ""} maxLength={40} placeholder="заполнится сам" />
+          </label>
+          <label className="field">
+            Порядок (меньше — выше)
+            <input className="input" name="sortOrder" type="number" defaultValue={attr?.sortOrder ?? 0} />
+          </label>
+        </div>
+      </details>
       {state.error && <div className="form-error">{state.error}</div>}
       {state.ok && <div className="form-ok">{state.ok}</div>}
       <div className="row" style={{ gap: 10 }}>
         <button className="btn btn--gold btn--sm" disabled={pending}>
           {attr ? "Сохранить" : "Добавить"}
         </button>
-        {attr && (
+        {attr && canDelete && (
           <button type="button" className="btn btn--danger btn--sm" onClick={() => confirm(`Удалить «${attr.name}»? Значения у товаров тоже удалятся.`) && deleteAttribute(attr.id).then(() => location.reload())}>
             Удалить
           </button>

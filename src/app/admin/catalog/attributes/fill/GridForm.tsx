@@ -1,11 +1,14 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
+import { NewAttribute } from "../NewAttribute";
 import { saveGrid } from "../actions";
 
 type A = { id: string; name: string; unit: string; type: "number" | "select" | "text"; options: string[] };
 type P = { id: string; name: string; sku: string | null; visibility: string };
 
-export function GridForm({ categoryId, products, attrs, values }: { categoryId: string; products: P[]; attrs: A[]; values: Record<string, string> }) {
+export function GridForm({ categoryId, categoryName, products, attrs, values }: { categoryId: string; categoryName: string; products: P[]; attrs: A[]; values: Record<string, string> }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(saveGrid, {});
   const [v, setV] = useState(values);
   const [dirty, setDirty] = useState(false);
@@ -49,6 +52,7 @@ export function GridForm({ categoryId, products, attrs, values }: { categoryId: 
           <span>Только товары с пустыми полями</span>
         </label>
       </div>
+      <NewAttribute categoryId={categoryId} categoryName={categoryName} onCreated={() => router.refresh()} />
       <div className="table-wrap attr-grid">
         <table className="table">
           <thead>
