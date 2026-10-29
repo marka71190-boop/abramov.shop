@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { reviewableOrder } from "@/lib/reviews";
 import { SITE } from "@/lib/site";
 import { esc, notifyAdmins } from "@/lib/telegram";
@@ -72,4 +73,29 @@ export async function submitReview(input: unknown): Promise<{ ok?: string; error
   });
   revalidatePath(`/product/${product?.slug}`);
   return { ok: "Спасибо! Отзыв появится после проверки" };
+}
+
+const QuestionIn = z.object({
+  productId: z.string().min(1).max(64),
+  text: z.string().trim().min(8, "Опишите вопрос чуть подробнее").max(1000, "Слишком длинно — до 1000 символов"),
+});
+
+const askLimit = createRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+
+/** Вопрос о товаре. Виден автору сразу, остальным — после ответа магазина */
+export async function askQuestion(input: unknown): Promise<{ ok?: string; error?: string }> {
+  const u = await me();
+  if (!u) return { error: "Войдите в аккаунт, чтобы задать вопрос" };
+  const p = QuestionIn.safeParse(input);
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  if (!askLimit(u.id)) return { error: "Слишком много вопросов подряд — попробуйте через час" };
+  const product = await db.query.product.findFirst({ where: eq(s.product.id, p.data.productId), columns: { id: true, name: true, slug: true } });
+  if (!product) return { error: "Товар не найден" };
+  const waiting = await db.$count(s.productQuestion, and(eq(s.productQuestion.userId, u.id), eq(s.productQuestion.productId, product.id), eq(s.productQuestion.status, "NEW")));
+  if (waiting >= 3) return { error: "Мы ещё отвечаем на ваши прошлые вопросы об этом товаре" };
+  await db.insert(s.productQuestion).values({ productId: product.id, userId: u.id, text: p.data.text.replace(/\r\n/g, "\n") });
+  // Без текста вопроса: в нём могут быть контакты, а Telegram — иностранный сервис (152-ФЗ)
+  void notifyAdmins(`❓ Новый вопрос о товаре «${esc(product.name)}»`, { text: "Ответить", url: `${SITE.url}/admin/questions` });
+  revalidatePath(`/product/${product.slug}`);
+  return { ok: "Вопрос отправлен. Ответ придёт на почту и появится здесь" };
 }

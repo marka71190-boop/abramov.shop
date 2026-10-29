@@ -1292,3 +1292,28 @@ export const pushSubscription = pgTable(
   },
   (t) => [index("push_subscription_user_idx").on(t.userId)],
 );
+
+/** Вопросы о товаре: покупатель спрашивает, магазин отвечает, ответ виден всем */
+export const questionStatusEnum = pgEnum("question_status", ["NEW", "PUBLISHED", "HIDDEN"]);
+export const productQuestion = pgTable(
+  "product_question",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => product.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    text: text("text").notNull(),
+    answer: text("answer"),
+    answeredById: text("answered_by_id"),
+    answeredAt: ts("answered_at"),
+    status: questionStatusEnum("status").default("NEW").notNull(), // NEW — ждёт ответа, PUBLISHED — на сайте, HIDDEN — скрыт
+    createdAt: createdAt(),
+  },
+  (t) => [index("product_question_product_idx").on(t.productId, t.status), index("product_question_status_idx").on(t.status, t.createdAt)],
+);
+
+export const productQuestionRelations = relations(productQuestion, ({ one }) => ({
+  user: one(user, { fields: [productQuestion.userId], references: [user.id] }),
+  product: one(product, { fields: [productQuestion.productId], references: [product.id] }),
+}));

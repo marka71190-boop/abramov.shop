@@ -11,6 +11,8 @@ import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
 import { Stars } from "@/components/product/Stars";
 import { StockAlert } from "@/components/product/StockAlert";
+import { myPendingQuestions, publicQuestions } from "@/lib/questions";
+import { QuestionForm } from "@/components/product/QuestionForm";
 import { approvedReviews, favoriteIds, isFavorite, isSubscribed, myReview, ratingsFor, reviewableOrder, shortName } from "@/lib/reviews";
 import { ProductCard } from "@/components/product/ProductCard";
 import { recommendFor } from "@/lib/recommend";
@@ -75,6 +77,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const variants = p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock }));
   // Вариант из ссылки (?v=…), иначе первый в наличии
   const initialVariant = variants.find((v) => v.id === wanted) ?? variants.find((v) => v.stock > 0) ?? variants[0];
+  const [questions, myQuestions] = await Promise.all([publicQuestions(p.id), viewer ? myPendingQuestions(viewer.id, p.id) : Promise.resolve([])]);
   const [reviews, ratings, fav, alert, canReview, mine] = await Promise.all([
     approvedReviews(p.id),
     ratingsFor([p.id]),
@@ -269,6 +272,45 @@ export default async function ProductPage({ params, searchParams }: Props) {
             ))}
           </div>
         </div>
+        <div id="questions" className="questions">
+          <div className="section-head" style={{ marginBottom: 20 }}>
+            <h2 className="h3">Вопросы о товаре{questions.length ? ` · ${questions.length}` : ""}</h2>
+          </div>
+          {viewer ? (
+            <QuestionForm productId={p.id} />
+          ) : (
+            <p className="muted">
+              Есть вопрос о товаре? <Link href={`/login?next=${encodeURIComponent(`/product/${p.slug}#questions`)}`}>Войдите</Link> — ответим и пришлём ответ на почту.
+            </p>
+          )}
+          <div className="qa-list">
+            {myQuestions.map((q) => (
+              <article key={q.id} className="qa qa--mine">
+                <div className="qa__q">
+                  <span className="qa__mark" aria-hidden>
+                    В
+                  </span>
+                  <p>{q.text}</p>
+                </div>
+                <div className="small muted qa__meta">Ваш вопрос · {fmtDate(q.createdAt)} · ждёт ответа — его увидите только вы</div>
+              </article>
+            ))}
+            {questions.slice(0, 5).map((q) => (
+              <QA key={q.id} q={q} />
+            ))}
+          </div>
+          {questions.length > 5 && (
+            <details className="qa-more">
+              <summary className="btn btn--line btn--sm">Ещё {questions.length - 5} {plural(questions.length - 5, "вопрос", "вопроса", "вопросов")}</summary>
+              <div className="qa-list">
+                {questions.slice(5).map((q) => (
+                  <QA key={q.id} q={q} />
+                ))}
+              </div>
+            </details>
+          )}
+          {!questions.length && !myQuestions.length && <p className="muted small" style={{ margin: "12px 0 0" }}>Пока никто не спрашивал — будьте первым.</p>}
+        </div>
       </section>
       {isPublic(p) && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />}
       {isPublic(p) && (
@@ -286,6 +328,33 @@ export default async function ProductPage({ params, searchParams }: Props) {
         />
       )}
     </>
+  );
+}
+
+function QA({ q }: { q: Awaited<ReturnType<typeof publicQuestions>>[number] }) {
+  return (
+    <article className="qa">
+      <div className="qa__q">
+        <span className="qa__mark" aria-hidden>
+          В
+        </span>
+        <p>{q.text}</p>
+      </div>
+      <div className="small muted qa__meta">
+        {q.user ? shortName(q.user.name) : "Покупатель"} · {fmtDate(q.createdAt)}
+      </div>
+      {q.answer && (
+        <div className="qa__a">
+          <span className="qa__mark qa__mark--a" aria-hidden>
+            О
+          </span>
+          <div>
+            <span className="label">Abramov Shop</span>
+            <p>{q.answer}</p>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
 

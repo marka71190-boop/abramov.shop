@@ -15,7 +15,7 @@ export default async function AdminHome() {
   const dayAgo = new Date(Date.now() - 24 * 3600_000);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600_000);
   const PAID_STATES = ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"] as const;
-  const [toShip, paidToday, [revenue], awaiting, returnsOpen, lowStock] = await Promise.all([
+  const [toShip, paidToday, [revenue], awaiting, returnsOpen, lowStock, questionsNew] = await Promise.all([
     db.$count(s.order, inArray(s.order.status, ["PAID", "ASSEMBLING"])),
     db.$count(s.order, and(inArray(s.order.status, [...PAID_STATES]), gte(s.order.paidAt, dayAgo))),
     db
@@ -25,6 +25,7 @@ export default async function AdminHome() {
     db.$count(s.order, eq(s.order.status, "AWAITING_PAYMENT")),
     openReturnsCount(),
     lowStockCount(),
+    db.$count(s.productQuestion, eq(s.productQuestion.status, "NEW")),
   ]);
   const [users, usersToday, consentsToday, banned, hiddenPages, hiddenCats, settings] = await Promise.all([
     db.$count(s.user),
@@ -44,6 +45,7 @@ export default async function AdminHome() {
     { label: "Ждут оплату", value: num(awaiting), href: "/admin/orders?status=AWAITING_PAYMENT" },
     { label: "Заявки на возврат", value: num(returnsOpen), href: "/admin/returns" },
     { label: "Заканчивается товаров", value: num(lowStock), href: "/admin/stock?f=low" },
+    { label: "Вопросы без ответа", value: num(questionsNew), href: "/admin/questions" },
   ];
   const stats = [
     { label: "Клиентов", value: users, href: "/admin/customers" },

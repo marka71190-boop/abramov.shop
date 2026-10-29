@@ -25,6 +25,7 @@ const LINKS = [
   { href: "/admin/gift-cards", label: "Сертификаты", owner: true },
   { href: "/admin/mailing", label: "Рассылки", owner: true },
   { href: "/admin/reviews", label: "Отзывы" },
+  { href: "/admin/questions", label: "Вопросы" },
   { href: "/admin/settings", label: "Настройки", owner: true },
   { href: "/admin/backup", label: "Резервные копии", owner: true },
   { href: "/admin/audit", label: "Журнал действий", owner: true },
