@@ -93,7 +93,8 @@ export async function checkMailDns(domain = mailDomain()) {
     const v = rec.trim();
     const p = /(?:^|;)\s*p=([^;]*)/.exec(v)?.[1]?.trim() ?? "";
     const problems: string[] = [];
-    if (!/^v=DKIM1/i.test(v)) problems.push("значение должно начинаться с v=DKIM1");
+    // v=DKIM1 по стандарту необязателен (RFC 6376), но если он есть — должен стоять первым
+    if (/v=DKIM1/i.test(v) && !/^v=DKIM1/i.test(v)) problems.push("v=DKIM1 должен стоять в самом начале значения");
     if (!p) problems.push("нет ключа p= (пустой ключ означает «ключ отозван»)");
     if (/["\\]/.test(v)) problems.push("в значении лишние кавычки или обратные слэши — скопируйте без них");
     if (/\s/.test(p)) problems.push("в ключе есть пробелы или переносы строк — ключ должен быть одной строкой");
