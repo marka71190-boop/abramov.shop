@@ -5,6 +5,7 @@ import { cdekEnabled } from "@/lib/cdek";
 import { mailEnabled } from "@/lib/mail";
 import { botUsername, telegramEnabled, tgStatus } from "@/lib/telegram";
 import { TelegramTest } from "./TelegramTest";
+import { MailDnsCheck } from "./MailDnsCheck";
 import { getOrigin } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
 import { SITE } from "@/lib/site";
@@ -116,6 +117,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             {mailEnabled() && <TelegramTest kind="mail" />}
             <span className={`pill ${mailEnabled() ? "pill--ok" : "pill--bad"}`}>{mailEnabled() ? "подключена" : "не подключена"}</span>
           </div>
+        </div>
+        <div className="row-line" id="mail-dns" style={{ display: "block" }}>
+          <MailDnsCheck />
         </div>
         <div className="row-line" id="drive">
           <div>

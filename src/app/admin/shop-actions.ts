@@ -579,6 +579,13 @@ export async function mailTest(): Promise<ActionState> {
   }
 }
 
+/** Проверка DNS почты: SPF, DKIM, DMARC, MX */
+export async function mailDnsCheck() {
+  await requireAdmin();
+  const { checkMailDns } = await import("@/lib/mail-dns");
+  return checkMailDns();
+}
+
 /** Поддержка меняет дату рождения клиента (клиент сам указывает её один раз). */
 export async function adminSetBirthday(_: ActionState, form: FormData): Promise<ActionState> {
   const me = await requireAdmin("OWNER");
