@@ -89,7 +89,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         ))}
       <div className="ban-shell" inert={ban ? true : undefined}>
         {stripItems.length > 0 && <TopStrip items={stripItems} />}
-        <Header signedIn={!!viewer} admin={admin} club={viewer?.role === "CLUB"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
+        <Header signedIn={!!viewer} admin={admin} club={viewer?.role === "CLUB"} coach={viewer?.role === "COACH"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>

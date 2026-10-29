@@ -3,7 +3,7 @@
  * Фото уменьшаем до 1600 px по длинной стороне (баннеры — ?wide=1 — до 2400 px) и сохраняем в WebP прямо в базе.
  */
 import { db, schema as s } from "@/db";
-import { getViewer, isAdmin } from "@/lib/viewer";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,8 @@ const MAX = 15 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const me = await getViewer();
-  if (!isAdmin(me)) return Response.json({ error: "Нет доступа" }, { status: 403 });
+  // Админы — фото товаров, баннеры; тренеры — своё фото для профиля
+  if (!isAdmin(me) && !(me?.role === "COACH" && !getActiveBan(me))) return Response.json({ error: "Нет доступа" }, { status: 403 });
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");

@@ -32,6 +32,7 @@ export function Footer({ pages, telegram, email, cue = false }: Props) {
           <Link href="/#bonus">Бонусная программа</Link>
           {cue && <Link href="/cue">Кий «Чемпион» на заказ</Link>}
           <Link href="/service">Мастерская: ремонт киёв</Link>
+          <Link href="/trenirovki">Тренировки в клубах</Link>
           <Link href="/gift">Подарочные сертификаты</Link>
           <Link href="/account">Личный кабинет</Link>
           <Link href="/app">Приложение для телефона</Link>

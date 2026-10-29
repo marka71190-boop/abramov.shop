@@ -18,6 +18,8 @@ import { getPublicProductsByIds } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { telegramEnabled } from "@/lib/telegram";
 import { pushPublicKey } from "@/lib/push";
+import { fmtWhen, myBookings } from "@/lib/trainings";
+import { CancelTraining } from "../trenirovki/CancelTraining";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { isPlaceholderEmail } from "@/lib/site";
 import { ReturnCard } from "@/components/returns/ReturnCard";
@@ -138,6 +140,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               </div>
             );
           })())}
+        {user.role === "COACH" && (
+          <div className="notice notice--muted" style={{ margin: 0 }}>
+            Вы тренер Abramov. <Link href="/coach">Открыть кабинет тренера →</Link> — профиль, расписание и записи.
+          </div>
+        )}
         {user.role === "CLUB" && (
           <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы администратор клуба. <Link href="/club">Открыть раздел «Клуб» →</Link> — заказы на выдачу и кии для мастерской. Чтобы получать
@@ -287,6 +294,33 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </div>
           </section>
         )}
+
+        {await (async () => {
+          const list = (await myBookings(user.id)).filter((b) => +b.slot.startsAt > Date.now() - 3 * 3600_000 && b.status === "BOOKED" && b.slot.status === "OPEN");
+          if (!list.length) return null;
+          return (
+            <section id="trainings" className="panel">
+              <h2>Мои тренировки</h2>
+              {list
+                .sort((a, b) => +a.slot.startsAt - +b.slot.startsAt)
+                .map((b) => (
+                  <div key={b.id} className="row-line">
+                    <span>
+                      <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.title}
+                      <div className="muted small">
+                        {b.slot.club.name}, {b.slot.club.city}, {b.slot.club.address}
+                        {b.slot.price ? ` · ${rub(b.slot.price)}, оплата в клубе` : ""}
+                      </div>
+                    </span>
+                    {+b.slot.startsAt > Date.now() && <CancelTraining bookingId={b.id} />}
+                  </div>
+                ))}
+              <p className="small" style={{ margin: "10px 0 0" }}>
+                <Link href="/trenirovki">Расписание тренировок →</Link>
+              </p>
+            </section>
+          );
+        })()}
 
         {services.length > 0 && (
           <section id="service" className="panel">

@@ -380,7 +380,7 @@ h3 {
   line-height: 18px;
   text-align: center;
 }
-@media (max-width: 1240px) {
+@media (max-width: 1440px) {
   .nav__minor {
     display: none;
   }
@@ -5664,4 +5664,169 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
 }
 .qa-more[open] > summary {
   display: none;
+}
+
+/* ---------- Тренировки ---------- */
+.coach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 230px));
+  gap: 16px;
+}
+@media (max-width: 520px) {
+  .coach-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .coach-card {
+    padding: 10px;
+  }
+}
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+  color: var(--c-text);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+.coach-card:hover {
+  border-color: var(--c-gold);
+}
+.coach-card__photo,
+.coach-hero__photo,
+.coach-photo {
+  aspect-ratio: 4 / 5;
+  background: var(--c-panel-2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 56px;
+  color: var(--c-dim);
+  margin-bottom: 6px;
+}
+.coach-card__photo img,
+.coach-hero__photo img,
+.coach-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.coach-photo {
+  width: 96px;
+  font-size: 14px;
+  margin: 0;
+}
+.coach-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .coach-hero {
+    grid-template-columns: 1fr;
+  }
+  .coach-hero__photo {
+    max-width: 280px;
+  }
+}
+.schedule {
+  display: grid;
+  gap: 24px;
+}
+.schedule__date {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--c-gold);
+  margin-bottom: 6px;
+}
+.schedule__date::first-letter {
+  text-transform: uppercase;
+}
+.schedule__row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 120px minmax(160px, auto);
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--c-line);
+  scroll-margin-top: 110px;
+}
+.schedule__time {
+  display: grid;
+  font-size: 20px;
+}
+.schedule__price {
+  text-align: right;
+  font-weight: 600;
+}
+.schedule__action {
+  display: flex;
+  justify-content: flex-end;
+}
+.book-box {
+  display: grid;
+  gap: 8px;
+  min-width: min(380px, 100%);
+}
+.book-box .input {
+  height: 40px;
+}
+@media (max-width: 720px) {
+  .schedule__row {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+  .schedule__price {
+    text-align: left;
+    grid-column: 2;
+  }
+  .schedule__action {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .schedule__action > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+.steps-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+.steps-3 > div {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--c-line);
+}
+.coach-slot {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--c-line);
+  background: var(--c-bg);
+}
+.coach-slot__people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.coach-slot__people li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px dashed var(--c-line);
 }

@@ -7,7 +7,7 @@
  * После изменения этого файла: npm run db:generate (создаст SQL-миграцию в /drizzle),
  * затем npm run db:migrate.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -44,7 +44,7 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 // ============================================================
 
 // CLUB — администратор клуба: видит только выдачу заказов и приём киёв своего клуба
-export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB"]);
+export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH"]);
 export const tierEnum = pgEnum("loyalty_tier", ["SILVER", "GOLD", "BLACK"]);
 
 export const user = pgTable(
@@ -1316,4 +1316,87 @@ export const productQuestion = pgTable(
 export const productQuestionRelations = relations(productQuestion, ({ one }) => ({
   user: one(user, { fields: [productQuestion.userId], references: [user.id] }),
   product: one(product, { fields: [productQuestion.productId], references: [product.id] }),
+}));
+
+/** Тренеры: профиль на сайте. Доступ (роль COACH) даёт владелец в карточке клиента */
+export const coachProfile = pgTable("coach_profile", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  photo: text("photo"),
+  title: text("title").default("").notNull(), // «Мастер спорта, тренер по русскому бильярду»
+  about: text("about").default("").notNull(),
+  games: text("games").default("Русский бильярд").notNull(),
+  clubIds: text("club_ids").array().default([]).notNull(),
+  isPublished: boolean("is_published").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const trainingSlotStatusEnum = pgEnum("training_slot_status", ["OPEN", "CANCELLED"]);
+export const trainingBookingStatusEnum = pgEnum("training_booking_status", ["BOOKED", "CANCELLED", "ATTENDED", "NO_SHOW"]);
+
+/** Тренировка в расписании: индивидуальная (1 место) или групповая */
+export const trainingSlot = pgTable(
+  "training_slot",
+  {
+    id: id(),
+    coachId: text("coach_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clubId: text("club_id")
+      .notNull()
+      .references(() => club.id, { onDelete: "cascade" }),
+    startsAt: ts("starts_at").notNull(),
+    durationMin: integer("duration_min").default(60).notNull(),
+    kind: text("kind").default("INDIVIDUAL").notNull(), // INDIVIDUAL | GROUP
+    title: text("title").notNull(),
+    capacity: integer("capacity").default(1).notNull(),
+    price: integer("price").default(0).notNull(), // копейки, оплата в клубе
+    note: text("note").default("").notNull(),
+    status: trainingSlotStatusEnum("status").default("OPEN").notNull(),
+    cancelReason: text("cancel_reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("training_slot_start_idx").on(t.startsAt), index("training_slot_coach_idx").on(t.coachId, t.startsAt)],
+);
+
+export const trainingBooking = pgTable(
+  "training_booking",
+  {
+    id: id(),
+    slotId: text("slot_id")
+      .notNull()
+      .references(() => trainingSlot.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: trainingBookingStatusEnum("status").default("BOOKED").notNull(),
+    comment: text("comment").default("").notNull(), // пожелание к тренировке
+    cancelledBy: text("cancelled_by"), // USER | COACH
+    remindedAt: ts("reminded_at"),
+    createdAt: createdAt(),
+    cancelledAt: ts("cancelled_at"),
+  },
+  (t) => [
+    index("training_booking_slot_idx").on(t.slotId),
+    index("training_booking_user_idx").on(t.userId),
+    uniqueIndex("training_booking_active_uq").on(t.slotId, t.userId).where(sql`${t.status} <> 'CANCELLED'`),
+  ],
+);
+
+export const coachProfileRelations = relations(coachProfile, ({ one }) => ({
+  user: one(user, { fields: [coachProfile.userId], references: [user.id] }),
+}));
+export const trainingSlotRelations = relations(trainingSlot, ({ one, many }) => ({
+  coach: one(user, { fields: [trainingSlot.coachId], references: [user.id] }),
+  club: one(club, { fields: [trainingSlot.clubId], references: [club.id] }),
+  bookings: many(trainingBooking),
+}));
+export const trainingBookingRelations = relations(trainingBooking, ({ one }) => ({
+  slot: one(trainingSlot, { fields: [trainingBooking.slotId], references: [trainingSlot.id] }),
+  user: one(user, { fields: [trainingBooking.userId], references: [user.id] }),
 }));

@@ -58,6 +58,11 @@ export async function register() {
   setTimeout(safe("abandoned", abandoned), 5 * 60_000);
   setInterval(safe("abandoned", abandoned), 30 * 60_000);
 
+  // Тренировки: напоминание за сутки
+  const { remindTrainings } = await import("@/lib/trainings");
+  setTimeout(safe("trainings", remindTrainings), 4 * 60_000);
+  setInterval(safe("trainings", remindTrainings), 30 * 60_000);
+
   // Бонусы: сгорание, день рождения, напоминания — раз в час (всё повторно безопасно)
   const bonuses = await import("@/lib/bonuses");
   const hourly = async () => {

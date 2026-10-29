@@ -74,7 +74,7 @@ export function BonusForm({ userId }: { userId: string }) {
   );
 }
 
-type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB";
+type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH";
 
 export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role: Role; clubId: string | null; clubs: { id: string; name: string; city: string }[] }) {
   const [pending, start] = useTransition();
@@ -110,6 +110,7 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
           }}
         >
           <option value="CUSTOMER">Покупатель</option>
+          <option value="COACH">Тренер (свой кабинет: профиль, расписание, записи)</option>
           <option value="CLUB">Администратор клуба (только выдача и приём киёв)</option>
           <option value="MANAGER">Менеджер (доступ в админку)</option>
           <option value="OWNER">Владелец (всё, включая настройки)</option>

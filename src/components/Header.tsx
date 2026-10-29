@@ -10,11 +10,14 @@ export function Header({
   categories,
   cue = false,
   club = false,
+  coach = false,
 }: {
   signedIn: boolean;
   admin: boolean;
   /** Администратор клуба — ссылка на раздел выдачи */
   club?: boolean;
+  /** Тренер — ссылка на кабинет тренера */
+  coach?: boolean;
   cue?: boolean;
   categories: { slug: string; name: string }[];
 }) {
@@ -29,6 +32,7 @@ export function Header({
           <Link href="/catalog">Каталог</Link>
           {cue && <Link href="/cue">Кий на заказ</Link>}
           <Link href="/service">Мастерская</Link>
+          <Link href="/trenirovki">Тренировки</Link>
           {/* Второстепенные пункты прячем на узких экранах — они есть в подвале */}
           <Link href="/#bonus" className="nav__minor">
             Бонусы
@@ -44,6 +48,7 @@ export function Header({
           </Link>
           {admin && <Link href="/admin">Админка</Link>}
           {club && <Link href="/club">Клуб</Link>}
+          {coach && <Link href="/coach">Тренер</Link>}
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />

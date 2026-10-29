@@ -260,6 +260,13 @@
       "when": 1793301841092,
       "tag": "0036_questions",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793302880021,
+      "tag": "0037_trainings",
+      "breakpoints": true
     }
   ]
 }

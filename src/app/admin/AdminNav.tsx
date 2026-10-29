@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/admin/returns", label: "Возвраты" },
   { href: "/admin/service", label: "Мастерская" },
   { href: "/admin/turnkey", label: "Клуб под ключ" },
+  { href: "/admin/coaches", label: "Тренеры" },
   { href: "/club", label: "Выдача в клубах" },
   { href: "/admin/analytics", label: "Аналитика", owner: true },
   { href: "/admin/customers", label: "Клиенты" },
