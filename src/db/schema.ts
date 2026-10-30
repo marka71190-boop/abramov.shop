@@ -1454,3 +1454,35 @@ export const coachDayOff = pgTable(
   },
   (t) => [uniqueIndex("coach_day_off_uq").on(t.coachId, t.day)],
 );
+
+/**
+ * Соглашение тренера о конфиденциальности данных клиентов. Тренер заполняет реквизиты
+ * и подписывает в кабинете простой электронной подписью — кодом из письма на свою почту.
+ * Строки не удаляются: новая редакция — новая подпись.
+ */
+export const coachAgreement = pgTable(
+  "coach_agreement",
+  {
+    id: id(),
+    coachId: text("coach_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    version: text("version").notNull(),
+    fullName: text("full_name").notNull(),
+    taxStatus: text("tax_status").notNull(), // SELF — самозанятый, IP — ИП, PERSON — физлицо
+    inn: text("inn"),
+    phone: text("phone").notNull(),
+    email: text("email").notNull(),
+    body: text("body").notNull(), // текст ровно в том виде, как его подписали
+    sha256: text("sha256").notNull(),
+    codeHash: text("code_hash"),
+    codeExpiresAt: ts("code_expires_at"),
+    codeAttempts: integer("code_attempts").default(0).notNull(),
+    signedAt: ts("signed_at"),
+    signIp: text("sign_ip"),
+    signUserAgent: text("sign_user_agent"),
+    revokedAt: ts("revoked_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("coach_agreement_coach_idx").on(t.coachId)],
+);

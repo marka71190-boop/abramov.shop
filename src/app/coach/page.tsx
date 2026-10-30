@@ -1,5 +1,7 @@
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { signedAgreement } from "@/lib/coach-agreement";
 import { db, schema as s } from "@/db";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { listClubs } from "@/lib/clubs";
@@ -39,6 +41,9 @@ export default async function CoachPage({ searchParams }: Props) {
       </div>
     );
   }
+  // Без подписанного соглашения о конфиденциальности тренер не видит клиентов
+  const agreement = await signedAgreement(coachId);
+  if (!agreement && coachId === me.id && me.role === "COACH") redirect("/coach/agreement");
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "diary";
   const today = dayKey(new Date());
   const day = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : today;
@@ -78,6 +83,17 @@ export default async function CoachPage({ searchParams }: Props) {
             </Link>
           ))}
         </nav>
+      )}
+      {!agreement && (
+        <div className="notice notice--muted" style={{ textAlign: "left" }}>
+          Тренер ещё не подписал соглашение о конфиденциальности — подпишет сам при первом входе в кабинет.
+        </div>
+      )}
+      {agreement && (
+        <div className="small muted">
+          <Link href={`/coach/agreement${coachId !== me.id ? `?u=${coachId}` : ""}`}>Соглашение о конфиденциальности</Link> подписано{" "}
+          {new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", day: "numeric", month: "long", year: "numeric" }).format(agreement.signedAt!)}
+        </div>
       )}
       {pushPublicKey() && coachId === me.id && <PushToggle publicKey={pushPublicKey()} signedIn what="новые заявки и отмены" />}
       <nav className="cchips coach-tabs" aria-label="Разделы">

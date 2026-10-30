@@ -6092,3 +6092,43 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
 .coach-consent input {
   margin-top: 2px;
 }
+
+/* ---------- Соглашение тренера ---------- */
+.agreement__preview {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-bg);
+  font-size: 14px;
+}
+.agreement__sign {
+  display: grid;
+  gap: 4px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-line-2);
+  font-size: 13px;
+}
+@media print {
+  .club-app__bar {
+    display: none !important;
+  }
+  .agreement__doc {
+    border: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 0 !important;
+  }
+  .agreement__doc * {
+    color: #000 !important;
+  }
+  body,
+  .club-app,
+  .club-app__main {
+    background: #fff !important;
+  }
+  .agreement__doc h1 {
+    font-size: 22px !important;
+  }
+}

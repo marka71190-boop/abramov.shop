@@ -7,8 +7,17 @@ import { audit } from "@/lib/audit";
 import { addManualTraining, BookingError, cancelSlot, confirmRequest, declineRequest, ensureCoachProfile, parseHhmm, requireCoach } from "@/lib/trainings";
 import { normalizePhone } from "@/lib/format";
 import { isAdmin } from "@/lib/viewer";
+import { AgreementError, confirmSigning, signedAgreement, startSigning } from "@/lib/coach-agreement";
+import { getRequestMeta } from "@/lib/request";
 
 type St = { ok?: string; error?: string };
+
+/** Тренер с подписанным соглашением (или админ) */
+async function requireSignedCoach() {
+  const me = await requireCoach();
+  if (me.role === "COACH" && !(await signedAgreement(me.id))) throw new Error("Сначала подпишите соглашение о конфиденциальности");
+  return me;
+}
 
 /** Чьим кабинетом управляем: тренер — своим, админ — любого тренера (?u=) */
 async function target(form: FormData | null, asUser?: string) {
@@ -19,6 +28,8 @@ async function target(form: FormData | null, asUser?: string) {
     if (!u || u.role !== "COACH") throw new Error("Тренер не найден");
     return { me, coachId: u.id };
   }
+  // Тренер без подписанного соглашения о конфиденциальности кабинетом не пользуется
+  if (me.role === "COACH" && !(await signedAgreement(me.id))) throw new Error("Сначала подпишите соглашение о конфиденциальности");
   return { me, coachId: me.id };
 }
 
@@ -111,7 +122,7 @@ export async function createSlots(_: St, form: FormData): Promise<St> {
 }
 
 export async function cancelSlotAction(slotId: string, reason: string): Promise<St> {
-  const me = await requireCoach();
+  const me = await requireSignedCoach();
   const slot = await db.query.trainingSlot.findFirst({ where: eq(s.trainingSlot.id, slotId), columns: { coachId: true } });
   if (!slot || (slot.coachId !== me.id && !isAdmin(me))) return { error: "Тренировка не найдена" };
   const n = await cancelSlot(slotId, reason.trim().slice(0, 200));
@@ -122,7 +133,7 @@ export async function cancelSlotAction(slotId: string, reason: string): Promise<
 
 /** Отметить, пришёл ли человек */
 export async function markBooking(bookingId: string, status: "ATTENDED" | "NO_SHOW" | "BOOKED"): Promise<St> {
-  const me = await requireCoach();
+  const me = await requireSignedCoach();
   const b = await db.query.trainingBooking.findFirst({ where: eq(s.trainingBooking.id, bookingId), with: { slot: { columns: { coachId: true, startsAt: true } } } });
   if (!b || (b.slot.coachId !== me.id && !isAdmin(me))) return { error: "Запись не найдена" };
   if (b.status === "CANCELLED") return { error: "Запись отменена" };
@@ -135,7 +146,7 @@ export async function markBooking(bookingId: string, status: "ATTENDED" | "NO_SH
 // ---------------------------------------------------------------- заявки и дневник
 
 async function ownBooking(bookingId: string) {
-  const me = await requireCoach();
+  const me = await requireSignedCoach();
   const b = await db.query.trainingBooking.findFirst({ where: eq(s.trainingBooking.id, bookingId), with: { slot: { columns: { coachId: true } } } });
   if (!b || (b.slot.coachId !== me.id && !isAdmin(me))) throw new Error("Заявка не найдена");
   return { me, b };
@@ -169,7 +180,7 @@ export async function declineAction(bookingId: string, reason: string): Promise<
 }
 
 export async function saveDiary(slotId: string, text: string): Promise<St> {
-  const me = await requireCoach();
+  const me = await requireSignedCoach();
   const slot = await db.query.trainingSlot.findFirst({ where: eq(s.trainingSlot.id, slotId), columns: { coachId: true } });
   if (!slot || (slot.coachId !== me.id && !isAdmin(me))) return { error: "Тренировка не найдена" };
   await db.update(s.trainingSlot).set({ diary: text.slice(0, 5000) }).where(eq(s.trainingSlot.id, slotId));
@@ -298,9 +309,57 @@ export async function addDayOff(_: St, form: FormData): Promise<St> {
 }
 
 export async function removeDayOff(id: string): Promise<void> {
-  const me = await requireCoach();
+  const me = await requireSignedCoach();
   const row = await db.query.coachDayOff.findFirst({ where: eq(s.coachDayOff.id, id) });
   if (!row || (row.coachId !== me.id && !isAdmin(me))) return;
   await db.delete(s.coachDayOff).where(eq(s.coachDayOff.id, id));
   refresh();
+}
+
+// ---------------------------------------------------------------- соглашение тренера
+
+const Requisites = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(5, "Напишите фамилию, имя и отчество полностью")
+    .max(120)
+    .refine((v) => v.split(/\s+/).length >= 2, "Напишите фамилию, имя и отчество полностью"),
+  taxStatus: z.enum(["SELF", "IP", "PERSON"], { message: "Выберите статус" }),
+  inn: z.string().trim().max(12).default(""),
+  phone: z.string().trim().max(40),
+});
+
+export async function agreementStart(_: { ok?: string; error?: string; id?: string; body?: string }, form: FormData): Promise<{ ok?: string; error?: string; id?: string; body?: string }> {
+  const me = await requireCoach();
+  if (me.role !== "COACH") return { error: "Соглашение подписывает сам тренер" };
+  if (form.get("agree") !== "on") return { error: "Отметьте, что прочитали и согласны с текстом" };
+  const p = Requisites.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const inn = p.data.inn.replace(/\D/g, "");
+  if (p.data.taxStatus !== "PERSON" && !/^\d{12}$/.test(inn)) return { error: "ИНН физлица — 12 цифр" };
+  const phone = normalizePhone(p.data.phone);
+  if (!phone) return { error: "Проверьте телефон" };
+  try {
+    const r = await startSigning({ id: me.id, email: me.email }, { fullName: p.data.fullName.replace(/\s+/g, " "), taxStatus: p.data.taxStatus, inn: inn || null, phone });
+    return { ok: `Код отправлен на ${me.email}`, id: r.id, body: r.body };
+  } catch (e) {
+    if (e instanceof AgreementError) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function agreementConfirm(id: string, code: string): Promise<{ ok?: string; error?: string }> {
+  const me = await requireCoach();
+  if (!/^\d{6}$/.test(code.trim())) return { error: "Код — 6 цифр из письма" };
+  try {
+    await confirmSigning(me.id, id, code, await getRequestMeta());
+  } catch (e) {
+    if (e instanceof AgreementError) return { error: e.message };
+    throw e;
+  }
+  await audit(me.id, "coach.agreement.signed", "user", me.id);
+  revalidatePath("/coach", "layout");
+  revalidatePath("/admin/coaches");
+  return { ok: "Соглашение подписано" };
 }
