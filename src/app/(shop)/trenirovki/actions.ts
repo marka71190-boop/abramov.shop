@@ -45,7 +45,7 @@ export async function cancelMyTraining(bookingId: string): Promise<{ ok?: string
 }
 
 /** Индивидуальная: клиент выбрал свободное время тренера → заявка */
-export async function requestTrainingAction(input: { coachId: string; clubId: string; day: string; time: string; durationMin: number; comment: string; phone?: string }): Promise<{ ok?: string; error?: string; login?: boolean; confirmed?: boolean }> {
+export async function requestTrainingAction(input: { coachId: string; clubId: string; day: string; time: string; durationMin: number; comment: string; phone?: string; trial?: boolean }): Promise<{ ok?: string; error?: string; login?: boolean; confirmed?: boolean }> {
   const me = await getViewer();
   if (!me) return { login: true, error: "Войдите, чтобы записаться" };
   if (getActiveBan(me)) return { error: "Запись недоступна" };
@@ -59,6 +59,7 @@ export async function requestTrainingAction(input: { coachId: string; clubId: st
       durationMin: z.number().int().min(30).max(240),
       comment: z.string().max(500),
       phone: z.string().max(40).optional(),
+      trial: z.boolean().optional(),
     })
     .safeParse(input);
   if (!p.success) return { error: "Проверьте данные" };
@@ -75,6 +76,7 @@ export async function requestTrainingAction(input: { coachId: string; clubId: st
       startsAt: new Date(`${p.data.day}T${p.data.time}:00+03:00`),
       durationMin: p.data.durationMin,
       comment: p.data.comment.trim(),
+      trial: p.data.trial,
     });
     revalidatePath("/trenirovki", "layout");
     revalidatePath("/account");

@@ -436,7 +436,7 @@ export function HoursEditor({ coachId, clubs, initial, defaultClub }: { coachId:
   );
 }
 
-export function BookingSettingsForm({ coachId, p }: { coachId: string; p: { pricePerHour: number; durations: number[]; stepMin: number; leadHours: number; horizonDays: number; autoConfirm: boolean } }) {
+export function BookingSettingsForm({ coachId, p }: { coachId: string; p: { pricePerHour: number; durations: number[]; stepMin: number; leadHours: number; horizonDays: number; autoConfirm: boolean; trial: string; trialDurationMin: number } }) {
   const [state, action, pending] = useActionState(saveBookingSettings, {});
   return (
     <form action={action} className="stack" style={{ gap: 12 }}>
@@ -485,6 +485,32 @@ export function BookingSettingsForm({ coachId, p }: { coachId: string; p: { pric
             </label>
           ))}
         </div>
+      </div>
+      <div className="trial-box stack" style={{ gap: 10 }}>
+        <b>Пробное занятие для новых клиентов</b>
+        <span className="small muted">На вашей странице и в списке тренеров появится кнопка «Пробное занятие». Записаться на него можно один раз — только на первую тренировку у вас.</span>
+        <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
+          {[
+            ["OFF", "Не провожу"],
+            ["FREE", "Бесплатно"],
+            ["HALF", "Скидка 50%"],
+          ].map(([v, l]) => (
+            <label key={v} className="check">
+              <input type="radio" name="trial" value={v} defaultChecked={p.trial === v} />
+              <span>{l}</span>
+            </label>
+          ))}
+        </div>
+        <label className="field" style={{ maxWidth: 240 }}>
+          Длительность пробного
+          <select className="select" name="trialDurationMin" defaultValue={String(p.trialDurationMin)}>
+            {[30, 45, 60, 90].map((m) => (
+              <option key={m} value={m}>
+                {m} мин
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <label className="check">
         <input type="checkbox" name="autoConfirm" defaultChecked={p.autoConfirm} />

@@ -1338,6 +1338,8 @@ export const coachProfile = pgTable("coach_profile", {
   leadHours: integer("lead_hours").default(2).notNull(), // не раньше чем через N часов
   horizonDays: integer("horizon_days").default(14).notNull(), // на сколько дней вперёд открыта запись
   autoConfirm: boolean("auto_confirm").default(false).notNull(), // заявки подтверждаются сами
+  trial: text("trial").default("OFF").notNull(), // пробное занятие: OFF — нет, FREE — бесплатно, HALF — скидка 50%
+  trialDurationMin: integer("trial_duration_min").default(60).notNull(),
   isPublished: boolean("is_published").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: createdAt(),
@@ -1370,6 +1372,7 @@ export const trainingSlot = pgTable(
     cancelReason: text("cancel_reason"),
     source: text("source").default("PUBLISHED").notNull(), // PUBLISHED — групповая в расписании, REQUEST — заявка клиента, MANUAL — тренер внёс сам
     diary: text("diary").default("").notNull(), // дневник: что делали на тренировке
+    isTrial: boolean("is_trial").default(false).notNull(), // пробное занятие (бесплатно или −50%)
     createdAt: createdAt(),
   },
   (t) => [index("training_slot_start_idx").on(t.startsAt), index("training_slot_coach_idx").on(t.coachId, t.startsAt)],

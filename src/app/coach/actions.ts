@@ -273,7 +273,11 @@ export async function saveBookingSettings(_: St, form: FormData): Promise<St> {
   await ensureCoachProfile(coachId);
   await db
     .update(s.coachProfile)
-    .set({ pricePerHour: Math.round(p.data.pricePerHour * 100), stepMin: p.data.stepMin, leadHours: p.data.leadHours, horizonDays: p.data.horizonDays, durations: durations.sort((a, b) => a - b), autoConfirm: form.get("autoConfirm") === "on" })
+    .set({ pricePerHour: Math.round(p.data.pricePerHour * 100), stepMin: p.data.stepMin, leadHours: p.data.leadHours, horizonDays: p.data.horizonDays, durations: durations.sort((a, b) => a - b),
+      autoConfirm: form.get("autoConfirm") === "on",
+      trial: ["FREE", "HALF"].includes(String(form.get("trial"))) ? String(form.get("trial")) : "OFF",
+      trialDurationMin: [30, 45, 60, 90].includes(Number(form.get("trialDurationMin"))) ? Number(form.get("trialDurationMin")) : 60,
+    })
     .where(eq(s.coachProfile.userId, coachId));
   await audit(me.id, "coach.settings", "user", coachId);
   refresh();

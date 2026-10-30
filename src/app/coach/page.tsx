@@ -141,7 +141,7 @@ export default async function CoachPage({ searchParams }: Props) {
           </h2>
           <BookingSettingsForm
             coachId={coachId}
-            p={{ pricePerHour: profile.pricePerHour, durations: profile.durations, stepMin: profile.stepMin, leadHours: profile.leadHours, horizonDays: profile.horizonDays, autoConfirm: profile.autoConfirm }}
+            p={{ pricePerHour: profile.pricePerHour, durations: profile.durations, stepMin: profile.stepMin, leadHours: profile.leadHours, horizonDays: profile.horizonDays, autoConfirm: profile.autoConfirm, trial: profile.trial, trialDurationMin: profile.trialDurationMin }}
           />
         </section>
       </div>
@@ -292,7 +292,8 @@ export default async function CoachPage({ searchParams }: Props) {
           {pending.map((b) => (
             <article key={b.id} className="coach-slot">
               <div>
-                <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.durationMin} мин · {rub(b.slot.price)}
+                <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.durationMin} мин · {b.slot.price ? rub(b.slot.price) : "бесплатно"}
+                {b.slot.isTrial && <span className="pill pill--wait" style={{ marginLeft: 8 }}>Пробное</span>}
                 <div className="small muted">
                   {b.slot.club.name}, {b.slot.club.city}
                 </div>
@@ -344,6 +345,7 @@ export default async function CoachPage({ searchParams }: Props) {
                         {fmtTime(sl.startsAt)}–{fmtTime(new Date(+sl.startsAt + sl.durationMin * 60_000))}
                       </b>{" "}
                       · {sl.kind === "GROUP" ? sl.title : `${sl.durationMin} мин`}
+                      {sl.isTrial && <span className="pill pill--wait" style={{ marginLeft: 8 }}>Пробное</span>}
                       <div className="small muted">
                         {sl.club.name} · {sl.price ? rub(sl.price) : "бесплатно"} · {SOURCE_LABEL[sl.source] ?? ""}
                       </div>

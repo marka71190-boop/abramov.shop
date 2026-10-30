@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listClubs } from "@/lib/clubs";
-import { CANCEL_HOURS, myBookings, publicCoaches, upcomingSlots } from "@/lib/trainings";
+import { CANCEL_HOURS, myBookings, publicCoaches, TRIAL_LABEL, upcomingSlots } from "@/lib/trainings";
 import { getViewer } from "@/lib/viewer";
 import { Schedule } from "./Schedule";
 
@@ -59,6 +59,7 @@ export default async function TrainingsPage({ searchParams }: Props) {
                 <b>{c.displayName}</b>
                 {c.title && <span className="small muted">{c.title}</span>}
                 <span className="small">{c.games}</span>
+                {(c.trial === "FREE" || c.trial === "HALF") && <span className="coach-card__trial">Пробное — {TRIAL_LABEL[c.trial]}</span>}
                 <span className="coach-card__cta">
                   {c.pricePerHour ? `от ${Math.round(c.pricePerHour / 100).toLocaleString("ru-RU")} ₽/час · ` : ""}Выбрать время →
                 </span>

@@ -274,6 +274,13 @@
       "when": 1793357040158,
       "tag": "0038_coach_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793361279750,
+      "tag": "0039_trial",
+      "breakpoints": true
     }
   ]
 }

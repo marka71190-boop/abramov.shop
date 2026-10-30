@@ -33,6 +33,11 @@ export const BOOKING_LABEL: Record<string, string> = {
   CANCELLED: "Отменена",
   DECLINED: "Тренер не сможет",
 };
+/** Пробное занятие у тренера */
+export const TRIAL_LABEL: Record<string, string> = { FREE: "бесплатно", HALF: "скидка 50%" };
+export const trialPrice = (p: { trial: string; pricePerHour: number; trialDurationMin: number }) =>
+  p.trial === "FREE" ? 0 : p.trial === "HALF" ? Math.round((p.pricePerHour * p.trialDurationMin) / 60 / 2) : null;
+
 export const WEEKDAYS = ["", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
 const MSK = 3 * 3600_000;
@@ -128,7 +133,9 @@ export async function freeTimes(coachId: string) {
   const busy = await busyOf(coachId, dayStart(today), new Date(+dayStart(days[days.length - 1]) + 86400_000));
   const earliest = Date.now() + profile.leadHours * 3600_000;
   const step = Math.max(15, profile.stepMin);
-  const durations = (profile.durations.length ? profile.durations : [60]).filter((d) => d >= 30 && d <= 240).sort((a, b) => a - b);
+  const durations = [...new Set([...(profile.durations.length ? profile.durations : [60]), ...(profile.trial !== "OFF" ? [profile.trialDurationMin] : [])])]
+    .filter((d) => d >= 30 && d <= 240)
+    .sort((a, b) => a - b);
   const free: FreeMap = {};
   for (const day of days) {
     if (off.has(day)) continue;
@@ -173,11 +180,26 @@ async function isFree(q: Q, coachId: string, clubId: string, startsAt: Date, dur
 export class BookingError extends Error {}
 
 /** Клиент выбрал свободное время → заявка (или сразу подтверждённая, если у тренера автоподтверждение) */
-export async function requestTraining(userId: string, input: { coachId: string; clubId: string; startsAt: Date; durationMin: number; comment: string }) {
+/** Пробное — только тем, кто ещё не занимался у этого тренера и не записан к нему */
+export async function trialAvailable(userId: string, coachId: string, q: Q = db) {
+  const [row] = await q
+    .select({ id: s.trainingBooking.id })
+    .from(s.trainingBooking)
+    .innerJoin(s.trainingSlot, eq(s.trainingSlot.id, s.trainingBooking.slotId))
+    .where(and(eq(s.trainingBooking.userId, userId), eq(s.trainingSlot.coachId, coachId), inArray(s.trainingBooking.status, ["REQUESTED", "BOOKED", "ATTENDED", "NO_SHOW"])))
+    .limit(1);
+  return !row;
+}
+
+export async function requestTraining(userId: string, input: { coachId: string; clubId: string; startsAt: Date; durationMin: number; comment: string; trial?: boolean }) {
   const profile = await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.userId, input.coachId), with: { user: { columns: { role: true } } } });
   if (!profile || !profile.isPublished || profile.user.role !== "COACH") throw new BookingError("Тренер не найден");
   if (input.coachId === userId) throw new BookingError("Это вы");
-  if (!profile.durations.includes(input.durationMin)) throw new BookingError("Выберите длительность из предложенных");
+  const trial = !!input.trial;
+  if (trial) {
+    if (profile.trial === "OFF") throw new BookingError("Тренер сейчас не проводит пробные занятия");
+    if (input.durationMin !== profile.trialDurationMin) throw new BookingError(`Пробное занятие — ${profile.trialDurationMin} минут`);
+  } else if (!profile.durations.includes(input.durationMin)) throw new BookingError("Выберите длительность из предложенных");
   if (+input.startsAt < Date.now() + profile.leadHours * 3600_000) throw new BookingError(`Записаться можно не раньше чем за ${profile.leadHours} ч`);
   if (+input.startsAt > Date.now() + (profile.horizonDays + 1) * 86400_000) throw new BookingError("Так далеко вперёд запись ещё не открыта");
   const pending = await db
@@ -192,6 +214,7 @@ export async function requestTraining(userId: string, input: { coachId: string; 
     // Одна заявка за раз на тренера: две не займут одно окно
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.coachId}))`);
     if (!(await isFree(tx, input.coachId, input.clubId, input.startsAt, input.durationMin))) throw new BookingError("Это время только что заняли — выберите другое");
+    if (trial && !(await trialAvailable(userId, input.coachId, tx))) throw new BookingError("Пробное занятие — только для первой тренировки у этого тренера");
     const [slot] = await tx
       .insert(s.trainingSlot)
       .values({
@@ -200,10 +223,11 @@ export async function requestTraining(userId: string, input: { coachId: string; 
         startsAt: input.startsAt,
         durationMin: input.durationMin,
         kind: "INDIVIDUAL",
-        title: "Индивидуальная тренировка",
+        title: trial ? `Пробное занятие (${TRIAL_LABEL[profile.trial]})` : "Индивидуальная тренировка",
         capacity: 1,
-        price: Math.round((profile.pricePerHour * input.durationMin) / 60),
+        price: trial ? (trialPrice(profile) ?? 0) : Math.round((profile.pricePerHour * input.durationMin) / 60),
         source: "REQUEST",
+        isTrial: trial,
       })
       .returning();
     const [b] = await tx.insert(s.trainingBooking).values({ slotId: slot.id, userId, status, comment: input.comment.slice(0, 500) }).returning();
@@ -339,7 +363,7 @@ export async function accountTrainings(userId: string) {
       status: s.trainingBooking.status,
       declineReason: s.trainingBooking.declineReason,
       cancelledAt: s.trainingBooking.cancelledAt,
-      slot: { startsAt: s.trainingSlot.startsAt, durationMin: s.trainingSlot.durationMin, title: s.trainingSlot.title, price: s.trainingSlot.price, kind: s.trainingSlot.kind, status: s.trainingSlot.status },
+      slot: { startsAt: s.trainingSlot.startsAt, durationMin: s.trainingSlot.durationMin, title: s.trainingSlot.title, price: s.trainingSlot.price, kind: s.trainingSlot.kind, status: s.trainingSlot.status, isTrial: s.trainingSlot.isTrial },
       club: { name: s.club.name, city: s.club.city, address: s.club.address },
       coach: { displayName: s.coachProfile.displayName, slug: s.coachProfile.slug },
     })
@@ -426,7 +450,7 @@ async function notifyRequest(bookingId: string) {
     const b = await db.query.trainingBooking.findFirst({ where: eq(s.trainingBooking.id, bookingId), with: { slot: { with: { club: true } } } });
     if (!b) return;
     const { notifyUser } = await import("@/lib/telegram");
-    const what = b.status === "REQUESTED" ? "❓ Новая заявка на тренировку — подтвердите" : "🎱 Новая запись";
+    const what = (b.status === "REQUESTED" ? "❓ Новая заявка на тренировку — подтвердите" : "🎱 Новая запись") + (b.slot.isTrial ? " (пробное)" : "");
     void notifyUser(b.slot.coachId, `${what}: ${fmtWhen(b.slot.startsAt)}, ${b.slot.durationMin} мин — ${escHtml(b.slot.club.name)}`, {
       text: "Открыть дневник",
       url: `${SITE.url}/coach?d=${dayKey(b.slot.startsAt)}`,

@@ -306,7 +306,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           const Item = ({ b }: { b: (typeof list)[number] }) => (
             <div className="row-line training-line" data-status={b.status}>
               <span>
-                <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.kind === "GROUP" ? b.slot.title : `${b.slot.durationMin} мин`}
+                <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.kind === "GROUP" ? b.slot.title : `${b.slot.isTrial ? "пробное, " : ""}${b.slot.durationMin} мин`}
                 {b.coach && (
                   <>
                     {" · "}
@@ -315,7 +315,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 )}
                 <div className="muted small">
                   {b.club.name}, {b.club.city}, {b.club.address}
-                  {b.slot.price ? ` · ${rub(b.slot.price)}, оплата в клубе` : ""}
+                  {b.slot.price ? ` · ${rub(b.slot.price)}, оплата в клубе` : b.slot.isTrial ? " · бесплатно" : ""}
                 </div>
                 {b.status === "DECLINED" && <div className="small">Тренер не сможет{b.declineReason ? `: ${b.declineReason}` : ""}. Выберите другое время.</div>}
               </span>

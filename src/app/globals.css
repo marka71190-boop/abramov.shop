@@ -5959,7 +5959,7 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   }
   .picker__time {
     min-width: 0;
-    flex: 1 0 calc(25% - 8px);
+    flex: 0 0 calc(25% - 6px);
   }
 }
 
@@ -6060,4 +6060,26 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
 .training-line[data-status="DECLINED"] b {
   text-decoration: line-through;
   color: var(--c-muted);
+}
+
+/* ---------- Пробное занятие ---------- */
+.coach-card__trial {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 1px solid rgba(220, 191, 131, 0.5);
+  color: var(--c-gold);
+  font-size: 12px;
+  font-weight: 600;
+}
+.picker .picker__trial {
+  border-color: rgba(220, 191, 131, 0.6);
+  color: var(--c-gold);
+}
+.picker .picker__trial[aria-pressed="true"] {
+  color: #141414;
+}
+.trial-box {
+  padding: 14px 16px;
+  border: 1px solid rgba(220, 191, 131, 0.35);
+  background: var(--c-gold-soft);
 }
