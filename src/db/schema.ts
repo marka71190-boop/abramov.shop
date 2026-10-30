@@ -59,7 +59,8 @@ export const user = pgTable(
     updatedAt: updatedAt(),
 
     phone: text("phone"),
-    patronymic: text("patronymic"), // отчество — для обращения «Здравствуйте, Имя Отчество»
+    patronymic: text("patronymic"),
+    callName: text("call_name"), // как обращаться — человек указал сам в кабинете // отчество — для обращения «Здравствуйте, Имя Отчество»
     birthday: date("birthday"),
     birthdaySetAt: ts("birthday_set_at"), // когда указал — подарок только если указал заранее
     birthdayBonusYear: integer("birthday_bonus_year"), // год, за который подарок уже выдан

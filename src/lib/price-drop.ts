@@ -7,6 +7,7 @@
  *   • только подписчикам с согласием на рекламу (письмо о цене — тоже реклама), днём, не чаще раза в сутки;
  *   • в Telegram — без названий товаров: только сколько подешевело.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -107,7 +108,7 @@ export async function priceDropAlerts(opts: { ignoreQuietHours?: boolean } = {})
       const unsub = unsubscribeUrl(u.id);
       const link = (slug: string, ch: string) => `${SITE.url}/product/${slug}?utm_source=${ch}&utm_medium=trigger&utm_campaign=price_drop`;
       if (canMail) {
-        const first = u.name.trim().split(/\s+/)[0];
+        const first = callNameOf(u);
         const rows = items
           .slice(0, 8)
           .map(

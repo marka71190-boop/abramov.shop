@@ -7,6 +7,7 @@
  * Клиент привязывает Telegram из личного кабинета: кнопка ведёт на t.me/<бот>?start=<одноразовый код>.
  * Админы и менеджеры привязывают так же — и дополнительно получают уведомления о новых заказах.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
@@ -188,7 +189,7 @@ export async function handleUpdate(u: TgUpdate) {
         const clubStaff = user.role === "CLUB";
         return send(
           chatId,
-          `Готово, ${esc(user.name.split(" ")[0])}! Telegram привязан к аккаунту Abramov Shop.\n\n` +
+          `Готово${callNameOf(user) ? `, ${esc(callNameOf(user))}` : ""}! Telegram привязан к аккаунту Abramov Shop.\n\n` +
             `Сюда придут оплата, трек-номер СДЭК и вручение заказа, а ещё начисление бонусов.` +
             (admin ? `\n\n<b>Вы админ</b> — сюда же будут приходить новые оплаченные заказы.` : "") +
             (clubStaff ? `\n\n<b>Вы администратор клуба</b> — сюда будут приходить заказы на выдачу в вашем клубе и кии для мастерской.` : "") +

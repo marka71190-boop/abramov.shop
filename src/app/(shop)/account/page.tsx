@@ -1,4 +1,5 @@
 import { and, desc, eq, ne } from "drizzle-orm";
+import { callNameOf, greetingOf } from "@/lib/names";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -106,9 +107,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   });
   const favRatings = await ratingsFor(favorites.map((f) => f.id));
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
-  const firstName = user.name.split(" ")[0] || user.name;
-  // Обращение: «Имя Отчество», если отчество указано
-  const greeting = user.patronymic ? `${firstName} ${user.patronymic}` : firstName;
+  // Обращение: по имени (и отчеству), никогда по фамилии — «Абрамов Марк» → «Марк»
+  const greeting = greetingOf(user);
+  const firstName = callNameOf(user);
 
   return (
     <div className="container account ym-hide-content">
@@ -127,7 +128,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <div className="account__main">
         <h1 className="h2" style={{ fontSize: "clamp(34px, 4vw, 52px)" }}>
-          Здравствуйте, {greeting}
+          {greeting ? `Здравствуйте, ${greeting}` : "Здравствуйте!"}
         </h1>
 
         {user.organizationId &&

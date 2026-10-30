@@ -9,6 +9,7 @@
  *   • письмо — служебное, о конкретном заказе: без рекламы других товаров;
  *   • в Telegram (если почты нет) — только номер заказа и бонусы, без названий товаров.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -111,7 +112,7 @@ export async function requestReviews(opts: { ignoreQuietHours?: boolean; now?: D
     try {
       const products = await reviewable(o.id, user.id);
       if (!products.length) continue;
-      const first = user.name.trim().split(/\s+/)[0];
+      const first = callNameOf(user);
       const bonusLine = bonus > 0 ? `За каждый одобренный отзыв начислим <b>${num(bonus)} бонусов</b>.` : "";
 
       if (mailEnabled() && !isPlaceholderEmail(user.email)) {

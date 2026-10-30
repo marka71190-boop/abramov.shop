@@ -85,11 +85,10 @@ export async function setNameParts(_: { ok?: string; error?: string }, form: For
   const first = clean(form.get("firstName"));
   const patronymic = clean(form.get("patronymic"));
   if (!first) return { error: "Напишите имя" };
-  // В name хранится имя (и фамилия, если человек указывал её при регистрации) — меняем только первое слово
-  const rest = u.name.trim().split(/\s+/).slice(1).join(" ");
+  // Полное имя (с фамилией) не трогаем — оно нужно для заказов и доставки
   await db
     .update(s.user)
-    .set({ name: rest ? `${first} ${rest}` : first, patronymic: patronymic || null })
+    .set({ callName: first, patronymic: patronymic || null })
     .where(eq(s.user.id, u.id));
   revalidatePath("/account");
   return { ok: "Сохранено" };

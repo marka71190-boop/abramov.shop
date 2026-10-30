@@ -7,6 +7,7 @@
  * Возврат потраченных бонусов (отмена заказа, возврат) — не новое начисление, а отмена списания:
  * бонусы возвращаются со своим прежним сроком, поэтому в «живые» начисления он не входит.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { and, eq, gt, isNull, ne, or, sql, sum } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -141,7 +142,7 @@ export async function birthdayBonuses() {
       .returning({ id: s.user.id });
     if (!claimed) continue;
     await creditBonus(u.id, bonus, "BIRTHDAY", "С днём рождения!", { days: settings.loyalty.birthdayDays });
-    await tell(u, `🎂 С днём рождения, ${esc(u.name.split(" ")[0])}! Дарим <b>${num(bonus)}</b> бонусов — они действуют ${settings.loyalty.birthdayDays} дн.`);
+    await tell(u, `🎂 С днём рождения${callNameOf(u) ? `, ${esc(callNameOf(u))}` : ""}! Дарим <b>${num(bonus)}</b> бонусов — они действуют ${settings.loyalty.birthdayDays} дн.`);
   }
 }
 

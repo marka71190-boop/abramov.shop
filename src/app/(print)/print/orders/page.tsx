@@ -1,4 +1,5 @@
 import { asc, inArray } from "drizzle-orm";
+import { firstNameOf } from "@/lib/names";
 import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
 import { db, schema as s } from "@/db";
@@ -54,7 +55,7 @@ export default async function PrintOrders({ searchParams }: Props) {
       {orders.length === 0 && <p className="no-print" style={{ padding: 24 }}>Заказы не выбраны.</p>}
       {orders.map((o) => {
         const qr = qrs.get(o.id)!;
-        const first = (o.customerName || o.user?.name || "").trim().split(/\s+/)[0];
+        const first = firstNameOf(o.customerName || o.user?.name || "");
         const insp = o.inspection;
         return (
           <div key={o.id}>

@@ -8,6 +8,7 @@
  *   • только днём (10:00–21:00 по Москве);
  *   • только товары, которые есть в наличии, с актуальными ценами.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { and, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -62,7 +63,7 @@ export async function remindAbandonedCarts(opts: { ignoreQuietHours?: boolean } 
       const quote = await computeQuote({ lines: cart.items }, user);
       if (!quote.lines.length) continue;
       const link = `${SITE.url}/cart?utm_source=__CH__&utm_medium=trigger&utm_campaign=abandoned_cart`;
-      const first = user.name.trim().split(/\s+/)[0];
+      const first = callNameOf(user);
 
       if (mailEnabled() && !isPlaceholderEmail(user.email)) {
         const rowsHtml = quote.lines
@@ -217,7 +218,7 @@ export async function abandonedCartPromos(opts: { ignoreQuietHours?: boolean } =
       const unsub = unsubscribeUrl(user.id);
       const note = hasSpecial && !freeShip ? "Скидка не действует на лимитированные товары и кий на заказ." : "";
       if (canMail) {
-        const first = user.name.trim().split(/\s+/)[0];
+        const first = callNameOf(user);
         const rowsHtml = quote.lines
           .slice(0, 6)
           .map(

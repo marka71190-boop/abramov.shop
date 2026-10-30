@@ -9,6 +9,7 @@
  * писем рассылок в сутки (у Gmail лимит ~500 писем в день). Большая рассылка растянется,
  * сайт продолжит сам, в том числе после перезапуска.
  */
+import { callNameOf } from "@/lib/names";
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
@@ -143,7 +144,6 @@ function buttonLink(c: Campaign, promo: Promo | null, channel: "email" | "telegr
   }
 }
 
-const firstName = (name: string | null | undefined) => (name ?? "").trim().split(/\s+/)[0] || "";
 
 export async function loadPromo(c: Pick<Campaign, "promoCodeId">) {
   if (!c.promoCodeId) return { promo: null, categoryName: null };
@@ -153,7 +153,7 @@ export async function loadPromo(c: Pick<Campaign, "promoCodeId">) {
 }
 
 export function renderEmail(c: Campaign, promo: Promo | null, categoryName: string | null, user: { id: string; name: string | null }) {
-  const hi = firstName(user.name);
+  const hi = callNameOf(user);
   const until = timerUntil(promo);
   const paragraphs = escHtml(c.body.trim()).replace(/\r?\n/g, "<br>");
   const promoBlock = promo
@@ -293,7 +293,7 @@ export async function processCampaigns() {
       if (!channels.length) break;
       const batch = await db.query.campaignRecipient.findMany({
         where: and(eq(s.campaignRecipient.campaignId, c.id), eq(s.campaignRecipient.status, "PENDING"), inArray(s.campaignRecipient.channel, [...channels])),
-        with: { user: { columns: { id: true, name: true, bannedAt: true, bannedUntil: true } } },
+        with: { user: { columns: { id: true, name: true, callName: true, bannedAt: true, bannedUntil: true } } },
         limit: Math.max(emailBudget, tgBudget),
       });
 
