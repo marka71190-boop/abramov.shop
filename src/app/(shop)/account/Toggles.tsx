@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
 import { authClient } from "@/lib/auth-client";
-import { setBirthday, setRealEmail, telegramLink, unlinkTelegram } from "./actions";
+import { setNameParts, setBirthday, setRealEmail, telegramLink, unlinkTelegram } from "./actions";
 
 export const VERIFY_CALLBACK = "/account?verified=1";
 
@@ -194,6 +194,21 @@ export function BirthdayForm() {
         {pending ? "…" : "Сохранить"}
       </button>
       {state.error && <span className="small" style={{ color: "var(--c-danger)" }}>{state.error}</span>}
+    </form>
+  );
+}
+
+export function NameForm({ firstName, patronymic }: { firstName: string; patronymic: string }) {
+  const [state, action, pending] = useActionState(setNameParts, {});
+  return (
+    <form action={action} className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <input className="input" name="firstName" defaultValue={firstName} required maxLength={60} placeholder="Имя" aria-label="Имя" style={{ width: 160, minHeight: 40 }} />
+      <input className="input" name="patronymic" defaultValue={patronymic} maxLength={60} placeholder="Отчество" aria-label="Отчество" style={{ width: 180, minHeight: 40 }} />
+      <button className="btn btn--line btn--sm" disabled={pending}>
+        {pending ? "…" : "Сохранить"}
+      </button>
+      {state.error && <span className="small" style={{ color: "var(--c-danger)" }}>{state.error}</span>}
+      {state.ok && <span className="small" style={{ color: "var(--c-success)" }}>{state.ok}</span>}
     </form>
   );
 }

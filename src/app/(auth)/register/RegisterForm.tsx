@@ -4,6 +4,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { goal } from "@/lib/track";
+import { setPatronymicAfterSignup } from "@/app/(shop)/account/actions";
 
 /** Галочку записываем на сервере ДО создания аккаунта — без неё сервер аккаунт не создаст. */
 async function saveConsent(body: Record<string, unknown>) {
@@ -29,6 +30,7 @@ export function RegisterForm({ next }: { next: string }) {
     if (!pd) return setError("Отметьте согласие на обработку персональных данных");
     const f = new FormData(e.currentTarget);
     const name = String(f.get("name") || "").trim();
+    const patronymic = String(f.get("patronymic") || "").trim();
     const phone = String(f.get("phone") || "").trim();
     const email = String(f.get("email") || "").trim().toLowerCase();
     const password = String(f.get("password") || "");
@@ -38,6 +40,7 @@ export function RegisterForm({ next }: { next: string }) {
       await saveConsent({ source: "REGISTRATION", marketing, name, phone, email });
       const { error: err } = await authClient.signUp.email({ name, email, password, callbackURL: "/account?verified=1" });
       if (err) throw err;
+      if (patronymic) await setPatronymicAfterSignup(patronymic).catch(() => {});
       goal("sign_up");
       // Даём счётчику отправить цель до перехода
       await new Promise((r) => setTimeout(r, 300));
@@ -63,10 +66,16 @@ export function RegisterForm({ next }: { next: string }) {
         </div>
       )}
 
-      <label className="field">
-        Имя
-        <input className="input" name="name" required maxLength={100} autoComplete="given-name" />
-      </label>
+      <div className="form-grid" style={{ gap: 12 }}>
+        <label className="field">
+          Имя
+          <input className="input" name="name" required maxLength={100} autoComplete="given-name" />
+        </label>
+        <label className="field">
+          Отчество <span className="muted small">(необязательно)</span>
+          <input className="input" name="patronymic" maxLength={60} autoComplete="additional-name" />
+        </label>
+      </div>
       <label className="field">
         Телефон
         <input className="input" name="phone" type="tel" required placeholder="+7 (900) 000-00-00" autoComplete="tel" />

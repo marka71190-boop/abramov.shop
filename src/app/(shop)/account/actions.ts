@@ -72,3 +72,36 @@ export async function setBirthday(_: { error?: string; ok?: string }, form: Form
   revalidatePath("/account");
   return { ok: "Сохранено" };
 }
+
+/** Как обращаться: имя и отчество («Здравствуйте, Марк Иосифович») */
+export async function setNameParts(_: { ok?: string; error?: string }, form: FormData): Promise<{ ok?: string; error?: string }> {
+  const u = await requireActiveUser();
+  const clean = (v: FormDataEntryValue | null) =>
+    String(v ?? "")
+      .replace(/[^\p{L}\s'-]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60);
+  const first = clean(form.get("firstName"));
+  const patronymic = clean(form.get("patronymic"));
+  if (!first) return { error: "Напишите имя" };
+  // В name хранится имя (и фамилия, если человек указывал её при регистрации) — меняем только первое слово
+  const rest = u.name.trim().split(/\s+/).slice(1).join(" ");
+  await db
+    .update(s.user)
+    .set({ name: rest ? `${first} ${rest}` : first, patronymic: patronymic || null })
+    .where(eq(s.user.id, u.id));
+  revalidatePath("/account");
+  return { ok: "Сохранено" };
+}
+
+/** Отчество сразу после регистрации (форма регистрации) */
+export async function setPatronymicAfterSignup(patronymic: string) {
+  const u = await requireActiveUser();
+  const p = patronymic
+    .replace(/[^\p{L}\s'-]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  if (p) await db.update(s.user).set({ patronymic: p }).where(eq(s.user.id, u.id));
+}

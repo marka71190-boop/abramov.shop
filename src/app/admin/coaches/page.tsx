@@ -19,6 +19,7 @@ export default async function CoachesAdmin() {
           .select({
             slots: sql<number>`count(distinct ${s.trainingSlot.id})::int`,
             booked: sql<number>`count(${s.trainingBooking.id}) filter (where ${s.trainingBooking.status} = 'BOOKED')::int`,
+            requested: sql<number>`count(${s.trainingBooking.id}) filter (where ${s.trainingBooking.status} = 'REQUESTED')::int`,
           })
           .from(s.trainingSlot)
           .leftJoin(s.trainingBooking, eq(s.trainingBooking.slotId, s.trainingSlot.id))
@@ -44,8 +45,8 @@ export default async function CoachesAdmin() {
         </Link>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        Чтобы добавить тренера: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». У него появится кабинет: профиль,
-        расписание, записи. Отсюда можно скрыть тренера с сайта или вести расписание за него.
+        Чтобы добавить тренера: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». У него появится кабинет: дневник,
+        рабочее время, заявки клиентов, групповые, профиль. Отсюда можно скрыть тренера с сайта или вести расписание за него.
       </p>
       {rows.length ? (
         <div className="table-wrap">
@@ -67,7 +68,8 @@ export default async function CoachesAdmin() {
                     <div className="small muted">{u.email}</div>
                   </td>
                   <td className="small">
-                    тренировок {up?.slots ?? 0}, записей {up?.booked ?? 0}
+                    тренировок {up?.slots ?? 0}, подтверждено {up?.booked ?? 0}
+                    {up?.requested ? <span className="gold">, заявок {up.requested}</span> : null}
                   </td>
                   <td className="small">
                     пришли {att?.attended ?? 0}, не пришли {att?.noShow ?? 0}

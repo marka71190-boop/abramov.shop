@@ -267,6 +267,13 @@
       "when": 1793302880021,
       "tag": "0037_trainings",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793357040158,
+      "tag": "0038_coach_schedule",
+      "breakpoints": true
     }
   ]
 }

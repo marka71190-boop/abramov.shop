@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
-import { cancelSlot, ensureCoachProfile, requireCoach } from "@/lib/trainings";
+import { addManualTraining, BookingError, cancelSlot, confirmRequest, declineRequest, ensureCoachProfile, parseHhmm, requireCoach } from "@/lib/trainings";
+import { normalizePhone } from "@/lib/format";
 import { isAdmin } from "@/lib/viewer";
 
 type St = { ok?: string; error?: string };
@@ -59,7 +60,7 @@ const Slot = z.object({
   clubId: z.string().min(1, "Выберите клуб").max(64),
   startsAt: z.string().min(1, "Укажите дату и время"),
   durationMin: z.coerce.number().int().min(30, "От 30 минут").max(240, "До 4 часов"),
-  kind: z.enum(["INDIVIDUAL", "GROUP"]),
+  kind: z.enum(["GROUP"]).default("GROUP"),
   capacity: z.coerce.number().int().min(1).max(20, "До 20 мест"),
   price: z.coerce.number().min(0).max(1_000_000),
   title: z.string().trim().max(120).default(""),
@@ -79,8 +80,8 @@ export async function createSlots(_: St, form: FormData): Promise<St> {
   if (+first > Date.now() + 120 * 86400_000) return { error: "Не дальше чем на 4 месяца вперёд" };
   const club = await db.query.club.findFirst({ where: and(eq(s.club.id, d.clubId), eq(s.club.isActive, true)), columns: { id: true } });
   if (!club) return { error: "Клуб не найден" };
-  const capacity = d.kind === "INDIVIDUAL" ? 1 : Math.max(2, d.capacity);
-  const title = d.title || (d.kind === "INDIVIDUAL" ? "Индивидуальная тренировка" : "Групповая тренировка");
+  const capacity = Math.max(2, d.capacity);
+  const title = d.title || "Групповая тренировка";
   const starts = Array.from({ length: d.repeatWeeks }, (_, i) => new Date(+first + i * 7 * 86400_000));
   // Пересечения с другими тренировками этого тренера
   const busy: string[] = [];
@@ -129,4 +130,173 @@ export async function markBooking(bookingId: string, status: "ATTENDED" | "NO_SH
   await db.update(s.trainingBooking).set({ status }).where(and(eq(s.trainingBooking.id, bookingId), ne(s.trainingBooking.status, "CANCELLED")));
   revalidatePath("/coach");
   return { ok: "Отмечено" };
+}
+
+// ---------------------------------------------------------------- заявки и дневник
+
+async function ownBooking(bookingId: string) {
+  const me = await requireCoach();
+  const b = await db.query.trainingBooking.findFirst({ where: eq(s.trainingBooking.id, bookingId), with: { slot: { columns: { coachId: true } } } });
+  if (!b || (b.slot.coachId !== me.id && !isAdmin(me))) throw new Error("Заявка не найдена");
+  return { me, b };
+}
+
+export async function confirmAction(bookingId: string): Promise<St> {
+  const { me } = await ownBooking(bookingId);
+  try {
+    await confirmRequest(bookingId);
+  } catch (e) {
+    if (e instanceof BookingError) return { error: e.message };
+    throw e;
+  }
+  await audit(me.id, "training.confirm", "training_booking", bookingId);
+  revalidatePath("/coach");
+  return { ok: "Подтверждено — клиенту ушло письмо" };
+}
+
+export async function declineAction(bookingId: string, reason: string): Promise<St> {
+  const { me } = await ownBooking(bookingId);
+  try {
+    await declineRequest(bookingId, reason.trim().slice(0, 200));
+  } catch (e) {
+    if (e instanceof BookingError) return { error: e.message };
+    throw e;
+  }
+  await audit(me.id, "training.decline", "training_booking", bookingId);
+  revalidatePath("/coach");
+  revalidatePath("/trenirovki", "layout");
+  return { ok: "Отказано — время снова свободно" };
+}
+
+export async function saveDiary(slotId: string, text: string): Promise<St> {
+  const me = await requireCoach();
+  const slot = await db.query.trainingSlot.findFirst({ where: eq(s.trainingSlot.id, slotId), columns: { coachId: true } });
+  if (!slot || (slot.coachId !== me.id && !isAdmin(me))) return { error: "Тренировка не найдена" };
+  await db.update(s.trainingSlot).set({ diary: text.slice(0, 5000) }).where(eq(s.trainingSlot.id, slotId));
+  return { ok: "Сохранено" };
+}
+
+const Manual = z.object({
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time: z.string().min(4, "Укажите время"),
+  durationMin: z.coerce.number().int().min(15).max(300),
+  clubId: z.string().min(1, "Выберите клуб").max(64),
+  price: z.coerce.number().min(0).max(1_000_000).default(0),
+  client: z.string().trim().max(120).default(""),
+  guestName: z.string().trim().max(80).default(""),
+  guestPhone: z.string().trim().max(30).default(""),
+  note: z.string().trim().max(500).default(""),
+});
+
+/** Тренер сам вносит тренировку: клиент с сайта (почта или телефон) или гость по имени */
+export async function addManual(_: St, form: FormData): Promise<St> {
+  const { me, coachId } = await target(form);
+  const p = Manual.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const d = p.data;
+  const min = parseHhmm(d.time);
+  if (min == null) return { error: "Время в формате 18:30" };
+  const startsAt = new Date(+new Date(`${d.day}T00:00:00+03:00`) + min * 60_000);
+  if (+startsAt < Date.now() - 7 * 86400_000) return { error: "Можно вносить не старше недели назад" };
+  const club = await db.query.club.findFirst({ where: eq(s.club.id, d.clubId), columns: { id: true } });
+  if (!club) return { error: "Клуб не найден" };
+  let clientUserId: string | null = null;
+  if (d.client) {
+    const phone = normalizePhone(d.client);
+    const u = d.client.includes("@")
+      ? await db.query.user.findFirst({ where: eq(s.user.email, d.client.toLowerCase()), columns: { id: true } })
+      : phone
+        ? await db.query.user.findFirst({ where: eq(s.user.phone, phone), columns: { id: true } })
+        : null;
+    if (u) clientUserId = u.id;
+  }
+  if (!clientUserId && !d.guestName && !d.client) return { error: "Укажите клиента: почту или телефон с сайта, или имя" };
+  const guestName = d.guestName || (clientUserId ? "" : d.client);
+  const guestPhone = d.guestPhone ? normalizePhone(d.guestPhone) : !clientUserId && normalizePhone(d.client) ? normalizePhone(d.client) : null;
+  try {
+    await addManualTraining({ coachId, clubId: d.clubId, startsAt, durationMin: d.durationMin, price: Math.round(d.price * 100), clientUserId, guestName, guestPhone, note: d.note });
+  } catch (e) {
+    if (e instanceof BookingError) return { error: e.message };
+    throw e;
+  }
+  await audit(me.id, "training.manual", "user", coachId, { linked: !!clientUserId });
+  refresh();
+  return { ok: clientUserId ? "Добавлено. Клиент найден на сайте — ему ушло письмо, тренировка в его кабинете" : "Добавлено в дневник" };
+}
+
+// ---------------------------------------------------------------- рабочее время
+
+const Hours = z.array(
+  z.object({ weekday: z.number().int().min(1).max(7), clubId: z.string().min(1).max(64), start: z.string(), end: z.string() }),
+).max(60);
+
+export async function saveHours(json: string, coachIdParam?: string): Promise<St> {
+  const { me, coachId } = await target(null, coachIdParam);
+  const p = Hours.safeParse(JSON.parse(json || "[]"));
+  if (!p.success) return { error: "Проверьте рабочее время" };
+  const rows: { coachId: string; clubId: string; weekday: number; startMin: number; endMin: number }[] = [];
+  for (const h of p.data) {
+    const a = parseHhmm(h.start);
+    const b = parseHhmm(h.end);
+    if (a == null || b == null || b <= a) return { error: `${h.start}–${h.end}: конец должен быть позже начала` };
+    rows.push({ coachId, clubId: h.clubId, weekday: h.weekday, startMin: a, endMin: b });
+  }
+  // Пересечения внутри одного дня
+  for (const r of rows)
+    if (rows.some((x) => x !== r && x.weekday === r.weekday && x.startMin < r.endMin && x.endMin > r.startMin))
+      return { error: "В один день промежутки времени пересекаются — поправьте" };
+  await db.transaction(async (tx) => {
+    await tx.delete(s.coachHours).where(eq(s.coachHours.coachId, coachId));
+    if (rows.length) await tx.insert(s.coachHours).values(rows);
+  });
+  await audit(me.id, "coach.hours", "user", coachId);
+  refresh();
+  return { ok: "Рабочее время сохранено" };
+}
+
+const Settings = z.object({
+  pricePerHour: z.coerce.number().min(0).max(1_000_000),
+  stepMin: z.coerce.number().int().refine((v) => [15, 30, 60].includes(v)),
+  leadHours: z.coerce.number().int().min(0).max(72),
+  horizonDays: z.coerce.number().int().min(1).max(60),
+});
+
+export async function saveBookingSettings(_: St, form: FormData): Promise<St> {
+  const { me, coachId } = await target(form);
+  const p = Settings.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: "Проверьте настройки" };
+  const durations = form
+    .getAll("durations")
+    .map(Number)
+    .filter((n) => [45, 60, 90, 120, 180].includes(n));
+  if (!durations.length) return { error: "Отметьте хотя бы одну длительность" };
+  await ensureCoachProfile(coachId);
+  await db
+    .update(s.coachProfile)
+    .set({ pricePerHour: Math.round(p.data.pricePerHour * 100), stepMin: p.data.stepMin, leadHours: p.data.leadHours, horizonDays: p.data.horizonDays, durations: durations.sort((a, b) => a - b), autoConfirm: form.get("autoConfirm") === "on" })
+    .where(eq(s.coachProfile.userId, coachId));
+  await audit(me.id, "coach.settings", "user", coachId);
+  refresh();
+  return { ok: "Сохранено" };
+}
+
+export async function addDayOff(_: St, form: FormData): Promise<St> {
+  const { coachId } = await target(form);
+  const from = String(form.get("from") || "");
+  const to = String(form.get("to") || from);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return { error: "Проверьте даты" };
+  const note = String(form.get("note") || "").slice(0, 100);
+  const days: string[] = [];
+  for (let d = new Date(`${from}T12:00:00Z`); d <= new Date(`${to}T12:00:00Z`) && days.length < 62; d = new Date(+d + 86400_000)) days.push(d.toISOString().slice(0, 10));
+  await db.insert(s.coachDayOff).values(days.map((day) => ({ coachId, day, note }))).onConflictDoNothing();
+  refresh();
+  return { ok: days.length > 1 ? `Выходные: ${days.length} дн.` : "Выходной добавлен" };
+}
+
+export async function removeDayOff(id: string): Promise<void> {
+  const me = await requireCoach();
+  const row = await db.query.coachDayOff.findFirst({ where: eq(s.coachDayOff.id, id) });
+  if (!row || (row.coachId !== me.id && !isAdmin(me))) return;
+  await db.delete(s.coachDayOff).where(eq(s.coachDayOff.id, id));
+  refresh();
 }

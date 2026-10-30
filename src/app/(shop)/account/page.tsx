@@ -10,7 +10,7 @@ import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
 import { requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
-import { BirthdayForm, CopyButton, RealEmailForm, SetPasswordNotice, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
+import { NameForm, BirthdayForm, CopyButton, RealEmailForm, SetPasswordNotice, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
 import { mailEnabled } from "@/lib/mail";
 import { expiringSoon } from "@/lib/bonuses";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -18,7 +18,7 @@ import { getPublicProductsByIds } from "@/lib/catalog";
 import { ratingsFor } from "@/lib/reviews";
 import { telegramEnabled } from "@/lib/telegram";
 import { pushPublicKey } from "@/lib/push";
-import { fmtWhen, myBookings } from "@/lib/trainings";
+import { accountTrainings, CANCEL_HOURS, fmtWhen } from "@/lib/trainings";
 import { CancelTraining } from "../trenirovki/CancelTraining";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { isPlaceholderEmail } from "@/lib/site";
@@ -107,6 +107,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const favRatings = await ratingsFor(favorites.map((f) => f.id));
   const progress = tierProgress(Math.floor(user.totalSpent / 100), settings.loyalty);
   const firstName = user.name.split(" ")[0] || user.name;
+  // Обращение: «Имя Отчество», если отчество указано
+  const greeting = user.patronymic ? `${firstName} ${user.patronymic}` : firstName;
 
   return (
     <div className="container account ym-hide-content">
@@ -125,7 +127,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <div className="account__main">
         <h1 className="h2" style={{ fontSize: "clamp(34px, 4vw, 52px)" }}>
-          Здравствуйте, {firstName}
+          Здравствуйте, {greeting}
         </h1>
 
         {user.organizationId &&
@@ -296,27 +298,72 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         )}
 
         {await (async () => {
-          const list = (await myBookings(user.id)).filter((b) => +b.slot.startsAt > Date.now() - 3 * 3600_000 && b.status === "BOOKED" && b.slot.status === "OPEN");
+          const list = await accountTrainings(user.id);
           if (!list.length) return null;
+          const requested = list.filter((b) => b.status === "REQUESTED");
+          const confirmed = list.filter((b) => b.status === "BOOKED");
+          const declined = list.filter((b) => b.status === "DECLINED");
+          const Item = ({ b }: { b: (typeof list)[number] }) => (
+            <div className="row-line training-line" data-status={b.status}>
+              <span>
+                <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.kind === "GROUP" ? b.slot.title : `${b.slot.durationMin} мин`}
+                {b.coach && (
+                  <>
+                    {" · "}
+                    <Link href={`/trenirovki/${b.coach.slug}`}>{b.coach.displayName}</Link>
+                  </>
+                )}
+                <div className="muted small">
+                  {b.club.name}, {b.club.city}, {b.club.address}
+                  {b.slot.price ? ` · ${rub(b.slot.price)}, оплата в клубе` : ""}
+                </div>
+                {b.status === "DECLINED" && <div className="small">Тренер не сможет{b.declineReason ? `: ${b.declineReason}` : ""}. Выберите другое время.</div>}
+              </span>
+              <span className="stack" style={{ gap: 4, alignItems: "flex-end" }}>
+                <span className={`pill ${b.status === "BOOKED" ? "pill--ok" : b.status === "REQUESTED" ? "pill--wait" : ""}`}>
+                  {b.status === "BOOKED" ? "Подтверждена" : b.status === "REQUESTED" ? "Заявка" : "Отказ"}
+                </span>
+                {b.status !== "DECLINED" && +b.slot.startsAt > Date.now() && (b.status === "REQUESTED" || +b.slot.startsAt - Date.now() >= CANCEL_HOURS * 3600_000) && (
+                  <CancelTraining bookingId={b.id} label={b.status === "REQUESTED" ? "Отозвать заявку" : "Отменить"} />
+                )}
+              </span>
+            </div>
+          );
           return (
             <section id="trainings" className="panel">
               <h2>Мои тренировки</h2>
-              {list
-                .sort((a, b) => +a.slot.startsAt - +b.slot.startsAt)
-                .map((b) => (
-                  <div key={b.id} className="row-line">
-                    <span>
-                      <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.title}
-                      <div className="muted small">
-                        {b.slot.club.name}, {b.slot.club.city}, {b.slot.club.address}
-                        {b.slot.price ? ` · ${rub(b.slot.price)}, оплата в клубе` : ""}
-                      </div>
-                    </span>
-                    {+b.slot.startsAt > Date.now() && <CancelTraining bookingId={b.id} />}
+              {confirmed.length > 0 && (
+                <>
+                  <div className="label" style={{ marginTop: 4 }}>
+                    Подтверждённые
                   </div>
-                ))}
+                  {confirmed.map((b) => (
+                    <Item key={b.id} b={b} />
+                  ))}
+                </>
+              )}
+              {requested.length > 0 && (
+                <>
+                  <div className="label" style={{ marginTop: 14 }}>
+                    Заявки — ждут подтверждения тренера
+                  </div>
+                  {requested.map((b) => (
+                    <Item key={b.id} b={b} />
+                  ))}
+                </>
+              )}
+              {declined.length > 0 && (
+                <>
+                  <div className="label" style={{ marginTop: 14 }}>
+                    Не получилось
+                  </div>
+                  {declined.map((b) => (
+                    <Item key={b.id} b={b} />
+                  ))}
+                </>
+              )}
               <p className="small" style={{ margin: "10px 0 0" }}>
-                <Link href="/trenirovki">Расписание тренировок →</Link>
+                <Link href="/trenirovki">Записаться ещё →</Link>
               </p>
             </section>
           );
@@ -413,6 +460,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
         <section id="settings" className="panel">
           <h2>Профиль, уведомления и согласия</h2>
+          <div className="row-line">
+            <div>
+              <div>Как к вам обращаться</div>
+              <div className="muted small">Имя и отчество — так обращаемся в кабинете и письмах</div>
+            </div>
+            <NameForm firstName={firstName} patronymic={user.patronymic ?? ""} />
+          </div>
           <div className="row-line">
             <div>
               <div>{user.name}</div>

@@ -30,7 +30,7 @@ export default async function TrainingsPage({ searchParams }: Props) {
           Тренировки по бильярду <span className="gold">в наших клубах</span>
         </h1>
         <p className="muted" style={{ margin: 0, fontSize: 17 }}>
-          Индивидуальные и групповые занятия с тренерами. Выберите время — запись онлайн, оплата в клубе после тренировки. Накануне пришлём напоминание.
+          Индивидуальные и групповые занятия с тренерами. Выберите тренера и свободное время — он подтвердит заявку. Оплата в клубе после тренировки, накануне пришлём напоминание.
         </p>
       </div>
 
@@ -59,6 +59,9 @@ export default async function TrainingsPage({ searchParams }: Props) {
                 <b>{c.displayName}</b>
                 {c.title && <span className="small muted">{c.title}</span>}
                 <span className="small">{c.games}</span>
+                <span className="coach-card__cta">
+                  {c.pricePerHour ? `от ${Math.round(c.pricePerHour / 100).toLocaleString("ru-RU")} ₽/час · ` : ""}Выбрать время →
+                </span>
               </Link>
             ))}
           </div>
@@ -67,25 +70,27 @@ export default async function TrainingsPage({ searchParams }: Props) {
 
       <div className="stack" style={{ gap: 16 }} id="schedule">
         <h2 className="h3" style={{ margin: 0 }}>
-          Расписание{club ? ` · ${club.name}` : ""}
+          Групповые тренировки{club ? ` · ${club.name}` : ""}
         </h2>
         {slots.length ? (
           <Schedule slots={slots} signedIn={!!viewer} next={club ? `/trenirovki?club=${club.id}` : "/trenirovki"} mine={mineMap} />
         ) : (
           <p className="muted" style={{ margin: 0 }}>
-            {club && clubs.some((c) => clubsWithSlots.has(c.id)) ? "В этом клубе пока нет свободных тренировок — посмотрите другие клубы." : "Расписание скоро появится. Загляните чуть позже или спросите в клубе."}
+            {club && clubs.some((c) => clubsWithSlots.has(c.id))
+              ? "В этом клубе групповых пока нет — посмотрите другие клубы или запишитесь к тренеру индивидуально."
+              : "Групповых пока нет. Индивидуально — выберите тренера выше и свободное время."}
           </p>
         )}
       </div>
 
       <div className="steps-3">
         <div>
-          <b>1. Выберите время</b>
-          <span className="muted small">Индивидуально — с тренером один на один, в группе — до нескольких человек за столом.</span>
+          <b>1. Выберите тренера и время</b>
+          <span className="muted small">Индивидуально — один на один, в любое свободное время тренера. В группе — по расписанию.</span>
         </div>
         <div>
-          <b>2. Запишитесь</b>
-          <span className="muted small">Подтверждение придёт на почту, напоминание — накануне. Отменить можно не позже чем за {CANCEL_HOURS} ч до начала.</span>
+          <b>2. Тренер подтвердит</b>
+          <span className="muted small">Письмо придёт на почту, статус — в личном кабинете. Отменить можно не позже чем за {CANCEL_HOURS} ч до начала.</span>
         </div>
         <div>
           <b>3. Приходите в клуб</b>

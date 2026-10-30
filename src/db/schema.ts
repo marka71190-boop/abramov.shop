@@ -59,6 +59,7 @@ export const user = pgTable(
     updatedAt: updatedAt(),
 
     phone: text("phone"),
+    patronymic: text("patronymic"), // отчество — для обращения «Здравствуйте, Имя Отчество»
     birthday: date("birthday"),
     birthdaySetAt: ts("birthday_set_at"), // когда указал — подарок только если указал заранее
     birthdayBonusYear: integer("birthday_bonus_year"), // год, за который подарок уже выдан
@@ -1330,6 +1331,13 @@ export const coachProfile = pgTable("coach_profile", {
   about: text("about").default("").notNull(),
   games: text("games").default("Русский бильярд").notNull(),
   clubIds: text("club_ids").array().default([]).notNull(),
+  // Запись по свободному времени
+  pricePerHour: integer("price_per_hour").default(300000).notNull(), // копейки за 60 минут индивидуально
+  durations: integer("durations").array().default([60, 90, 120]).notNull(), // какие длительности можно выбрать
+  stepMin: integer("step_min").default(30).notNull(), // шаг начала: каждые 30 минут
+  leadHours: integer("lead_hours").default(2).notNull(), // не раньше чем через N часов
+  horizonDays: integer("horizon_days").default(14).notNull(), // на сколько дней вперёд открыта запись
+  autoConfirm: boolean("auto_confirm").default(false).notNull(), // заявки подтверждаются сами
   isPublished: boolean("is_published").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: createdAt(),
@@ -1337,7 +1345,8 @@ export const coachProfile = pgTable("coach_profile", {
 });
 
 export const trainingSlotStatusEnum = pgEnum("training_slot_status", ["OPEN", "CANCELLED"]);
-export const trainingBookingStatusEnum = pgEnum("training_booking_status", ["BOOKED", "CANCELLED", "ATTENDED", "NO_SHOW"]);
+// REQUESTED — заявка ждёт тренера, BOOKED — подтверждена, DECLINED — тренер отказал
+export const trainingBookingStatusEnum = pgEnum("training_booking_status", ["BOOKED", "CANCELLED", "ATTENDED", "NO_SHOW", "REQUESTED", "DECLINED"]);
 
 /** Тренировка в расписании: индивидуальная (1 место) или групповая */
 export const trainingSlot = pgTable(
@@ -1359,6 +1368,8 @@ export const trainingSlot = pgTable(
     note: text("note").default("").notNull(),
     status: trainingSlotStatusEnum("status").default("OPEN").notNull(),
     cancelReason: text("cancel_reason"),
+    source: text("source").default("PUBLISHED").notNull(), // PUBLISHED — групповая в расписании, REQUEST — заявка клиента, MANUAL — тренер внёс сам
+    diary: text("diary").default("").notNull(), // дневник: что делали на тренировке
     createdAt: createdAt(),
   },
   (t) => [index("training_slot_start_idx").on(t.startsAt), index("training_slot_coach_idx").on(t.coachId, t.startsAt)],
@@ -1371,10 +1382,11 @@ export const trainingBooking = pgTable(
     slotId: text("slot_id")
       .notNull()
       .references(() => trainingSlot.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }), // пусто — клиент не с сайта (тренер внёс сам)
+    guestName: text("guest_name"),
+    guestPhone: text("guest_phone"),
     status: trainingBookingStatusEnum("status").default("BOOKED").notNull(),
+    declineReason: text("decline_reason"),
     comment: text("comment").default("").notNull(), // пожелание к тренировке
     cancelledBy: text("cancelled_by"), // USER | COACH
     remindedAt: ts("reminded_at"),
@@ -1400,3 +1412,35 @@ export const trainingBookingRelations = relations(trainingBooking, ({ one }) => 
   slot: one(trainingSlot, { fields: [trainingBooking.slotId], references: [trainingSlot.id] }),
   user: one(user, { fields: [trainingBooking.userId], references: [user.id] }),
 }));
+
+/** Рабочее время тренера по дням недели (1 — понедельник … 7 — воскресенье), в минутах от полуночи по Москве */
+export const coachHours = pgTable(
+  "coach_hours",
+  {
+    id: id(),
+    coachId: text("coach_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clubId: text("club_id")
+      .notNull()
+      .references(() => club.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(),
+    startMin: integer("start_min").notNull(),
+    endMin: integer("end_min").notNull(),
+  },
+  (t) => [index("coach_hours_coach_idx").on(t.coachId, t.weekday)],
+);
+
+/** Выходные и отпуск тренера */
+export const coachDayOff = pgTable(
+  "coach_day_off",
+  {
+    id: id(),
+    coachId: text("coach_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    note: text("note").default("").notNull(),
+  },
+  (t) => [uniqueIndex("coach_day_off_uq").on(t.coachId, t.day)],
+);
