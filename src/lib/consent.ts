@@ -7,8 +7,8 @@ export const CONSENT_COOKIE = "as_consent";
 /** Сколько живёт отметка без созданного аккаунта (уход на Google и обратно). */
 export const CONSENT_TTL_MIN = 30;
 
-export type ConsentKind = "PERSONAL_DATA" | "MARKETING";
-export type ConsentSource = "REGISTRATION" | "GOOGLE" | "VK" | "CHECKOUT" | "ACCOUNT" | "RECONSENT";
+export type ConsentKind = "PERSONAL_DATA" | "MARKETING" | "COACH_TRANSFER";
+export type ConsentSource = "REGISTRATION" | "GOOGLE" | "VK" | "CHECKOUT" | "ACCOUNT" | "RECONSENT" | "TRAINING";
 
 export async function getCurrentDocument(kind: ConsentKind) {
   const doc = await db.query.consentDocument.findFirst({
@@ -29,6 +29,8 @@ interface RecordInput {
   ip: string | null;
   userAgent: string | null;
   linkToken?: string | null;
+  recipientId?: string | null;
+  recipientName?: string | null;
 }
 
 /** Записывает согласие в журнал с текущей редакцией документа. */
@@ -48,6 +50,8 @@ export async function recordConsent(input: RecordInput) {
       userAgent: input.userAgent,
       linkToken: input.linkToken ?? null,
       linkedAt: input.userId ? new Date() : null,
+      recipientId: input.recipientId ?? null,
+      recipientName: input.recipientName ?? null,
     })
     .returning();
   return row;

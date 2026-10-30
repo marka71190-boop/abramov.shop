@@ -3,10 +3,12 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { goal } from "@/lib/track";
 import { bookTraining, cancelMyTraining } from "./actions";
+import { CoachConsent } from "./CoachConsent";
 
-export function BookButton({ slotId, left, signedIn, next, mineId }: { slotId: string; left: number; signedIn: boolean; next: string; mineId: string | null }) {
+export function BookButton({ slotId, left, signedIn, next, mineId, coachName }: { slotId: string; left: number; signedIn: boolean; next: string; mineId: string | null; coachName: string }) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const [agree, setAgree] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
   const [booked, setBooked] = useState(!!mineId);
   const [pending, start] = useTransition();
@@ -55,6 +57,7 @@ export function BookButton({ slotId, left, signedIn, next, mineId }: { slotId: s
   return (
     <div className="book-box">
       <input className="input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} placeholder="Пожелание тренеру (необязательно): уровень, что подтянуть" />
+      <CoachConsent coachName={coachName} checked={agree} onChange={setAgree} />
       <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
         <button type="button" className="linklike small" onClick={() => setOpen(false)}>
           Отмена
@@ -62,10 +65,10 @@ export function BookButton({ slotId, left, signedIn, next, mineId }: { slotId: s
         <button
           type="button"
           className="btn btn--gold btn--sm"
-          disabled={pending}
+          disabled={pending || !agree}
           onClick={() =>
             start(async () => {
-              const r = await bookTraining(slotId, comment);
+              const r = await bookTraining(slotId, comment, agree);
               setMsg(r);
               if (r.ok) goal("training_booked");
             })

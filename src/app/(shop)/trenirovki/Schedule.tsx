@@ -33,7 +33,7 @@ export function Schedule({ slots, signedIn, next, mine, showCoach = true }: { sl
               </div>
               <div className="schedule__price">{slot.price ? rub(slot.price) : "Бесплатно"}</div>
               <div className="schedule__action">
-                <BookButton slotId={slot.id} left={left} signedIn={signedIn} next={`${next}#s-${slot.id}`} mineId={mine.get(slot.id) ?? null} />
+                <BookButton slotId={slot.id} left={left} signedIn={signedIn} next={`${next}#s-${slot.id}`} mineId={mine.get(slot.id) ?? null} coachName={coach.displayName} />
               </div>
             </div>
           ))}

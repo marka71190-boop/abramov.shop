@@ -36,7 +36,7 @@ export default async function ContentPage({ params, searchParams }: Props) {
   if (!page || !canView(page, { admin, preview })) notFound();
 
   // Страницы согласий показывают ТЕКУЩУЮ редакцию из журнала согласий — ту же, что видит человек при регистрации
-  const consentKind = slug === "consent" ? "PERSONAL_DATA" : slug === "marketing-consent" ? "MARKETING" : null;
+  const consentKind = slug === "consent" ? "PERSONAL_DATA" : slug === "marketing-consent" ? "MARKETING" : slug === "coach-consent" ? "COACH_TRANSFER" : null;
   const doc = consentKind ? await getCurrentDocument(consentKind) : null;
 
   return (

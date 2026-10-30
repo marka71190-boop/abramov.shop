@@ -40,6 +40,11 @@ import {
   OFFER_GIFT_SECTION,
   PRIVACY_GIFT_ANCHOR,
   PRIVACY_GIFT_LINE,
+  CONSENT_COACH_BODY,
+  CONSENT_COACH_TITLE,
+  CONSENT_COACH_VERSION,
+  PRIVACY_COACH_ANCHOR,
+  PRIVACY_COACH_LINE,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
@@ -55,7 +60,7 @@ const sha = (t: string) => createHash("sha256").update(t, "utf8").digest("hex");
  * Редакция документа согласия. Новая редакция (версия новее текущей) становится текущей:
  * новые согласия даются на неё, а уже данные остаются привязаны к своей редакции.
  */
-async function ensureDoc(kind: "PERSONAL_DATA" | "MARKETING", title: string, body: string, version = VERSION) {
+async function ensureDoc(kind: "PERSONAL_DATA" | "MARKETING" | "COACH_TRANSFER", title: string, body: string, version = VERSION) {
   const existing = await db.query.consentDocument.findFirst({
     where: and(eq(s.consentDocument.kind, kind), eq(s.consentDocument.version, version)),
   });
@@ -85,6 +90,7 @@ async function ensurePage(p: { slug: string; title: string; body: string; visibi
 async function main() {
   await ensureDoc("PERSONAL_DATA", CONSENT_PD_TITLE, CONSENT_PD_BODY, CONSENT_PD_VERSION);
   await ensureDoc("MARKETING", CONSENT_MARKETING_TITLE, CONSENT_MARKETING_BODY);
+  await ensureDoc("COACH_TRANSFER", CONSENT_COACH_TITLE, CONSENT_COACH_BODY, CONSENT_COACH_VERSION);
 
   await ensurePage({ slug: "delivery", title: DRAFT_PAGES[1].title, body: DRAFT_PAGES[1].body, visibility: "PUBLISHED", sortOrder: 1 });
   await ensurePage({ slug: "returns", title: DRAFT_PAGES[2].title, body: DRAFT_PAGES[2].body, visibility: "PUBLISHED", sortOrder: 2 });
@@ -150,6 +156,12 @@ async function main() {
   // Текст согласия берётся из текущей редакции в журнале согласий, страница — только «обложка»
   await ensurePage({ slug: "consent", title: CONSENT_PD_TITLE, body: "", visibility: "PUBLISHED", sortOrder: 5 });
   await ensurePage({ slug: "marketing-consent", title: CONSENT_MARKETING_TITLE, body: "", visibility: "PUBLISHED", showInFooter: false, sortOrder: 6 });
+  await ensurePage({ slug: "coach-consent", title: CONSENT_COACH_TITLE, body: "", visibility: "PUBLISHED", showInFooter: false, sortOrder: 7 });
+  // Политика: передача данных тренеру (с отдельного согласия)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${PRIVACY_COACH_ANCHOR}, ${PRIVACY_COACH_LINE + PRIVACY_COACH_ANCHOR})` })
+    .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_COACH_ANCHOR}%`), sql`${s.page.body} not like '%тренеру, к которому клиент записался%'`));
 
   const categories = [
     { slug: "chalk", name: "Мел", visibility: "PUBLISHED" as const, sortOrder: 1, image: "/images/kamui-2.jpg" },

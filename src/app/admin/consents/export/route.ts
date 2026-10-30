@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   const header = [
     "Дата и время (МСК)",
     "Вид согласия",
+    "Кому передача",
     "Где отмечено",
     "Имя",
     "Телефон",
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
       [
         fmtDateTime(r.createdAt),
         CONSENT_KIND_LABEL[r.kind],
+        r.recipientName,
         CONSENT_SOURCE_LABEL[r.source],
         r.name,
         r.phone,

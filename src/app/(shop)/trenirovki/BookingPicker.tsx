@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { goal } from "@/lib/track";
 import { requestTrainingAction } from "./actions";
+import { CoachConsent } from "./CoachConsent";
 
 type FreeMap = Record<string, Record<string, Record<number, string[]>>>;
 type Club = { id: string; name: string; city: string; address: string | null };
@@ -92,6 +93,7 @@ export function BookingPicker({
   const tt = times.includes(time) ? time : "";
   const [comment, setComment] = useState("");
   const [phone, setPhone] = useState("");
+  const [agree, setAgree] = useState(false);
   const [msg, setMsg] = useState<{
     ok?: string;
     error?: string;
@@ -332,6 +334,7 @@ export function BookingPicker({
                 maxLength={500}
                 placeholder="Пожелание тренеру (необязательно): уровень, что подтянуть"
               />
+              <CoachConsent coachName={coachName} checked={agree} onChange={setAgree} />
               {msg.error && <div className="form-error">{msg.error}</div>}
               <div
                 className="row"
@@ -340,10 +343,11 @@ export function BookingPicker({
                 <button
                   type="button"
                   className="btn btn--gold btn--cut"
-                  disabled={pending}
+                  disabled={pending || !agree}
                   onClick={() =>
                     start(async () => {
                       const r = await requestTrainingAction({
+                        consent: agree,
                         coachId,
                         clubId,
                         day: dd,

@@ -9,8 +9,8 @@ import { unbanUser } from "../../actions";
 import { listClubs } from "@/lib/clubs";
 import { BanForm, BirthdayAdminForm, BonusForm, RoleForm } from "./forms";
 
-const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки" } as const;
-const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", VK: "VK ID", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное" } as const;
+const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки", COACH_TRANSFER: "Передача тренеру" } as const;
+const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", VK: "VK ID", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное", TRAINING: "Тренировка" } as const;
 
 type Props = { params: Promise<{ id: string }> };
 

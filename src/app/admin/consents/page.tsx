@@ -41,6 +41,7 @@ export default async function ConsentsPage({ searchParams }: { searchParams: Pro
             <option value="">Все</option>
             <option value="PERSONAL_DATA">Обработка ПДн</option>
             <option value="MARKETING">Рассылки</option>
+            <option value="COACH_TRANSFER">Передача тренеру</option>
           </select>
         </label>
         <label className="field">
@@ -81,7 +82,10 @@ export default async function ConsentsPage({ searchParams }: { searchParams: Pro
             {rows.map((r) => (
               <tr key={r.id}>
                 <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(r.createdAt)}</td>
-                <td>{CONSENT_KIND_LABEL[r.kind]}</td>
+                <td>
+                  {CONSENT_KIND_LABEL[r.kind]}
+                  {r.recipientName && <div className="muted small">{r.recipientName}</div>}
+                </td>
                 <td>
                   {r.userId ? <Link href={`/admin/customers/${r.userId}`}>{r.name || r.userEmail}</Link> : r.name || "—"}
                   <div className="muted small">{r.email || r.userEmail}</div>

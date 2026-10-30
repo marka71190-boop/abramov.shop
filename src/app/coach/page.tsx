@@ -413,6 +413,11 @@ export default async function CoachPage({ searchParams }: Props) {
           <p className="muted">Клубов пока нет.</p>
         )}
       </section>
+
+      <p className="small muted" style={{ margin: 0 }}>
+        Имена и телефоны клиентов передаются вам с их согласия — только для связи по тренировкам. Не пересылайте их, не добавляйте в рассылки и не пишите
+        клиентам рекламу; если клиент попросит — удалите его контакт у себя.
+      </p>
     </div>
   );
 }

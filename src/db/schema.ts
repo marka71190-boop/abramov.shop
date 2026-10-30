@@ -150,6 +150,7 @@ export const verification = pgTable(
 export const consentKindEnum = pgEnum("consent_kind", [
   "PERSONAL_DATA", // обработка персональных данных
   "MARKETING", // рекламные рассылки
+  "COACH_TRANSFER", // передача имени и телефона тренеру при записи на тренировку
 ]);
 
 export const consentSourceEnum = pgEnum("consent_source", [
@@ -159,6 +160,7 @@ export const consentSourceEnum = pgEnum("consent_source", [
   "CHECKOUT", // оформление заказа
   "ACCOUNT", // включил в личном кабинете
   "RECONSENT", // повторное согласие (новая редакция документа или старый аккаунт)
+  "TRAINING", // запись на тренировку
 ]);
 
 /** Редакции текстов согласий. Хеш не даёт «тихо» подменить текст задним числом. */
@@ -200,6 +202,10 @@ export const consent = pgTable(
 
     revokedAt: ts("revoked_at"),
     revokeIp: text("revoke_ip"),
+
+    // Кому разрешена передача (для COACH_TRANSFER — тренер)
+    recipientId: text("recipient_id"),
+    recipientName: text("recipient_name"),
   },
   (t) => [
     index("consent_user_idx").on(t.userId),

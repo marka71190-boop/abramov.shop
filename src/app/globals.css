@@ -6083,3 +6083,12 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   border: 1px solid rgba(220, 191, 131, 0.35);
   background: var(--c-gold-soft);
 }
+.coach-consent {
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-muted);
+}
+.coach-consent input {
+  margin-top: 2px;
+}
