@@ -45,6 +45,10 @@ import {
   CONSENT_COACH_VERSION,
   PRIVACY_COACH_ANCHOR,
   PRIVACY_COACH_LINE,
+  OFFER_TRAINING_ANCHOR,
+  OFFER_TRAINING_SECTION,
+  OFFER_PD_OLD,
+  OFFER_PD_NEW,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
@@ -140,6 +144,15 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${OFFER_GIFT_ANCHOR}, ${OFFER_GIFT_SECTION + OFFER_GIFT_ANCHOR})` })
     .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_GIFT_ANCHOR}%`), sql`${s.page.body} not like '%## 8.1. Подарочные сертификаты%'`));
+  // Оферта: запись на тренировки и передача данных тренеру (после раздела о сертификатах)
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${OFFER_TRAINING_ANCHOR}, ${OFFER_TRAINING_SECTION + OFFER_TRAINING_ANCHOR})` })
+    .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_TRAINING_ANCHOR}%`), sql`${s.page.body} not like '%## 8.2. Запись на тренировки%'`));
+  await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${OFFER_PD_OLD}, ${OFFER_PD_NEW})` })
+    .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_PD_OLD}%`)));
   // Вход через Google и VK ID в политике
   for (const [from, to] of [...PRIVACY_SOCIAL_FIXES, ...PRIVACY_MAPS_FIXES]) {
     await db

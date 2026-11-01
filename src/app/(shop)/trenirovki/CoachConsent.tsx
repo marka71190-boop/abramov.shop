@@ -10,6 +10,10 @@ export function CoachConsent({ coachName, checked, onChange }: { coachName: stri
         <a href="/p/coach-consent" target="_blank" rel="noopener">
           согласие
         </a>
+        ,{" "}
+        <a href="/p/offer" target="_blank" rel="noopener">
+          условия записи
+        </a>
         )
       </span>
     </label>
