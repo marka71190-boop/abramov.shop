@@ -49,6 +49,7 @@ import {
   OFFER_TRAINING_SECTION,
   OFFER_PD_OLD,
   OFFER_PD_NEW,
+  NO_COACH_AGREEMENT_FIXES,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
@@ -153,6 +154,12 @@ async function main() {
     .update(s.page)
     .set({ body: sql`replace(${s.page.body}, ${OFFER_PD_OLD}, ${OFFER_PD_NEW})` })
     .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_PD_OLD}%`)));
+  for (const [slug, from, to] of NO_COACH_AGREEMENT_FIXES) {
+    await db
+      .update(s.page)
+      .set({ body: sql`replace(${s.page.body}, ${from}, ${to})` })
+      .where(and(eq(s.page.slug, slug), like(s.page.body, `%${from}%`)));
+  }
   // Вход через Google и VK ID в политике
   for (const [from, to] of [...PRIVACY_SOCIAL_FIXES, ...PRIVACY_MAPS_FIXES]) {
     await db

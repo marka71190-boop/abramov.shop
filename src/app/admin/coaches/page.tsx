@@ -1,7 +1,6 @@
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
-import { signedAgreement } from "@/lib/coach-agreement";
 import { ensureCoachProfile } from "@/lib/trainings";
 import { requireAdmin } from "@/lib/viewer";
 import { toggleCoach } from "./actions";
@@ -34,8 +33,7 @@ export default async function CoachesAdmin() {
           .innerJoin(s.trainingSlot, eq(s.trainingSlot.id, s.trainingBooking.slotId))
           .where(and(eq(s.trainingSlot.coachId, u.id), gte(s.trainingSlot.startsAt, ago), lt(s.trainingSlot.startsAt, now))),
       ]);
-      const agr = await signedAgreement(u.id);
-      return { u, p, up, att, agr };
+      return { u, p, up, att };
     }),
   );
   return (
@@ -47,7 +45,7 @@ export default async function CoachesAdmin() {
         </Link>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        Чтобы добавить тренера: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». При первом входе тренер сам заполнит данные и подпишет соглашение о конфиденциальности кодом из письма — до этого он не видит клиентов. Дальше в кабинете: дневник,
+        Чтобы добавить тренера: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». У него появится кабинет: дневник,
         рабочее время, заявки клиентов, групповые, профиль. Отсюда можно скрыть тренера с сайта или вести расписание за него.
       </p>
       {rows.length ? (
@@ -58,13 +56,12 @@ export default async function CoachesAdmin() {
                 <th>Тренер</th>
                 <th>Впереди (30 дней)</th>
                 <th>Прошло за 30 дней</th>
-                <th>Соглашение</th>
                 <th>На сайте</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ u, p, up, att, agr }) => (
+              {rows.map(({ u, p, up, att }) => (
                 <tr key={u.id}>
                   <td>
                     <Link href={`/admin/customers/${u.id}`}>{p.displayName}</Link>
@@ -76,13 +73,6 @@ export default async function CoachesAdmin() {
                   </td>
                   <td className="small">
                     пришли {att?.attended ?? 0}, не пришли {att?.noShow ?? 0}
-                  </td>
-                  <td className="small">
-                    {agr ? (
-                      <Link href={`/coach/agreement?u=${u.id}`}>подписано {agr.signedAt!.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</Link>
-                    ) : (
-                      <span className="gold">не подписано</span>
-                    )}
                   </td>
                   <td>
                     <form action={toggleCoach.bind(null, u.id)}>
