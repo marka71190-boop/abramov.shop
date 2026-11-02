@@ -7,6 +7,8 @@ import { ProductVideos } from "@/components/product/ProductVideos";
 import { BundleOffer } from "@/components/product/BundleOffer";
 import { bundlesFor } from "@/lib/bundles";
 import { productSpecs } from "@/lib/attributes";
+import { isGroup } from "@/lib/attributes-pro";
+import { cuePassport, similarCues } from "@/lib/cues";
 import { imageDims } from "@/lib/image-dims";
 import { ReviewForm } from "@/components/product/ReviewForm";
 import { Stars } from "@/components/product/Stars";
@@ -90,8 +92,12 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const related = await recommendFor([p.id], { limit: 8 });
   const [specs, bundles] = await Promise.all([productSpecs(p.id, p.categoryId), bundlesFor(p.id)]);
   const brandSpec = specs.find((x) => x.name === "Бренд");
+  // Кий: паспорт под названием; штучный проданный — «Продан» и похожие в наличии
+  const isCue = isGroup("cues", p.category);
+  const sold = p.isUnique && stock <= 0;
+  const [passport, similar] = await Promise.all([isCue ? cuePassport(p.id) : Promise.resolve([]), sold ? similarCues(p.id, p.categoryId) : Promise.resolve([])]);
   const [relRatings, relFavs] = await Promise.all([
-    ratingsFor(related.map((r) => r.id)),
+    ratingsFor([...related, ...similar].map((r) => r.id)),
     viewer ? favoriteIds(viewer.id) : Promise.resolve(new Set<string>()),
   ]);
   const jsonLd = {
@@ -142,7 +148,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           basePrice={p.price}
           oldPrice={p.oldPrice}
           maxPerItem={settings.checkout.maxQtyPerItem}
-          badge={p.isLimited ? "Limited" : undefined}
+          badge={sold ? "Продан" : p.isLimited ? "Limited" : undefined}
           head={
             <>
               <h1 className="h2" style={{ fontSize: "clamp(32px, 3.6vw, 52px)" }}>
@@ -153,9 +159,39 @@ export default async function ProductPage({ params, searchParams }: Props) {
                   <Stars value={rating.avg} /> {rating.avg.toFixed(1)} · {rating.count} {plural(rating.count, "отзыв", "отзыва", "отзывов")}
                 </a>
               )}
+              {p.isUnique && stock > 0 && <div className="unique-note">◆ Единственный экземпляр — другого такого нет</div>}
+              {passport.length > 0 && (
+                <dl className="cue-passport" aria-label="Паспорт кия">
+                  {passport.map((x) => (
+                    <div key={x.label}>
+                      <dt>{x.label}</dt>
+                      <dd>{x.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </>
           }
-          buyFallback={stock > 0 ? null : <StockAlert productId={p.id} initial={alert} />}
+          buyFallback={
+            stock > 0 ? null : sold ? (
+              <div className="sold-box">
+                <b>Этот кий уже нашёл своего игрока</b>
+                <span className="muted small">Он был в единственном экземпляре. Посмотрите похожие в наличии или закажите такой же у мастера.</span>
+                <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                  {similar.length > 0 && (
+                    <a href="#similar" className="btn btn--gold btn--sm">
+                      Похожие кии
+                    </a>
+                  )}
+                  <Link href="/cue" className="btn btn--line btn--sm">
+                    Сделать похожий на заказ
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <StockAlert productId={p.id} initial={alert} />
+            )
+          }
           extra={
             <>
               <FavoriteButton productId={p.id} initial={fav} variant="button" />
@@ -205,6 +241,18 @@ export default async function ProductPage({ params, searchParams }: Props) {
           <BundleOffer key={b.id} bundle={b} />
         ))}
         <ProductVideos videos={p.videos} poster={gallery.find((g) => !g.variantId)?.url ?? gallery[0]?.url ?? null} productName={p.name} />
+        {similar.length > 0 && (
+          <div className="related" id="similar">
+            <div className="section-head" style={{ marginBottom: 20 }}>
+              <h2 className="h3">Похожие кии в наличии</h2>
+            </div>
+            <div className="products products--rail">
+              {similar.map((r) => (
+                <ProductCard key={r.id} p={r} rating={relRatings.get(r.id)} favorite={relFavs.has(r.id)} />
+              ))}
+            </div>
+          </div>
+        )}
         {related.length > 0 && (
           <div className="related">
             <div className="section-head" style={{ marginBottom: 20 }}>

@@ -1,6 +1,7 @@
 /**
  * POST /api/admin/media — загрузка фото товара (только для админов).
- * Фото уменьшаем до 1600 px по длинной стороне (баннеры — ?wide=1 — до 2400 px) и сохраняем в WebP прямо в базе.
+ * Фото уменьшаем до 1600 px по длинной стороне (баннеры — ?wide=1 — до 2400 px, фото кия во весь рост — до 4000 px)
+ * и сохраняем в WebP прямо в базе.
  */
 import { db, schema as s } from "@/db";
 import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
@@ -20,10 +21,14 @@ export async function POST(request: Request) {
   if (file.size > MAX) return Response.json({ error: "Файл больше 15 МБ" }, { status: 400 });
   if (!/^image\/(jpeg|png|webp|avif|heic|heif)$/.test(file.type)) return Response.json({ error: "Нужна картинка JPG, PNG или WebP" }, { status: 400 });
 
-  const side = new URL(request.url).searchParams.get("wide") === "1" ? 2400 : 1600;
+  let side = new URL(request.url).searchParams.get("wide") === "1" ? 2400 : 1600;
   try {
     const sharp = (await import("sharp")).default;
-    const out = await sharp(Buffer.from(await file.arrayBuffer()))
+    const buf = Buffer.from(await file.arrayBuffer());
+    // Кий во весь рост (длинное узкое фото): оставляем 4000 px по длине — чтобы в увеличении было видно дерево и запилы
+    const meta = await sharp(buf).metadata().catch(() => null);
+    if (meta?.width && meta?.height && Math.max(meta.width, meta.height) / Math.min(meta.width, meta.height) >= 2.6) side = 4000;
+    const out = await sharp(buf)
       .rotate()
       .resize({ width: side, height: side, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 84 })

@@ -279,6 +279,7 @@ export const product = pgTable("product", {
   previewToken: previewToken(),
   isLimited: boolean("is_limited").default(false).notNull(),
   limitedTotal: integer("limited_total"),
+  isUnique: boolean("is_unique").default(false).notNull(), // штучный экземпляр (кий ручной работы): продан — показываем «Продан» и похожие
   // Габариты для расчёта доставки СДЭК
   weightGrams: integer("weight_grams").default(300).notNull(),
   lengthCm: integer("length_cm").default(10).notNull(),

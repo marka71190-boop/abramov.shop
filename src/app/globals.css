@@ -6093,3 +6093,235 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   margin-top: 2px;
 }
 
+
+/* ---------- Фото на весь экран ---------- */
+.gallery__zoom {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 10, 10, 0.6);
+  color: var(--c-text);
+  cursor: pointer;
+}
+.gallery__zoom:hover {
+  background: var(--c-gold);
+  color: #0a0a0a;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #050505;
+  color: var(--c-text);
+}
+.lightbox__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  flex: none;
+}
+.lightbox__count {
+  font-size: 14px;
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+.lightbox__tools {
+  display: flex;
+  gap: 8px;
+}
+.lightbox__tools button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--c-line-2);
+  background: transparent;
+  color: var(--c-text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lightbox__tools button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.lightbox__tools button:not(:disabled):hover {
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+}
+.lightbox__view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
+  cursor: zoom-in;
+  scrollbar-width: thin;
+  user-select: none;
+}
+.lightbox__view.is-zoomed {
+  cursor: grab;
+}
+.lightbox__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  min-height: 100%;
+}
+.lightbox__stage img {
+  display: block;
+  flex: none;
+  max-width: none;
+}
+.lightbox__nav {
+  position: absolute;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.7);
+  color: var(--c-text);
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.lightbox__nav:hover {
+  background: var(--c-gold);
+  color: #0a0a0a;
+}
+.lightbox__nav--prev {
+  left: 12px;
+}
+.lightbox__nav--next {
+  right: 12px;
+}
+.lightbox__thumbs {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  overflow-x: auto;
+  flex: none;
+}
+.lightbox__thumbs button {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+  opacity: 0.55;
+  cursor: pointer;
+}
+.lightbox__thumbs button[aria-current] {
+  opacity: 1;
+  border-color: var(--c-gold);
+}
+.lightbox__thumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lightbox__hint {
+  flex: none;
+  padding: 6px 12px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+@media (max-width: 600px) {
+  .lightbox__nav {
+    display: none;
+  }
+}
+
+/* ---------- Паспорт кия и штучные экземпляры ---------- */
+.cue-passport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 4px 0 0;
+  background: var(--c-line);
+  border: 1px solid var(--c-line);
+}
+.cue-passport > div {
+  flex: 1 1 120px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--c-panel);
+}
+.cue-passport dt {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+.cue-passport dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.gallery__long {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border: 1px solid rgba(220, 191, 131, 0.6);
+  background: rgba(10, 10, 10, 0.75);
+  color: var(--c-gold);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gallery__long:hover {
+  background: var(--c-gold);
+  color: #0a0a0a;
+}
+.unique-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-gold);
+}
+.sold-box {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+}
+.pcard__unique {
+  font-size: 12px;
+  color: var(--c-gold);
+}
+.img-grid.is-drop {
+  outline: 2px dashed var(--c-gold);
+  outline-offset: 6px;
+}
+.admin-thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-line);
+  display: block;
+}

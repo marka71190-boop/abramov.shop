@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { rub } from "@/lib/format";
 import { VisibilitySelect } from "../VisibilitySelect";
+import { duplicateProduct } from "./cue-actions";
 
 export default async function CatalogAdmin() {
   const [cats, products] = await Promise.all([
@@ -27,7 +28,10 @@ export default async function CatalogAdmin() {
         channel: s.product.channel,
         visibility: s.product.visibility,
         previewToken: s.product.previewToken,
-        category: sql<string | null>`(select ${s.category.name} from ${s.category} where ${s.category.id} = ${s.product.categoryId})`,
+        category: sql<
+          string | null
+        >`(select ${s.category.name} from ${s.category} where ${s.category.id} = ${s.product.categoryId})`,
+        image: sql<string | null>`(select i.url from product_image i where i.product_id = "product"."id" order by i.sort_order limit 1)`,
         stock: sql<number>`(select coalesce(sum(${s.productVariant.stock}), 0)::int from ${s.productVariant} where ${s.productVariant.productId} = ${s.product.id} and ${s.productVariant.isActive})`,
       })
       .from(s.product)
@@ -36,10 +40,16 @@ export default async function CatalogAdmin() {
 
   return (
     <>
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+      >
         <h1 style={{ margin: 0 }}>Каталог</h1>
         <div className="row">
-          <Link className="btn btn--line btn--sm" href="/admin/catalog/attributes">
+          <Link
+            className="btn btn--line btn--sm"
+            href="/admin/catalog/attributes"
+          >
             Характеристики
           </Link>
           <Link className="btn btn--line btn--sm" href="/admin/catalog/bundles">
@@ -54,14 +64,23 @@ export default async function CatalogAdmin() {
         </div>
       </div>
       <p className="muted" style={{ margin: 0 }}>
-        Скрытые категории и товары покупатели не видят. Наполните раздел и переключите на «Опубликовано» — он сразу появится на
-        главной.
+        Скрытые категории и товары покупатели не видят. Наполните раздел и
+        переключите на «Опубликовано» — он сразу появится на главной.
       </p>
       <div className="row">
-        <Link href="/admin/catalog/product/new" className="btn btn--gold btn--sm">
+        <Link href="/admin/catalog/new-cue" className="btn btn--gold btn--sm">
+          + Кий быстро
+        </Link>
+        <Link
+          href="/admin/catalog/product/new"
+          className="btn btn--line btn--sm"
+        >
           + Товар
         </Link>
-        <Link href="/admin/catalog/category/new" className="btn btn--line btn--sm">
+        <Link
+          href="/admin/catalog/category/new"
+          className="btn btn--line btn--sm"
+        >
           + Категория
         </Link>
       </div>
@@ -82,15 +101,25 @@ export default async function CatalogAdmin() {
               {cats.map((c) => (
                 <tr key={c.id}>
                   <td>
-                    <Link href={`/admin/catalog/category/${c.id}`}>{c.name}</Link>
+                    <Link href={`/admin/catalog/category/${c.id}`}>
+                      {c.name}
+                    </Link>
                     <div className="muted small">/catalog/{c.slug}</div>
                   </td>
                   <td>{c.count}</td>
                   <td>
-                    <VisibilitySelect entity="category" id={c.id} value={c.visibility} />
+                    <VisibilitySelect
+                      entity="category"
+                      id={c.id}
+                      value={c.visibility}
+                    />
                   </td>
                   <td>
-                    <a href={`/catalog/${c.slug}?preview=${c.previewToken}`} target="_blank" rel="noreferrer">
+                    <a
+                      href={`/catalog/${c.slug}?preview=${c.previewToken}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Предпросмотр
                     </a>
                   </td>
@@ -118,21 +147,80 @@ export default async function CatalogAdmin() {
               {products.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <Link href={`/admin/catalog/product/${p.id}`}>{p.name}</Link>
-                    {p.channel !== "RETAIL" && <span className="pill pill--warn" style={{ marginLeft: 6 }}>{p.channel === "WHOLESALE" ? "только опт" : "+ опт"}</span>}
-                    <div className="muted small">
-                      {[p.category ?? "без категории", p.sku].filter(Boolean).join(" · ")}
+                    <div
+                      className="row"
+                      style={{
+                        gap: 10,
+                        flexWrap: "nowrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      {p.image ? (
+                        <img
+                          src={p.image}
+                          alt=""
+                          className="admin-thumb"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="admin-thumb" />
+                      )}
+                      <div>
+                        <Link href={`/admin/catalog/product/${p.id}`}>
+                          {p.name}
+                        </Link>
+                        {p.channel !== "RETAIL" && (
+                          <span
+                            className="pill pill--warn"
+                            style={{ marginLeft: 6 }}
+                          >
+                            {p.channel === "WHOLESALE" ? "только опт" : "+ опт"}
+                          </span>
+                        )}
+                        <div className="muted small">
+                          {[p.category ?? "без категории", p.sku]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>{rub(p.price)}</td>
-                  <td style={{ color: p.stock === 0 ? "var(--c-danger)" : undefined }}>{p.stock}</td>
-                  <td>
-                    <VisibilitySelect entity="product" id={p.id} value={p.visibility} />
+                  <td
+                    style={{
+                      color: p.stock === 0 ? "var(--c-danger)" : undefined,
+                    }}
+                  >
+                    {p.stock}
                   </td>
                   <td>
-                    <a href={`/product/${p.slug}?preview=${p.previewToken}`} target="_blank" rel="noreferrer">
-                      Предпросмотр
-                    </a>
+                    <VisibilitySelect
+                      entity="product"
+                      id={p.id}
+                      value={p.visibility}
+                    />
+                  </td>
+                  <td>
+                    <div
+                      className="row small"
+                      style={{ gap: 12, flexWrap: "nowrap" }}
+                    >
+                      <a
+                        href={`/product/${p.slug}?preview=${p.previewToken}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Предпросмотр
+                      </a>
+                      <form action={duplicateProduct.bind(null, p.id)}>
+                        <button
+                          className="linklike small"
+                          title="Копия со всеми характеристиками — черновиком"
+                        >
+                          Похожий
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

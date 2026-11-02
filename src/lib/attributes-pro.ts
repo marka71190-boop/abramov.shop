@@ -93,6 +93,11 @@ export function matchGroups(cats: { id: string; name: string; slug: string }[]) 
   return out;
 }
 
+/** Категория относится к группе (например, кии) — по названию или адресу */
+export function isGroup(g: GroupKey, cat: { name: string; slug: string } | null | undefined) {
+  return !!cat && (GROUPS[g].name.test(cat.name.trim()) || GROUPS[g].slug.test(cat.slug));
+}
+
 export const GROUP_LABEL = Object.fromEntries(Object.entries(GROUPS).map(([k, v]) => [k, v.label])) as Record<GroupKey, string>;
 
 /**

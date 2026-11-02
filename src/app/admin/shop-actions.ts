@@ -307,6 +307,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     publishAt: mskDate(d.publishAt),
     isLimited,
     limitedTotal,
+    isUnique: form.get("isUnique") === "on",
     weightGrams: d.weightGrams,
     lengthCm: d.lengthCm,
     widthCm: d.widthCm,

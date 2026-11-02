@@ -23,6 +23,8 @@ interface CardProduct {
   stock: number;
   image: { url: string; alt: string } | null;
   variants?: CardVariant[];
+  /** Штучный экземпляр: «Единственный экземпляр» или «Продан» */
+  isUnique?: boolean;
 }
 
 const MAX_CHIPS = 6;
@@ -80,8 +82,9 @@ export function ProductCard({ p, rating, favorite }: { p: CardProduct; rating?: 
               )}
             </div>
           )}
+          {p.isUnique && p.stock > 0 && <div className="pcard__unique">◆ Единственный экземпляр</div>}
           {p.stock <= 0 ? (
-            <div className="muted small">Нет в наличии</div>
+            <div className="muted small">{p.isUnique ? "Продан" : "Нет в наличии"}</div>
           ) : multi && inStock < variants.length ? (
             <div className="muted small">
               В наличии {inStock} из {variants.length} вариантов

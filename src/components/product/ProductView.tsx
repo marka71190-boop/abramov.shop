@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddToCart } from "@/components/cart/AddToCart";
 import { rub } from "@/lib/format";
 import { ecommerce } from "@/lib/track";
+import { Lightbox } from "./Lightbox";
 
 export interface GalleryImage {
   url: string;
@@ -28,12 +29,15 @@ function photosFor(images: GalleryImage[], variantId: string | null, hasVariantP
 
 export function Gallery({ images, badge }: { images: GalleryImage[]; badge?: string }) {
   const [i, setI] = useState(0);
+  const [open, setOpen] = useState(false);
   const touch = useRef<number | null>(null);
   useEffect(() => setI(0), [images]);
   const cur = images[Math.min(i, images.length - 1)];
   const go = useCallback((d: number) => setI((x) => (x + d + images.length) % images.length), [images.length]);
   if (!cur) return <div className="gallery__main" style={{ aspectRatio: "1" }} />;
-  const ratio = cur.w && cur.h ? `${cur.w} / ${cur.h}` : "1";
+  // Кий во весь рост — очень длинное фото: рамка не ниже 2,2:1, а фото рассматривают в увеличении
+  const long = !!(cur.w && cur.h && cur.w / cur.h > 2.2);
+  const ratio = cur.w && cur.h ? (long ? "2.2" : `${cur.w} / ${cur.h}`) : "1";
 
   return (
     <div className="gallery">
@@ -54,8 +58,19 @@ export function Gallery({ images, badge }: { images: GalleryImage[]; badge?: str
         }}
         aria-label={images.length > 1 ? `Фото ${i + 1} из ${images.length}` : undefined}
       >
-        <img src={cur.url} alt={cur.alt} />
+        <img src={cur.url} alt={cur.alt} onClick={() => setOpen(true)} style={{ cursor: "zoom-in" }} />
         {badge && <span className="tag">{badge}</span>}
+        {long && (
+          <button type="button" className="gallery__long" onClick={() => setOpen(true)}>
+            Рассмотреть кий целиком
+          </button>
+        )}
+        <button type="button" className="gallery__zoom" aria-label="Открыть фото на весь экран" onClick={() => setOpen(true)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.3-4.3M11 8v6M8 11h6" />
+          </svg>
+        </button>
         {images.length > 1 && (
           <>
             <button type="button" className="gallery__nav gallery__nav--prev" aria-label="Предыдущее фото" onClick={() => go(-1)}>
@@ -79,6 +94,7 @@ export function Gallery({ images, badge }: { images: GalleryImage[]; badge?: str
           ))}
         </div>
       )}
+      {open && <Lightbox images={images} start={Math.min(i, images.length - 1)} onClose={() => setOpen(false)} />}
     </div>
   );
 }

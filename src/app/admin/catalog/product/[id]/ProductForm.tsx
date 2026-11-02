@@ -2,6 +2,8 @@
 import { NewAttribute } from "../../attributes/NewAttribute";
 import { useActionState, useRef, useState } from "react";
 import { slugify } from "@/lib/slug";
+import { uploadPhotos } from "@/components/admin/upload-photos";
+import { duplicateProduct } from "../../cue-actions";
 import { deleteProduct, saveProduct } from "../../../shop-actions";
 
 interface Variant {
@@ -36,6 +38,7 @@ export interface ProductData {
   visibility: "DRAFT" | "HIDDEN" | "PUBLISHED";
   publishAt: Date | null;
   isLimited: boolean;
+  isUnique: boolean;
   limitedTotal: number | null;
   weightGrams: number;
   lengthCm: number;
@@ -230,6 +233,7 @@ export function ProductForm({
   related: relatedInit,
   attrDefs = [],
   attrValues: attrInit = {},
+  copied = false,
 }: {
   product: ProductData | null;
   categories: { id: string; name: string }[];
@@ -239,11 +243,12 @@ export function ProductForm({
   related: string[];
   attrDefs?: AttrDef[];
   attrValues?: Record<string, string>;
+  copied?: boolean;
 }) {
   const [attrs, setAttrs] = useState<Record<string, string>>(attrInit);
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
   const [related, setRelated] = useState<string[]>(relatedInit);
-  const [state, action, pending] = useActionState(saveProduct, saved ? { ok: "Товар создан" } : {});
+  const [state, action, pending] = useActionState(saveProduct, copied ? { ok: "Копия создана черновиком. Поменяйте название, вес, цену и фото — и опубликуйте" } : saved ? { ok: "Товар создан" } : {});
   const [name, setName] = useState(product?.name ?? "");
   const [slug, setSlug] = useState(product?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(!!product);
@@ -255,6 +260,8 @@ export function ProductForm({
   );
   const [images, setImages] = useState<Image[]>(product?.images.map((im) => ({ url: im.url, alt: im.alt, variantKey: im.variantId })) ?? []);
   const [uploading, setUploading] = useState(0);
+  const [progress, setProgress] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -267,22 +274,17 @@ export function ProductForm({
     return a;
   };
 
-  async function upload(files: FileList | null) {
-    if (!files?.length) return;
+  async function upload(files: FileList | File[] | null) {
+    if (!files || !files.length) return;
     setUploadErr(null);
-    for (const f of Array.from(files)) {
-      setUploading((n) => n + 1);
-      try {
-        const fd = new FormData();
-        fd.append("file", f);
-        const r = await fetch("/api/admin/media", { method: "POST", body: fd }).then((x) => x.json());
-        if (r.url) setImages((im) => [...im, { url: r.url, alt: "", variantKey: null }]);
-        else setUploadErr(r.error ?? "Не удалось загрузить");
-      } catch {
-        setUploadErr("Не удалось загрузить — проверьте интернет");
-      } finally {
-        setUploading((n) => n - 1);
-      }
+    setUploading((n) => n + 1);
+    try {
+      const r = await uploadPhotos(files, (done, total) => setProgress(`${done} из ${total}`));
+      if (r.urls.length) setImages((im) => [...im, ...r.urls.map((url) => ({ url, alt: "", variantKey: null }))]);
+      if (r.errors.length) setUploadErr(r.errors.slice(0, 3).join("; "));
+    } finally {
+      setUploading((n) => n - 1);
+      setProgress("");
     }
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -396,6 +398,10 @@ export function ProductForm({
             Rutube). Видео появится в карточке под описанием; плеер загружается только когда покупатель нажмёт «смотреть».
           </span>
         </label>
+        <label className="check">
+          <input type="checkbox" name="isUnique" defaultChecked={product?.isUnique ?? false} />
+          <span>Штучный экземпляр — «Единственный экземпляр» в карточке; когда продан — «Продан» и похожие кии вместо «Сообщить о поступлении»</span>
+        </label>
         <div className="row" style={{ gap: 24, alignItems: "flex-end" }}>
           <label className="check">
             <input type="checkbox" name="isLimited" checked={limited} onChange={(e) => setLimited(e.target.checked)} />
@@ -413,11 +419,26 @@ export function ProductForm({
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Фото</h2>
         <p className="muted small" style={{ margin: 0 }}>
-          Первое фото — обложка. Подойдёт любой формат кадра — квадрат 1000×1000, вертикальный или горизонтальный, страница товара
+          Можно выбрать сразу все фото с телефона или перетащить их сюда — порядок как у снимков. Первое фото — обложка (★ — сделать
+          обложкой). Кий во весь рост снимайте одним длинным кадром: сайт сохранит его в высоком качестве, и покупатель сможет увеличить. Подойдёт любой формат кадра — квадрат 1000×1000, вертикальный или горизонтальный, страница товара
           подстроится. JPG или PNG до 15 МБ, сайт сам уменьшит и сожмёт.
           {variants.length > 1 && " У каждого фото выберите вариант — покупатель увидит эти фото, когда выберет вариант. «Общее» показывается всегда."}
         </p>
-        <div className="img-grid">
+        <div
+          className={`img-grid${dragOver ? " is-drop" : ""}`}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("Files")) {
+              e.preventDefault();
+              setDragOver(true);
+            }
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            upload(e.dataTransfer.files);
+          }}
+        >
           {images.map((im, i) => (
             <div key={im.url + i} className="img-tile">
               <img src={im.url} alt="" />
@@ -438,6 +459,11 @@ export function ProductForm({
                 </select>
               )}
               <div className="img-tile__bar">
+                {i > 0 && (
+                  <button type="button" aria-label="Сделать обложкой" title="Сделать обложкой" onClick={() => setImages((a) => [a[i], ...a.filter((_, j) => j !== i)])}>
+                    ★
+                  </button>
+                )}
                 <button type="button" aria-label="Левее" disabled={i === 0} onClick={() => setImages((a) => move(a, i, -1))}>
                   ←
                 </button>
@@ -452,7 +478,7 @@ export function ProductForm({
           ))}
           <label className="img-tile img-tile--add">
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
-            {uploading ? `Загружаем… ${uploading}` : "+ Добавить фото"}
+            {uploading ? `Загружаем… ${progress}` : "+ Добавить фото"}
           </label>
         </div>
         {uploadErr && <div className="form-error">{uploadErr}</div>}
@@ -561,6 +587,11 @@ export function ProductForm({
           <a className="btn btn--line btn--sm" href={`/product/${product.slug}?preview=${product.previewToken}`} target="_blank" rel="noreferrer">
             Предпросмотр
           </a>
+        )}
+        {product && (
+          <button type="button" className="btn btn--line btn--sm" onClick={() => duplicateProduct(product.id)} title="Копия со всеми характеристиками — останется поменять вес, цену и фото">
+            Создать похожий
+          </button>
         )}
         {product && canDelete && (
           <button

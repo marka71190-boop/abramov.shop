@@ -7,11 +7,11 @@ import { manualRelated } from "@/lib/recommend";
 import { attrValues, listAttributes } from "@/lib/attributes";
 import { ProductForm } from "./ProductForm";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; copied?: string }> };
 
 export default async function ProductEdit({ params, searchParams }: Props) {
   const me = await requireAdmin();
-  const [{ id }, { saved }] = await Promise.all([params, searchParams]);
+  const [{ id }, { saved, copied }] = await Promise.all([params, searchParams]);
   const categories = await db.select({ id: s.category.id, name: s.category.name }).from(s.category).orderBy(asc(s.category.sortOrder));
   const product =
     id === "new"
@@ -36,7 +36,7 @@ export default async function ProductEdit({ params, searchParams }: Props) {
         <Link href="/admin/catalog">← Каталог</Link>
       </p>
       <h1>{product ? product.name : "Новый товар"}</h1>
-      <ProductForm key={product?.id ?? "new"} product={product ?? null} categories={categories} saved={saved === "1"} canDelete={me.role === "OWNER"}
+      <ProductForm key={product?.id ?? "new"} product={product ?? null} categories={categories} saved={saved === "1"} copied={copied === "1"} canDelete={me.role === "OWNER"}
         allProducts={allProducts.filter((p) => p.id !== product?.id)}
         related={related}
         attrDefs={defs.map((d) => ({ id: d.id, name: d.name, unit: d.unit, type: d.type, options: d.options, categoryIds: d.categoryIds }))}
