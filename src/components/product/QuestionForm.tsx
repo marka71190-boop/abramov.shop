@@ -29,7 +29,7 @@ export function QuestionForm({ productId }: { productId: string }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={1000}
-          placeholder="Например: подойдёт ли этот кий для пула? Какой вес у древка?"
+          placeholder="Например: подойдёт ли этот кий для пула? Какой вес у шафта?"
           style={{ minHeight: 84, paddingTop: 12 }}
           required
         />

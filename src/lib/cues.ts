@@ -12,7 +12,7 @@ const PASSPORT: { key: string; label: string }[] = [
   { key: "tip", label: "Наклейка" },
   { key: "construction", label: "Конструкция" },
   { key: "butt", label: "Турняк" },
-  { key: "shaft", label: "Древко" },
+  { key: "shaft", label: "Шафт" },
   { key: "joint", label: "Соединение" },
   { key: "balance", label: "Баланс" },
   { key: "brand", label: "Мастер / бренд" },

@@ -52,7 +52,7 @@ export interface CueConfig {
 /** Что рисует каждая группа и нужен ли цвет у вариантов */
 export const CUE_GROUPS: { id: CueGroupId; title: string; color: boolean; text?: boolean; pattern?: boolean }[] = [
   { id: "b", title: "Турняк (порода дерева)", color: true },
-  { id: "s", title: "Древко (порода дерева)", color: true },
+  { id: "s", title: "Шафт (порода дерева)", color: true },
   { id: "l", title: "Длина", color: false },
   { id: "w", title: "Вес", color: false },
   { id: "t", title: "Диаметр наклейки", color: false },
@@ -85,7 +85,7 @@ export const CUE_DEFAULT: CueConfig = {
   leadDays: 30,
   groups: [
     { id: "b", title: "Турняк", help: "Нижняя часть кия — за неё держит рука", options: [o("gr", "Граб", 0, "#c9a27a"), o("bb", "Бубинга", 6000, "#7a2e1f"), o("pl", "Палисандр", 8000, "#4a2a1c"), o("eb", "Эбен", 12000, "#1c1512")] },
-    { id: "s", title: "Древко", help: "Верхняя часть кия, по которой скользит рука", options: [o("gr", "Граб", 0, "#d8b48a"), o("kl", "Клён", 3000, "#ecd9b4"), o("ya", "Ясень", 2000, "#e2cfa6")] },
+    { id: "s", title: "Шафт", help: "Верхняя часть кия, по которой скользит рука", options: [o("gr", "Граб", 0, "#d8b48a"), o("kl", "Клён", 3000, "#ecd9b4"), o("ya", "Ясень", 2000, "#e2cfa6")] },
     { id: "l", title: "Длина", options: [o("157", "157 см", 0), o("160", "160 см", 0), o("163", "163 см", 0)] },
     { id: "w", title: "Вес", options: [o("680", "680 г", 0), o("700", "700 г", 0), o("720", "720 г", 0), o("740", "740 г", 0)] },
     { id: "t", title: "Диаметр наклейки", options: [o("125", "12,5 мм", 0), o("130", "13 мм", 0), o("135", "13,5 мм", 0)] },

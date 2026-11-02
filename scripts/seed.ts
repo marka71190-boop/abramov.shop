@@ -54,7 +54,7 @@ import {
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
 import { installProAttributes } from "../src/lib/attributes-pro";
-import { STARTER_ARTICLES } from "../src/content/articles";
+import { SHAFT_FIXES, STARTER_ARTICLES } from "../src/content/articles";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15_000 });
 const db = drizzle(pool, { schema: s });
@@ -245,6 +245,16 @@ async function main() {
   if (!articlesSeeded) {
     for (const x of STARTER_ARTICLES) await db.insert(s.article).values({ ...x, visibility: "DRAFT" }).onConflictDoNothing({ target: s.article.slug });
     await db.insert(s.setting).values({ key: "articles_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
+  }
+
+  // «Древко» → «Шафт»: характеристика, конструктор кия и стартовые статьи
+  await db.update(s.attribute).set({ name: "Шафт" }).where(and(eq(s.attribute.key, "shaft"), eq(s.attribute.name, "Древко")));
+  await db.execute(sql`update setting set value = replace(value::text, '"Древко', '"Шафт')::jsonb where key = 'cue' and value::text like '%"Древко%'`);
+  for (const [from, to] of SHAFT_FIXES) {
+    await db
+      .update(s.article)
+      .set({ body: sql`replace(${s.article.body}, ${from}, ${to})` })
+      .where(like(s.article.body, `%${from}%`));
   }
 
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();

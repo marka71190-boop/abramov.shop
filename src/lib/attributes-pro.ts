@@ -47,7 +47,7 @@ export const PRO_ATTRIBUTES: Def[] = [
   { key: "hardness", name: "Жёсткость", unit: "", type: "select", options: ["Мягкая", "Средняя", "Средне-жёсткая", "Жёсткая", "Очень жёсткая"], sortOrder: 40, groups: ["cues", "tips"] },
   { key: "construction", name: "Конструкция", unit: "", type: "select", options: ["Цельный", "Разборный 1/2", "Разборный 3/4"], sortOrder: 50, groups: ["cues"] },
   // Кии
-  { key: "shaft", name: "Древко", unit: "", type: "select", options: ["Клён", "Граб", "Ясень", "Бук", "Карбон"], sortOrder: 52, groups: ["cues"] },
+  { key: "shaft", name: "Шафт", unit: "", type: "select", options: ["Клён", "Граб", "Ясень", "Бук", "Карбон"], sortOrder: 52, groups: ["cues"] },
   {
     key: "butt",
     name: "Турняк",

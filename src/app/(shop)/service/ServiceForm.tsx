@@ -87,7 +87,7 @@ export function ServiceForm({ prices, clubs, cdek, user }: Props) {
           </div>
           <label className="field">
             Опишите, что с кием (необязательно)
-            <textarea className="textarea" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} style={{ minHeight: 90, paddingTop: 10 }} placeholder="Например: наклейка стёрлась, на древке скол у соединения" />
+            <textarea className="textarea" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} style={{ minHeight: 90, paddingTop: 10 }} placeholder="Например: наклейка стёрлась, на шафте скол у соединения" />
           </label>
           <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
             {photos.map((u) => (
