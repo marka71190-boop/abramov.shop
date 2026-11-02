@@ -292,6 +292,10 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
   const oldPrice = d.oldPrice?.trim() ? rubToKop(d.oldPrice) : null;
   if (oldPrice != null && oldPrice <= price) return { error: "Старая цена должна быть больше текущей — или оставьте поле пустым" };
   const isLimited = form.get("isLimited") === "on";
+  // Артикул не указали — подставляем сам: CUE-0012; вариантам без артикула — CUE-0012-1, -2…
+  const { nextSku } = await import("@/lib/sku");
+  const sku = d.sku?.trim() || (await nextSku(d.categoryId || null));
+  if (variants.data.length > 1) variants.data.forEach((v, i) => (v.sku = v.sku.trim() || `${sku}-${i + 1}`));
   const limitedTotal = isLimited && d.limitedTotal?.trim() ? Math.trunc(Number(d.limitedTotal)) : null;
 
   const values = {
@@ -302,7 +306,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     searchTags: cleanTags(d.searchTags),
     price,
     oldPrice,
-    sku: d.sku || null,
+    sku,
     visibility: d.visibility,
     publishAt: mskDate(d.publishAt),
     isLimited,

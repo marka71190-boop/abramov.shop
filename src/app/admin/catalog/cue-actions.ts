@@ -24,7 +24,7 @@ async function freeSlug(base: string) {
   return `${root}-${Date.now().toString(36)}`;
 }
 
-/** «Создать похожий»: копия со всеми характеристиками и фото — черновиком, без артикулов */
+/** «Создать похожий»: копия со всеми характеристиками и фото — черновиком, с новым артикулом */
 export async function duplicateProduct(id: string) {
   const me = await requireAdmin();
   const src = await db.query.product.findFirst({ where: eq(s.product.id, id), with: { variants: true, images: true } });
@@ -37,16 +37,18 @@ export async function duplicateProduct(id: string) {
   void [_id, _slug, _sku, _pt, _c, _u];
   const name = `${src.name} (копия)`;
   const slug = await freeSlug(src.slug);
+  const { nextSku } = await import("@/lib/sku");
+  const sku = await nextSku(src.categoryId);
   const newId = await db.transaction(async (tx) => {
     const [p] = await tx
       .insert(s.product)
-      .values({ ...rest, name, slug, sku: null, visibility: "DRAFT", publishAt: null })
+      .values({ ...rest, name, slug, sku, visibility: "DRAFT", publishAt: null })
       .returning({ id: s.product.id });
     const vmap = new Map<string, string>();
     for (const v of variants) {
       const [nv] = await tx
         .insert(s.productVariant)
-        .values({ productId: p.id, name: v.name, sku: null, price: v.price, stock: src.isUnique ? 1 : 0, isActive: v.isActive, sortOrder: v.sortOrder })
+        .values({ productId: p.id, name: v.name, sku: variants.length > 1 ? `${sku}-${v.sortOrder + 1}` : null, price: v.price, stock: src.isUnique ? 1 : 0, isActive: v.isActive, sortOrder: v.sortOrder })
         .returning({ id: s.productVariant.id });
       vmap.set(v.id, nv.id);
     }
@@ -111,12 +113,15 @@ export async function quickCue(_: QuickState, form: FormData): Promise<QuickStat
   const box = /3\/4/.test(d.construction) ? { lengthCm: 115, widthCm: 12, heightCm: 12 } : /1\/2/.test(d.construction) ? { lengthCm: 85, widthCm: 12, heightCm: 12 } : { lengthCm: 150, widthCm: 10, heightCm: 10 };
   const name = d.name.replace(/\s+/g, " ");
   const slug = await freeSlug(name);
+  const { nextSku } = await import("@/lib/sku");
+  const sku = await nextSku(d.categoryId);
   const [prod] = await db.transaction(async (tx) => {
     const created = await tx
       .insert(s.product)
       .values({
         name,
         slug,
+        sku,
         categoryId: d.categoryId,
         description: d.description.trim(),
         price: rubToKop(d.price),
@@ -136,4 +141,20 @@ export async function quickCue(_: QuickState, form: FormData): Promise<QuickStat
   await audit(me.id, "product.create", "product", prod.id, { slug, quick: true, visibility: d.publish });
   revalidatePath("/", "layout");
   return { ok: { id: prod.id, slug: prod.slug, previewToken: prod.previewToken, name, published: d.publish === "PUBLISHED" } };
+}
+
+/** Проставить артикулы всем товарам без артикула (и вариантам, если их несколько) */
+export async function fillMissingSkus() {
+  const me = await requireAdmin();
+  const { isNull } = await import("drizzle-orm");
+  const { nextSku } = await import("@/lib/sku");
+  const list = await db.query.product.findMany({ where: isNull(s.product.sku), columns: { id: true, categoryId: true }, with: { variants: { columns: { id: true, sku: true, sortOrder: true } } } });
+  for (const p of list) {
+    const sku = await nextSku(p.categoryId);
+    await db.update(s.product).set({ sku }).where(eq(s.product.id, p.id));
+    if (p.variants.length > 1)
+      for (const v of p.variants.filter((x) => !x.sku)) await db.update(s.productVariant).set({ sku: `${sku}-${v.sortOrder + 1}` }).where(eq(s.productVariant.id, v.id)).catch(() => {});
+  }
+  await audit(me.id, "product.fill_sku", "product", null, { count: list.length });
+  revalidatePath("/admin/catalog");
 }

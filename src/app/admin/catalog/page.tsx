@@ -3,7 +3,7 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { rub } from "@/lib/format";
 import { VisibilitySelect } from "../VisibilitySelect";
-import { duplicateProduct } from "./cue-actions";
+import { duplicateProduct, fillMissingSkus } from "./cue-actions";
 
 export default async function CatalogAdmin() {
   const [cats, products] = await Promise.all([
@@ -132,6 +132,12 @@ export default async function CatalogAdmin() {
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>Товары</h2>
+        {products.some((p) => !p.sku) && (
+          <form action={fillMissingSkus} className="row small" style={{ gap: 10, alignItems: "center" }}>
+            <span className="muted">Без артикула: {products.filter((p) => !p.sku).length}</span>
+            <button className="btn btn--line btn--sm">Проставить артикулы автоматически</button>
+          </form>
+        )}
         <div className="table-wrap">
           <table className="table">
             <thead>

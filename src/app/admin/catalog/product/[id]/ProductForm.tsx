@@ -342,7 +342,7 @@ export function ProductForm({
           </label>
           <label className="field">
             Артикул
-            <input className="input" name="sku" defaultValue={product?.sku ?? ""} />
+            <input className="input" name="sku" defaultValue={product?.sku ?? ""} placeholder="Пусто — подставится сам" />
           </label>
           <label className="field">
             Цена, ₽
