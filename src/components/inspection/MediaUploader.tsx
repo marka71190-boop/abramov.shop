@@ -15,7 +15,7 @@ export function MediaUploader({ orderId, returnId, label = "+ Фото или в
     const start = await fetch("/api/admin/inspection/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, returnId: returnId ?? null, name: file.name, mimeType: file.type || "application/octet-stream", size: file.size }),
+      body: JSON.stringify({ orderId, returnId: returnId ?? null, name: file.name, mimeType: file.type || (/\.(heic|heif)$/i.test(file.name) ? "image/heic" : "application/octet-stream"), size: file.size }),
     }).then((r) => r.json());
     if (start.error) throw new Error(start.error);
     const chunk: number = start.chunk;
@@ -68,7 +68,7 @@ export function MediaUploader({ orderId, returnId, label = "+ Фото или в
       ) : (
         <label className="btn btn--line btn--sm" style={{ alignSelf: "flex-start" }}>
           {label}
-          <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => onFiles(e.target.files)} />
+          <input type="file" accept="image/*,video/*,.heic,.heif" multiple hidden onChange={(e) => onFiles(e.target.files)} />
         </label>
       )}
       {error && <div className="form-error">{error}</div>}

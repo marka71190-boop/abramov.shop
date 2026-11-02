@@ -74,7 +74,7 @@ export function ServiceControls({ id, status, price, readyBy, paid, billed, onli
                 {uploading ? "Загружаем…" : photo ? "Заменить фото" : "+ Фото"}
               </button>
               {photo && <img src={photo} alt="" style={{ height: 48 }} />}
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => upload(e.target.files?.[0])} />
+              <input ref={fileRef} type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => upload(e.target.files?.[0])} />
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
               {(NEXT[status] ?? []).map((n) => (

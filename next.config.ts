@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   // Сборка в одну папку для запуска на сервере Timeweb (node .next/standalone/server.js)
   output: "standalone",
   poweredByHeader: false,
+  // Раскодировщик HEIC (фото с iPhone) — WebAssembly, грузим как есть из node_modules, без сборки
+  serverExternalPackages: ["heic-decode", "libheif-js"],
   images: {
     formats: ["image/avif", "image/webp"],
   },

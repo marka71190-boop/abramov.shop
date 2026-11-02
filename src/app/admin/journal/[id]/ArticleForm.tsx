@@ -117,7 +117,7 @@ export function ArticleForm({ article: a, products, saved, canDelete }: { articl
             <input
               ref={coverRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               hidden
               onChange={async (e) => {
                 const f = e.target.files?.[0];
@@ -154,7 +154,7 @@ export function ArticleForm({ article: a, products, saved, canDelete }: { articl
             <input
               ref={imgRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               hidden
               onChange={async (e) => {
                 const f = e.target.files?.[0];

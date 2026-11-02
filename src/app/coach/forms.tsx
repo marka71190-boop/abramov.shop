@@ -43,7 +43,7 @@ export function ProfileForm({
         <input
           ref={ref}
           type="file"
-          accept="image/*"
+          accept="image/*,.heic,.heif"
           hidden
           onChange={async (e) => {
             const f = e.target.files?.[0];

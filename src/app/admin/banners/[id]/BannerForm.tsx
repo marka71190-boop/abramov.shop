@@ -56,7 +56,7 @@ function ImageField({ label, hint, value, onChange }: { label: string; hint: str
         <input
           ref={ref}
           type="file"
-          accept="image/*"
+          accept="image/*,.heic,.heif"
           hidden
           onChange={async (e) => {
             const f = e.target.files?.[0];

@@ -77,7 +77,7 @@ export function ReviewForm({ productId, initial }: { productId: string; initial?
         {photos.length < 5 && (
           <label className="btn btn--line btn--sm">
             {uploading ? "Загружаем…" : "+ Фото"}
-            <input type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
+            <input type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => upload(e.target.files)} />
           </label>
         )}
       </div>

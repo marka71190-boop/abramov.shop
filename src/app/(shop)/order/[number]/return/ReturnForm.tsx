@@ -204,7 +204,7 @@ export function ReturnForm(props: {
           {photos.length < 5 && (
             <label className="btn btn--line btn--sm">
               {uploading ? "Загружаем…" : kind === "DEFECT" ? "+ Фото недостатка" : "+ Фото"}
-              <input type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
+              <input type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => upload(e.target.files)} />
             </label>
           )}
         </div>

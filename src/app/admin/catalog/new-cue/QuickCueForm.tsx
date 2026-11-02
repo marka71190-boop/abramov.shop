@@ -115,7 +115,7 @@ export function QuickCueForm({ categories, defaultCategory, fields }: { categori
             </div>
           ))}
           <label className="img-tile img-tile--add">
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => add(e.target.files)} />
             {busy || "+ Фото"}
           </label>
         </div>

@@ -4,6 +4,7 @@
  * и сохраняем в WebP прямо в базе.
  */
 import { db, schema as s } from "@/db";
+import { imageSource, isImageFile } from "@/lib/image-input";
 import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -19,16 +20,17 @@ export async function POST(request: Request) {
   const file = form?.get("file");
   if (!(file instanceof File)) return Response.json({ error: "Файл не получен" }, { status: 400 });
   if (file.size > MAX) return Response.json({ error: "Файл больше 15 МБ" }, { status: 400 });
-  if (!/^image\/(jpeg|png|webp|avif|heic|heif)$/.test(file.type)) return Response.json({ error: "Нужна картинка JPG, PNG или WebP" }, { status: 400 });
+  if (!isImageFile(file)) return Response.json({ error: "Нужна картинка JPG, PNG, WebP или HEIC" }, { status: 400 });
 
   let side = new URL(request.url).searchParams.get("wide") === "1" ? 2400 : 1600;
   try {
-    const sharp = (await import("sharp")).default;
     const buf = Buffer.from(await file.arrayBuffer());
+    // HEIC с iPhone раскодируется один раз, дальше работаем с пикселями
+    const img = await imageSource(buf);
     // Кий во весь рост (длинное узкое фото): оставляем 4000 px по длине — чтобы в увеличении было видно дерево и запилы
-    const meta = await sharp(buf).metadata().catch(() => null);
+    const meta = await img().metadata().catch(() => null);
     if (meta?.width && meta?.height && Math.max(meta.width, meta.height) / Math.min(meta.width, meta.height) >= 2.6) side = 4000;
-    const out = await sharp(buf)
+    const out = await img()
       .rotate()
       .resize({ width: side, height: side, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 84 })

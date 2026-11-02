@@ -477,7 +477,7 @@ export function ProductForm({
             </div>
           ))}
           <label className="img-tile img-tile--add">
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => upload(e.target.files)} />
             {uploading ? `Загружаем… ${progress}` : "+ Добавить фото"}
           </label>
         </div>

@@ -86,7 +86,7 @@ export function ProductionPanel({ orderId, events, canEdit, ready }: { orderId: 
                 </button>
               </>
             )}
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => upload(e.target.files?.[0])} />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => upload(e.target.files?.[0])} />
           </div>
           {err && <div className="form-error">{err}</div>}
           {state.error && <div className="form-error">{state.error}</div>}

@@ -90,7 +90,7 @@ export function ShowcaseForm({ item }: { item: Item }) {
           <button type="button" className="btn btn--line btn--sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0 || photos.length >= 12}>
             {uploading ? "Загружаем…" : "+ Фото"}
           </button>
-          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
+          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => upload(e.target.files)} />
         </div>
         {err && <div className="form-error">{err}</div>}
       </div>

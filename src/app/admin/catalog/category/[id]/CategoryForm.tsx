@@ -83,7 +83,7 @@ export function CategoryForm({ category, saved, canDelete }: { category: Categor
         {image && <img src={image} alt="" style={{ width: 96, height: 96, objectFit: "cover" }} />}
         <label className="btn btn--line btn--sm">
           {image ? "Заменить картинку" : "Картинка категории"}
-          <input type="file" accept="image/*" hidden onChange={(e) => upload(e.target.files?.[0])} />
+          <input type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => upload(e.target.files?.[0])} />
         </label>
         {image && (
           <button type="button" className="linklike small" onClick={() => setImage("")}>

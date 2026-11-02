@@ -103,7 +103,7 @@ export function ServiceForm({ prices, clubs, cdek, user }: Props) {
                 {uploading ? "Загружаем…" : "+ Фото кия"}
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => upload(e.target.files)} />
           </div>
         </fieldset>
 
