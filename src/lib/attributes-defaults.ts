@@ -13,3 +13,9 @@ export const DEFAULT_ATTRIBUTES: { key: string; name: string; unit: string; type
   { key: "material", name: "Материал", unit: "", type: "text", sortOrder: 70 },
   { key: "country", name: "Страна", unit: "", type: "select", options: ["Россия", "Япония", "США", "Тайвань", "Китай", "Бельгия", "Италия", "Германия"], sortOrder: 80 },
 ];
+
+/**
+ * Списки, которые пополняются прямо из карточки товара: новый мастер, порода турняка или шафта
+ * добавляется в справочник, когда товар сохраняют.
+ */
+export const OPEN_SELECT_KEYS = ["brand", "butt", "shaft"];

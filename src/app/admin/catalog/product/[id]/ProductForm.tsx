@@ -3,6 +3,7 @@ import { NewAttribute } from "../../attributes/NewAttribute";
 import { useActionState, useRef, useState } from "react";
 import { slugify } from "@/lib/slug";
 import { uploadPhotos } from "@/components/admin/upload-photos";
+import { OPEN_LABEL, OpenSelect } from "@/components/admin/OpenSelect";
 import { duplicateProduct } from "../../cue-actions";
 import { deleteProduct, saveProduct } from "../../../shop-actions";
 
@@ -51,7 +52,7 @@ export interface ProductData {
 }
 
 type Brief = { id: string; name: string; sku: string | null; visibility: "DRAFT" | "HIDDEN" | "PUBLISHED" };
-export type AttrDef = { id: string; name: string; unit: string; type: string; options: string[]; categoryIds: string[] };
+export type AttrDef = { id: string; key?: string; name: string; unit: string; type: string; options: string[]; categoryIds: string[] };
 
 /** Характеристики товара: показываем общие и те, что для выбранной категории */
 function AttrPanel({
@@ -82,7 +83,9 @@ function AttrPanel({
           <label key={a.id} className="field">
             {a.name}
             {a.unit ? `, ${a.unit}` : ""}
-            {a.type === "select" ? (
+            {a.type === "select" && a.key && OPEN_LABEL[a.key] ? (
+              <OpenSelect value={values[a.id] ?? ""} options={a.options} onChange={(v) => set(a.id, v)} addLabel={OPEN_LABEL[a.key].add} placeholder={OPEN_LABEL[a.key].placeholder} />
+            ) : a.type === "select" ? (
               <select className="select" value={values[a.id] ?? ""} onChange={(e) => set(a.id, e.target.value)}>
                 <option value="">—</option>
                 {a.options.map((o) => (

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
-import { listAttributes, normalizeAttr } from "@/lib/attributes";
+import { addOpenOption, listAttributes, normalizeAttr } from "@/lib/attributes";
 import { slugify } from "@/lib/slug";
 import { requireAdmin } from "@/lib/viewer";
 
@@ -100,10 +100,7 @@ export async function quickCue(_: QuickState, form: FormData): Promise<QuickStat
     const def = defs.find((x) => x.key === key);
     const v = val.trim();
     if (!def || !v) continue;
-    if (def.type === "select" && key === "brand" && !def.options.includes(v)) {
-      await db.update(s.attribute).set({ options: [...def.options, v] }).where(eq(s.attribute.id, def.id));
-      def.options = [...def.options, v];
-    }
+    await addOpenOption(def, v);
     const r = normalizeAttr(def, v);
     if ("error" in r) return { error: r.error };
     if (r.value != null) rows.push({ attributeId: def.id, value: r.value });

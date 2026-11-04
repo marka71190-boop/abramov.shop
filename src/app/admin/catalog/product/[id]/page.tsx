@@ -39,7 +39,7 @@ export default async function ProductEdit({ params, searchParams }: Props) {
       <ProductForm key={product?.id ?? "new"} product={product ?? null} categories={categories} saved={saved === "1"} copied={copied === "1"} canDelete={me.role === "OWNER"}
         allProducts={allProducts.filter((p) => p.id !== product?.id)}
         related={related}
-        attrDefs={defs.map((d) => ({ id: d.id, name: d.name, unit: d.unit, type: d.type, options: d.options, categoryIds: d.categoryIds }))}
+        attrDefs={defs.map((d) => ({ id: d.id, key: d.key, name: d.name, unit: d.unit, type: d.type, options: d.options, categoryIds: d.categoryIds }))}
         attrValues={mine}
       />
     </>

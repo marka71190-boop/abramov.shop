@@ -257,12 +257,14 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
   if (d.attrs !== undefined) {
     const raw = z.record(z.string(), z.string().max(200)).safeParse(JSON.parse(d.attrs || "{}"));
     if (!raw.success) return { error: "Ошибка в характеристиках" };
-    const { listAttributes, normalizeAttr } = await import("@/lib/attributes");
+    const { addOpenOption, listAttributes, normalizeAttr } = await import("@/lib/attributes");
     const defs = await listAttributes();
     attrRows = [];
     for (const [id, v] of Object.entries(raw.data)) {
       const def = defs.find((x) => x.id === id);
       if (!def) continue;
+      // Новый мастер, турняк или шафт — сразу в справочник
+      await addOpenOption(def, v);
       const r = normalizeAttr(def, v);
       if ("error" in r) return { error: r.error };
       if (r.value != null) attrRows.push({ attributeId: id, value: r.value });

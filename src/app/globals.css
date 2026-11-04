@@ -6325,3 +6325,10 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   border: 1px solid var(--c-line);
   display: block;
 }
+.open-select {
+  display: grid;
+  gap: 4px;
+}
+.open-select .linklike {
+  justify-self: start;
+}

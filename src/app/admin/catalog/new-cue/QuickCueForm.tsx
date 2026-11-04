@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
+import { OPEN_LABEL, OpenSelect } from "@/components/admin/OpenSelect";
 import { uploadPhotos } from "@/components/admin/upload-photos";
 import { duplicateProduct, quickCue, type QuickState } from "../cue-actions";
 
@@ -25,9 +26,7 @@ export function QuickCueForm({ categories, defaultCategory, fields }: { categori
   const [drop, setDrop] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const shownName = nameTouched ? name : autoName(vals);
-  const brand = fields.find((f) => f.key === "brand");
-  const [customBrand, setCustomBrand] = useState(false);
-  const rest = useMemo(() => fields.filter((f) => f.key !== "brand"), [fields]);
+  const rest = fields;
 
   async function add(files: FileList | File[] | null) {
     if (!files || !files.length) return;
@@ -125,33 +124,19 @@ export function QuickCueForm({ categories, defaultCategory, fields }: { categori
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>2. Кий</h2>
         <div className="form-grid">
-          {brand && (
-            <label className="field">
-              {brand.name}
-              {customBrand || !brand.options.length ? (
-                <input className="input" value={vals.brand ?? ""} onChange={(e) => setVals({ ...vals, brand: e.target.value })} placeholder="Имя мастера или бренд" maxLength={60} />
-              ) : (
-                <select
-                  className="select"
-                  value={vals.brand ?? ""}
-                  onChange={(e) => (e.target.value === "__new" ? (setCustomBrand(true), setVals({ ...vals, brand: "" })) : setVals({ ...vals, brand: e.target.value }))}
-                >
-                  <option value="">—</option>
-                  {brand.options.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                  <option value="__new">+ Другой мастер…</option>
-                </select>
-              )}
-            </label>
-          )}
           {rest.map((f) => (
             <label key={f.key} className="field">
               {f.name}
               {f.unit ? `, ${f.unit}` : ""}
-              {f.type === "select" ? (
+              {OPEN_LABEL[f.key] && f.type === "select" ? (
+                <OpenSelect
+                  value={vals[f.key] ?? ""}
+                  options={f.options}
+                  onChange={(v) => setVals({ ...vals, [f.key]: v })}
+                  addLabel={OPEN_LABEL[f.key].add}
+                  placeholder={OPEN_LABEL[f.key].placeholder}
+                />
+              ) : f.type === "select" ? (
                 <select className="select" value={vals[f.key] ?? ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}>
                   <option value="">—</option>
                   {f.options.map((o) => (

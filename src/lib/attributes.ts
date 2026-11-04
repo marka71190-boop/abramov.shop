@@ -9,6 +9,21 @@ export type { AttrType };
 
 export const ATTR_TYPES: Record<AttrType, string> = { number: "Число (фильтр «от–до»)", select: "Выбор из списка", text: "Текст (только в карточке)" };
 
+/**
+ * Новый вариант в открытом списке (мастер, турняк, шафт): добавляем в справочник.
+ * Регистр — как у уже существующего варианта, если такой есть.
+ */
+export async function addOpenOption(a: Attr, raw: string) {
+  const { OPEN_SELECT_KEYS } = await import("./attributes-defaults");
+  const v = raw.trim().replace(/\s+/g, " ").slice(0, 60);
+  if (!v || a.type !== "select" || !OPEN_SELECT_KEYS.includes(a.key)) return;
+  if (a.options.some((o) => o.toLowerCase() === v.toLowerCase())) return;
+  const { eq } = await import("drizzle-orm");
+  const options = [...a.options, v[0].toUpperCase() + v.slice(1)];
+  await db.update(s.attribute).set({ options }).where(eq(s.attribute.id, a.id));
+  a.options = options;
+}
+
 export async function listAttributes() {
   return db.query.attribute.findMany({ orderBy: [asc(s.attribute.sortOrder), asc(s.attribute.name)] });
 }
