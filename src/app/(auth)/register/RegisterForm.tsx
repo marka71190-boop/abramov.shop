@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
@@ -88,7 +89,7 @@ export function RegisterForm({ next, notice }: { next: string; notice?: string |
       </label>
       <label className="field">
         Пароль
-        <input className="input" name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="Не короче 8 символов" />
+        <PasswordInput name="password" required minLength={8} autoComplete="new-password" placeholder="Не короче 8 символов" />
       </label>
 
       <label className="check" style={{ marginTop: 4 }}>

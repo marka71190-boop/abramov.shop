@@ -6432,3 +6432,35 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   font-size: 14px;
   line-height: 1.45;
 }
+
+/* ---------- Пароль с «глазом» ---------- */
+.pwd {
+  position: relative;
+  display: block;
+}
+.pwd .input {
+  width: 100%;
+  padding-right: 48px;
+}
+.pwd__eye {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+.pwd__eye:hover,
+.pwd__eye[aria-pressed="true"] {
+  color: var(--c-gold);
+}
+.pwd input::-ms-reveal,
+.pwd input::-ms-clear {
+  display: none;
+}

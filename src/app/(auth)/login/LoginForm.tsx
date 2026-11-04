@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
@@ -53,7 +54,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
             Забыли пароль?
           </Link>
         </span>
-        <input className="input" name="password" type="password" required autoComplete="current-password" />
+        <PasswordInput name="password" required autoComplete="current-password" />
       </label>
       <button type="submit" className="btn btn--gold" disabled={busy} style={{ marginTop: 4 }}>
         {busy ? "Входим…" : "Войти"}

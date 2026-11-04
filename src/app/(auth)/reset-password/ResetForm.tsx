@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
@@ -49,11 +50,11 @@ export function ResetForm({ token, invalid }: { token: string | null; invalid: b
             <>
               <label className="field">
                 Новый пароль
-                <input className="input" name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="Не короче 8 символов" />
+                <PasswordInput name="password" required minLength={8} autoComplete="new-password" placeholder="Не короче 8 символов" />
               </label>
               <label className="field">
                 Ещё раз
-                <input className="input" name="password2" type="password" required minLength={8} autoComplete="new-password" />
+                <PasswordInput name="password2" required minLength={8} autoComplete="new-password" />
               </label>
               <button type="submit" className="btn btn--gold" disabled={busy}>
                 {busy ? "Сохраняем…" : "Сохранить пароль"}
