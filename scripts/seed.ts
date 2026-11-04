@@ -245,6 +245,11 @@ async function main() {
   if (construction && construction.type === "select" && !construction.options.some((o) => /тр[её]хсостав/i.test(o)))
     await db.update(s.attribute).set({ options: [...construction.options, "Трёхсоставной"] }).where(eq(s.attribute.id, construction.id));
 
+  // Соединение кия: шнек
+  const joint = await db.query.attribute.findFirst({ where: eq(s.attribute.key, "joint") });
+  if (joint && joint.type === "select" && !joint.options.some((o) => /шнек/i.test(o)))
+    await db.update(s.attribute).set({ options: [...joint.options, "Шнек"] }).where(eq(s.attribute.id, joint.id));
+
   // Журнал: стартовые статьи — один раз, черновиками (владелец проверяет и публикует сам)
   const articlesSeeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "articles_seeded") });
   if (!articlesSeeded) {

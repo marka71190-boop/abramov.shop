@@ -59,7 +59,7 @@ export const PRO_ATTRIBUTES: Def[] = [
   },
   { key: "inlays", name: "Запилы", unit: "шт", type: "number", sortOrder: 56, groups: ["cues"] },
   { key: "balance", name: "Баланс от торца", unit: "см", type: "number", sortOrder: 57, groups: ["cues"] },
-  { key: "joint", name: "Соединение", unit: "", type: "select", options: ["Латунь", "Нержавеющая сталь", "Дерево по дереву", "Быстросъёмное"], sortOrder: 58, groups: ["cues"] },
+  { key: "joint", name: "Соединение", unit: "", type: "select", options: ["Латунь", "Нержавеющая сталь", "Дерево по дереву", "Быстросъёмное", "Шнек"], sortOrder: 58, groups: ["cues"] },
   { key: "handmade", name: "Ручная работа", unit: "", type: "select", options: YES_NO, sortOrder: 64, groups: ["cues"] },
   { key: "with_case", name: "Чехол в комплекте", unit: "", type: "select", options: YES_NO, sortOrder: 66, groups: ["cues"] },
   // Наклейки
