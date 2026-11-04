@@ -24,5 +24,16 @@ export default async function RegisterPage({ searchParams }: Props) {
       </div>
     );
   }
-  return <RegisterForm next={safeNext(next)} />;
+  const n = safeNext(next);
+  const welcome = settings.loyalty.welcomeBonus;
+  return <RegisterForm next={n} notice={contextNotice(n, welcome)} />;
+}
+
+/** Зачем просим войти или зарегистрироваться: пришли из корзины или записи на тренировку */
+function contextNotice(next: string, welcome: number) {
+  const bonus = welcome > 0 ? ` После подтверждения почты — ${welcome.toLocaleString("ru-RU")} бонусов в подарок.` : "";
+  if (next.startsWith("/checkout"))
+    return "Аккаунт нужен для заказа: в нём статус и трек посылки, а бонусы с покупки — ваши. Корзина сохранится — после регистрации сразу перейдёте к оформлению." + bonus;
+  if (next.startsWith("/trenirovki")) return "Чтобы записаться на тренировку, нужен аккаунт: туда придёт подтверждение и напоминание.";
+  return bonus.trim() || null;
 }

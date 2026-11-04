@@ -52,9 +52,16 @@ export function Header({
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />
-          <Link href={signedIn ? "/account" : "/login"} className="icon-btn" aria-label={signedIn ? "Личный кабинет" : "Войти"}>
-            <IconUser />
-          </Link>
+          {signedIn ? (
+            <Link href="/account" className="icon-btn" aria-label="Личный кабинет">
+              <IconUser />
+            </Link>
+          ) : (
+            <Link href="/login" className="icon-btn header__login" aria-label="Войти или зарегистрироваться">
+              <IconUser />
+              <span className="header__login-text">Войти</span>
+            </Link>
+          )}
           <Link href="/cart" className="icon-btn" aria-label="Корзина">
             <IconBag />
             <CartBadge />

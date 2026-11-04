@@ -19,7 +19,7 @@ async function saveConsent(body: Record<string, unknown>) {
   }
 }
 
-export function RegisterForm({ next }: { next: string }) {
+export function RegisterForm({ next, notice }: { next: string; notice?: string | null }) {
   const [pd, setPd] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,6 +59,8 @@ export function RegisterForm({ next }: { next: string }) {
           Регистрация
         </Link>
       </nav>
+
+      {notice && <div className="auth-context">{notice}</div>}
 
       {error && (
         <div className="form-error" role="alert">

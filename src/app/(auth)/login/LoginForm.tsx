@@ -4,7 +4,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +33,8 @@ export function LoginForm({ next }: { next: string }) {
         </Link>
         <Link href={`/register?next=${encodeURIComponent(next)}`}>Регистрация</Link>
       </nav>
+
+      {notice && <div className="auth-context">{notice}</div>}
 
       {error && (
         <div className="form-error" role="alert">

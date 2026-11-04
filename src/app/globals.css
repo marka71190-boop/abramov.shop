@@ -6332,3 +6332,103 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
 .open-select .linklike {
   justify-self: start;
 }
+
+/* ---------- Гостю: нужна регистрация ---------- */
+.guest-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 8px 48px;
+  background: var(--c-panel-2);
+  border-bottom: 1px solid rgba(220, 191, 131, 0.35);
+  font-size: 13.5px;
+  line-height: 1.35;
+  text-align: center;
+}
+.guest-bar b {
+  color: var(--c-gold);
+  font-weight: 600;
+}
+.guest-bar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.guest-bar__btn {
+  padding: 6px 14px;
+  background: var(--c-gold);
+  color: #0a0a0a;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.guest-bar__btn:hover {
+  background: var(--c-gold-hi);
+  color: #0a0a0a;
+}
+.guest-bar__link {
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.guest-bar__close {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+.header__login {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  gap: 8px;
+  padding: 0 4px;
+}
+.header__login-text {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+@media (max-width: 760px) {
+  .header__login-text {
+    display: none;
+  }
+  .guest-bar {
+    padding: 8px 40px 8px 14px;
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 13px;
+    gap: 6px 14px;
+  }
+  .guest-bar__more {
+    display: none;
+  }
+  .guest-bar__btn {
+    padding: 5px 12px;
+  }
+}
+.cart-auth {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(220, 191, 131, 0.35);
+  background: var(--c-gold-soft);
+}
+.auth-context {
+  padding: 12px 14px;
+  border: 1px solid rgba(220, 191, 131, 0.35);
+  background: var(--c-gold-soft);
+  font-size: 14px;
+  line-height: 1.45;
+}
