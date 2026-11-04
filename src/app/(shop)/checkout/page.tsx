@@ -7,7 +7,7 @@ import { getActiveConsent } from "@/lib/consent";
 import { prettyPhone } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
 import { isPlaceholderEmail } from "@/lib/site";
-import { getActiveBan, isAdmin, requireUser } from "@/lib/viewer";
+import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
 import { isPublic } from "@/lib/visibility";
 import { yookassaEnabled, yookassaTestMode } from "@/lib/yookassa";
 import { robokassaEnabled } from "@/lib/robokassa";
@@ -18,7 +18,10 @@ import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
 export const metadata: Metadata = { title: "Оформление заказа", robots: { index: false } };
 
 export default async function CheckoutPage() {
-  const user = await requireUser("/checkout");
+  const viewer = await getViewer();
+  // Гость оформляет заказ здесь же: аккаунт создаётся вместе с заказом
+  if (!viewer) return <GuestCheckout />;
+  const user = viewer;
   if (getActiveBan(user)) redirect("/account");
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) redirect("/consent");
 
@@ -99,6 +102,58 @@ export default async function CheckoutPage() {
           isDefault: a.isDefault,
         }))}
         maxAddresses={MAX_ADDRESSES}
+      />
+    </section>
+  );
+}
+
+async function GuestCheckout() {
+  const settings = await getSettings();
+  const docs = await db.select().from(s.page).where(inArray(s.page.slug, ["offer", "returns"]));
+  const published = (slug: string) => docs.some((d) => d.slug === slug && isPublic(d));
+  if (settings.pdPause) {
+    return (
+      <section className="container page-pad">
+        <h1 className="h2" style={{ marginBottom: 28 }}>
+          Оформление
+        </h1>
+        <div className="notice">{settings.pdPauseMessage}</div>
+      </section>
+    );
+  }
+  const payments = yookassaEnabled();
+  return (
+    <section className="container page-pad ym-hide-content">
+      <h1 className="h2" style={{ marginBottom: 12 }}>
+        Оформление
+      </h1>
+      <p className="muted" style={{ margin: "0 0 28px" }}>
+        Уже покупали у нас? <a href="/login?next=/checkout">Войдите</a> — подставим адрес и бонусы.
+      </p>
+      {settings.checkout.notice && <div className="notice">{settings.checkout.notice}</div>}
+      {!payments && !robokassaEnabled() && <div className="notice notice--muted">Онлайн-оплата подключается. Пока заказ можно оформить через поддержку в Telegram.</div>}
+      <CheckoutForm
+        user={{ name: "", phone: "", email: "", bonus: 0 }}
+        guest={{ welcome: settings.loyalty.welcomeBonus }}
+        canReferral
+        delivery={{ pvz: settings.delivery.pvzEnabled, courier: settings.delivery.courierEnabled, cdek: cdekEnabled() }}
+        clubs={(settings.delivery.pickupEnabled ? await listClubs({ pickup: true }) : []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          city: c.city,
+          address: c.address,
+          workTime: c.workTime,
+          note: c.note,
+          mapUrl: clubMapUrl(c),
+        }))}
+        pickupDays={settings.delivery.pickupStorageDays}
+        maxPerItem={settings.checkout.maxQtyPerItem}
+        canPay={payments}
+        testMode={!payments}
+        robokassa={robokassaEnabled()}
+        docs={{ offer: published("offer"), returns: published("returns") }}
+        addresses={[]}
+        maxAddresses={0}
       />
     </section>
   );

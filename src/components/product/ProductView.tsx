@@ -1,6 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AddToCart } from "@/components/cart/AddToCart";
+import { useCart } from "@/components/cart/CartProvider";
+import { goal } from "@/lib/track";
 import { rub } from "@/lib/format";
 import { ecommerce } from "@/lib/track";
 import { Lightbox } from "./Lightbox";
@@ -128,6 +131,8 @@ export function ProductView({
   body: React.ReactNode;
 }) {
   const [vid, setVid] = useState<string | null>(initialVariantId);
+  const buyRef = useRef<HTMLDivElement>(null);
+  const [sticky, setSticky] = useState(false);
   const hasVariantPhotos = images.some((i) => i.variantId);
   const shown = useMemo(() => photosFor(images, vid, hasVariantPhotos), [images, vid, hasVariantPhotos]);
   const v = variants.find((x) => x.id === vid) ?? variants[0];
@@ -137,6 +142,20 @@ export function ProductView({
   useEffect(() => {
     if (v) ecommerce("detail", [{ id: track.id, name: track.name, price: v.price / 100, variant: multi ? v.name : undefined }]);
   }, [v, track.id, track.name, multi]);
+
+  // Кнопка покупки ушла вверх за экран — показываем полосу «В корзину» внизу (на телефоне)
+  useEffect(() => {
+    const el = buyRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setSticky(!e.isIntersecting && e.boundingClientRect.top < 0), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const canBuy = !buyFallback && !!v && v.stock > 0;
+  useEffect(() => {
+    document.body.classList.toggle("has-buybar", sticky && canBuy);
+    return () => document.body.classList.remove("has-buybar");
+  }, [sticky, canBuy]);
 
   const pick = (id: string) => {
     setVid(id);
@@ -182,6 +201,7 @@ export function ProductView({
             </div>
           </div>
         )}
+        <div ref={buyRef}>
         {buyFallback ??
           (v && v.stock <= 0 ? (
             <button className="btn btn--line btn--block" disabled>
@@ -190,9 +210,65 @@ export function ProductView({
           ) : (
             <AddToCart key={v?.id} variants={variants} selectedId={v?.id} showPicker={false} maxPerItem={maxPerItem} track={track} />
           ))}
+        </div>
         {extra}
         {body}
       </div>
+      {canBuy && v && <BuyBar show={sticky} name={track.name} variant={multi ? v.name : null} price={v.price} variantId={v.id} stock={v.stock} maxPerItem={maxPerItem} track={track} multi={multi} />}
+    </div>
+  );
+}
+
+/** Полоса внизу экрана на телефоне: цена и «В корзину», когда основная кнопка уехала вверх */
+function BuyBar({
+  show,
+  name,
+  variant,
+  price,
+  variantId,
+  stock,
+  maxPerItem,
+  track,
+  multi,
+}: {
+  show: boolean;
+  name: string;
+  variant: string | null;
+  price: number;
+  variantId: string;
+  stock: number;
+  maxPerItem: number;
+  track: { id: string; name: string };
+  multi: boolean;
+}) {
+  const cart = useCart();
+  const inCart = cart.items.find((i) => i.variantId === variantId)?.qty ?? 0;
+  const left = Math.min(stock, maxPerItem) - inCart;
+  return (
+    <div className={`buybar${show ? " is-on" : ""}`} aria-hidden={!show}>
+      <div className="buybar__info">
+        <span className="buybar__name">{variant ? `${name} · ${variant}` : name}</span>
+        <b className="buybar__price">{rub(price)}</b>
+      </div>
+      {inCart > 0 ? (
+        <Link href="/cart" className="btn btn--gold btn--sm" tabIndex={show ? 0 : -1}>
+          В корзине · оформить
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className="btn btn--gold btn--sm"
+          tabIndex={show ? 0 : -1}
+          disabled={left <= 0}
+          onClick={() => {
+            cart.add(variantId, 1);
+            goal("add_to_cart");
+            ecommerce("add", [{ id: track.id, name: track.name, price: price / 100, quantity: 1, variant: multi ? (variant ?? undefined) : undefined }]);
+          }}
+        >
+          В корзину
+        </button>
+      )}
     </div>
   );
 }

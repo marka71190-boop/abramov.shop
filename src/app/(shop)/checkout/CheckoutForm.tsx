@@ -6,6 +6,10 @@ import { useQuote } from "@/components/cart/useQuote";
 import { num, rub } from "@/lib/format";
 import { goal } from "@/lib/track";
 import { placeOrderAction } from "./actions";
+import { OtpLogin } from "@/components/OtpLogin";
+import { PasswordInput } from "@/components/PasswordInput";
+import { authClient } from "@/lib/auth-client";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 import type { AddressCard } from "@/components/delivery/AddressBook";
 import { CityPicker, PointPicker, type City, type Point } from "@/components/delivery/Pickers";
@@ -13,6 +17,8 @@ import { prettyPhone } from "@/lib/format";
 
 interface Props {
   user: { name: string; phone: string; email: string; bonus: number };
+  /** Гость: аккаунт создаётся прямо здесь, вместе с заказом */
+  guest?: { welcome: number } | null;
   canReferral: boolean;
   delivery: { pvz: boolean; courier: boolean; cdek: boolean };
   maxPerItem: number;
@@ -46,7 +52,7 @@ function fromCard(a: AddressCard, cdek: boolean) {
 }
 
 
-export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, robokassa = false, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
+export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay, testMode, robokassa = false, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
   const cart = useCart();
   // Сохранённый адрес: основной (или последний использованный) подставляется сразу
   const first = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
@@ -92,6 +98,13 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, ro
   const [payMethod, setPayMethod] = useState<"ONLINE" | "ROBOKASSA" | "INVOICE">(canPay || !robokassa ? "ONLINE" : "ROBOKASSA");
   const [referral, setReferral] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Гость: пароль и согласия; registered — аккаунт уже создан (повторно не создаём при ошибке оплаты)
+  const [password, setPassword] = useState("");
+  const [pd, setPd] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [haveAccount, setHaveAccount] = useState(false);
+  const [exists, setExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +180,37 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, ro
     if (!quote || !deliveryInput) return;
     setSubmitting(true);
     setError(null);
+    // Гость: сначала создаём аккаунт на эту почту — с согласием, как при обычной регистрации
+    if (guest && !registered) {
+      const fail = (msg: string) => {
+        setSubmitting(false);
+        setError(msg);
+        requestAnimationFrame(() => errRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+      };
+      if (!pd) return fail("Отметьте согласие на обработку персональных данных — без него не сможем оформить заказ");
+      if (password.length < 8) return fail("Придумайте пароль не короче 8 символов");
+      try {
+        const res = await fetch("/api/consent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ personalData: true, source: "CHECKOUT", marketing, name, phone, email: email.trim().toLowerCase() }),
+        });
+        if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error || "Не удалось сохранить согласие");
+        const { error: err } = await authClient.signUp.email({ name: name.trim(), email: email.trim().toLowerCase(), password, callbackURL: "/account?verified=1" });
+        if (err) {
+          if (/ALREADY_EXISTS/.test(err.code ?? "")) {
+            setExists(true);
+            setHaveAccount(true);
+            return fail("На эту почту уже есть аккаунт — войдите ниже кодом из письма или паролем. Корзина и введённые данные сохранятся.");
+          }
+          return fail(authErrorMessage(err));
+        }
+        setRegistered(true);
+        goal("sign_up");
+      } catch (e) {
+        return fail(e instanceof Error ? e.message : "Не удалось создать аккаунт");
+      }
+    }
     const r = await placeOrderAction({
       lines: cart.items,
       promoCode: promo,
@@ -247,9 +291,69 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, ro
             </label>
             <label className="field">
               Почта — для чека
-              <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} required type="email" autoComplete="email" />
+              <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} required type="email" autoComplete="email" readOnly={registered} />
             </label>
           </div>
+          {guest && !registered && !haveAccount && (
+            <div className="guest-account stack" style={{ gap: 12 }}>
+              <div>
+                <b>Личный кабинет создадим на эту почту</b>
+                <div className="muted small">
+                  В нём статус и трек заказа, бонусы с покупки{guest.welcome > 0 ? ` и ${num(guest.welcome)} приветственных бонусов после подтверждения почты` : ""}. Отдельно
+                  регистрироваться не нужно — только придумайте пароль.
+                </div>
+              </div>
+              <label className="field">
+                Пароль для входа
+                <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} autoComplete="new-password" placeholder="Не короче 8 символов" />
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={pd} onChange={(e) => setPd(e.target.checked)} />
+                <span>
+                  Даю{" "}
+                  <a href="/p/consent" target="_blank" rel="noopener">
+                    согласие на обработку персональных данных
+                  </a>{" "}
+                  и принимаю{" "}
+                  <a href="/p/privacy" target="_blank" rel="noopener">
+                    политику конфиденциальности
+                  </a>{" "}
+                  <span className="req">*</span>
+                </span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
+                <span>
+                  Хочу получать новости и акции (
+                  <a href="/p/marketing-consent" target="_blank" rel="noopener">
+                    согласие на рассылку
+                  </a>
+                  )
+                </span>
+              </label>
+              <button type="button" className="linklike small" style={{ justifySelf: "start" }} onClick={() => setHaveAccount(true)}>
+                У меня уже есть аккаунт — войти
+              </button>
+            </div>
+          )}
+          {guest && !registered && haveAccount && (
+            <div className="guest-account stack" style={{ gap: 12 }}>
+              <div>
+                <b>{exists ? "Эта почта уже зарегистрирована" : "Вход в аккаунт"}</b>
+                <div className="muted small">Пришлём код на почту — пароль не нужен. Корзина сохранится.</div>
+              </div>
+              <OtpLogin initialEmail={email} submitLabel="Войти и продолжить" onDone={() => window.location.reload()} />
+              <div className="row small" style={{ gap: 14, flexWrap: "wrap" }}>
+                <a href="/login?next=/checkout">Войти по паролю</a>
+                {!exists && (
+                  <button type="button" className="linklike" onClick={() => setHaveAccount(false)}>
+                    Нет аккаунта — создать
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {registered && <div className="form-ok small">Личный кабинет создан — заказ сохранится в нём. На почту ушло письмо для подтверждения.</div>}
         </fieldset>
 
         <fieldset className="panel stack">
@@ -423,6 +527,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, ro
             </div>
           )}
 
+          {!guest && (
           <label className={`check ${!quote?.bonus.available ? "check--off" : ""}`}>
             <input type="checkbox" checked={useBonus} disabled={!quote?.bonus.available} onChange={(e) => setUseBonus(e.target.checked)} />
             <span>
@@ -437,6 +542,7 @@ export function CheckoutForm({ user, canReferral, delivery, canPay, testMode, ro
               </span>
             </span>
           </label>
+          )}
 
           {canReferral && (
             <label className="field">

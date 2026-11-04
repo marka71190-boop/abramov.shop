@@ -6464,3 +6464,135 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
 .pwd input::-ms-clear {
   display: none;
 }
+.otp-input {
+  font-size: 24px;
+  letter-spacing: 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.login-mode {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--c-line-2);
+}
+.login-mode button {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.login-mode button[aria-pressed="true"] {
+  background: var(--c-gold-soft);
+  color: var(--c-gold);
+}
+.guest-account {
+  padding: 16px;
+  border: 1px solid rgba(220, 191, 131, 0.35);
+  background: var(--c-gold-soft);
+}
+
+/* ---------- Полоса «В корзину» внизу экрана (телефон) ---------- */
+.buybar {
+  display: none;
+}
+@media (max-width: 900px) {
+  .buybar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(12, 12, 12, 0.96);
+    border-top: 1px solid rgba(220, 191, 131, 0.35);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+    transform: translateY(110%);
+    transition: transform 0.25s var(--ease-out, ease);
+  }
+  .buybar.is-on {
+    transform: none;
+  }
+  .buybar__info {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+  .buybar__name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--c-muted);
+  }
+  .buybar__price {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 0.02em;
+  }
+  .buybar .btn {
+    flex: none;
+    min-height: 44px;
+  }
+  body.has-buybar {
+    padding-bottom: 72px;
+  }
+  .has-buybar .compare-bar {
+    bottom: 84px;
+  }
+  .has-buybar .install-hint {
+    bottom: 84px;
+  }
+}
+
+/* ---------- Цены и остатки таблицей ---------- */
+.bulk-input {
+  min-height: 38px;
+  height: 38px;
+  padding: 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.bulk-input.is-dirty {
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+}
+.bulk-table td {
+  vertical-align: middle;
+}
+.bulk-table tr.is-changed td:first-child {
+  box-shadow: inset 3px 0 0 var(--c-gold);
+}
+.bulk-variant td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-top: 0;
+}
+.bulk-variant td:nth-child(2) {
+  padding-left: 66px;
+}
+.bulk-tools {
+  padding: 10px 12px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+}
+.bulk-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: #17171a;
+  border: 1px solid var(--c-gold);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+}

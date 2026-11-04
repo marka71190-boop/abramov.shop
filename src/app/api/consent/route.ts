@@ -18,7 +18,7 @@ import { getSettings } from "@/lib/settings";
 const Body = z.object({
   personalData: z.literal(true, { message: "Нужно согласие на обработку персональных данных" }),
   marketing: z.boolean().default(false),
-  source: z.literal("REGISTRATION"),
+  source: z.enum(["REGISTRATION", "CHECKOUT"]), // CHECKOUT — аккаунт создаётся при оформлении заказа
   name: z.string().trim().max(100).optional(),
   phone: z.string().trim().max(30).optional(),
   email: z.string().trim().max(200).optional(),

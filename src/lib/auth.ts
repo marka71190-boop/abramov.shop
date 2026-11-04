@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
+import { emailOTP } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/consent";
@@ -102,10 +103,23 @@ export const auth = betterAuth({
     window: 60,
     max: 30,
     // Повторное письмо с подтверждением — не чаще 3 раз в 10 минут
-    customRules: { "/send-verification-email": { window: 600, max: 3 } },
+    customRules: {
+      "/send-verification-email": { window: 600, max: 3 },
+      // Код для входа: не больше 5 писем и 10 попыток ввода за 10 минут с одного адреса
+      "/email-otp/send-verification-otp": { window: 600, max: 5 },
+      "/sign-in/email-otp": { window: 600, max: 10 },
+    },
   },
   databaseHooks: {
     user: {
+      update: {
+        // Почту подтвердили входом по коду — приветственные бонусы (повторно не начисляются)
+        after: async (u) => {
+          if (!u.emailVerified) return;
+          const { grantWelcomeBonus } = await import("@/lib/bonuses");
+          await grantWelcomeBonus(u.id).catch((e) => console.error("[bonus] welcome:", e));
+        },
+      },
       create: {
         /**
          * Главная защита: аккаунт НЕ создаётся без отметки согласия на обработку ПДн.
@@ -146,6 +160,31 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    /*
+     * Вход по коду из письма — без пароля. Только для уже зарегистрированных:
+     * новый аккаунт без согласия на обработку данных так создать нельзя (disableSignUp).
+     * Если почта не была подтверждена, вход по коду её подтверждает (старый пароль при этом
+     * сбрасывается — защита от чужих аккаунтов на вашу почту; задать новый можно в кабинете).
+     */
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 10 * 60,
+      allowedAttempts: 5,
+      disableSignUp: true,
+      storeOTP: "hashed",
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type !== "sign-in" || isPlaceholderEmail(email)) return;
+        const { sendMail } = await import("@/lib/mail");
+        void sendMail(
+          email,
+          `Код для входа: ${otp} — Abramov Shop`,
+          "Код для входа",
+          `Ваш код для входа на abramov.shop:<br><br><b style="font-size:30px;letter-spacing:6px">${otp}</b><br><br>Код действует 10 минут. Никому его не сообщайте — сотрудники магазина его не спрашивают.<br>Если вы не входили на сайт — просто проигнорируйте письмо.`,
+        ).catch((e) => console.error("[mail] otp:", e instanceof Error ? e.message : e));
+      },
+    }),
+    nextCookies(),
+  ],
 });
 

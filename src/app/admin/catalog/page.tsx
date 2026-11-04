@@ -52,6 +52,9 @@ export default async function CatalogAdmin() {
           >
             Характеристики
           </Link>
+          <Link className="btn btn--gold btn--sm" href="/admin/catalog/prices">
+            Цены и остатки
+          </Link>
           <Link className="btn btn--line btn--sm" href="/admin/catalog/bundles">
             Комплекты
           </Link>

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { OtpLogin } from "@/components/OtpLogin";
 import { PasswordInput } from "@/components/PasswordInput";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -8,6 +9,7 @@ import { authErrorMessage } from "@/lib/auth-errors";
 export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"password" | "code">("password");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -37,6 +39,20 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
 
       {notice && <div className="auth-context">{notice}</div>}
 
+      <div className="login-mode" role="group" aria-label="Как войти">
+        <button type="button" aria-pressed={mode === "password"} onClick={() => setMode("password")}>
+          По паролю
+        </button>
+        <button type="button" aria-pressed={mode === "code"} onClick={() => setMode("code")}>
+          По коду из письма
+        </button>
+      </div>
+
+      {mode === "code" ? (
+        <OtpLogin onDone={() => (window.location.href = next)} />
+      ) : (
+        <>
+
       {error && (
         <div className="form-error" role="alert">
           {error}
@@ -59,6 +75,8 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
       <button type="submit" className="btn btn--gold" disabled={busy} style={{ marginTop: 4 }}>
         {busy ? "Входим…" : "Войти"}
       </button>
+        </>
+      )}
       <p className="muted small" style={{ margin: 0, textAlign: "center" }}>
         Впервые у нас? <Link href={`/register?next=${encodeURIComponent(next)}`}>Создайте аккаунт</Link>
       </p>

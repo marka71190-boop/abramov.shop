@@ -117,12 +117,10 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
           </Link>
         ) : (
           <div className="cart-auth">
-            <b>Для заказа нужен аккаунт</b>
-            <span className="muted small">
-              Регистрация — минута. В кабинете — статус и трек посылки, а бонусы с этого заказа сразу ваши. Корзина сохранится.
-            </span>
-            <Link href="/register?next=/checkout" className="btn btn--gold btn--block" aria-disabled={!lines.length}>
-              Зарегистрироваться и оформить
+            <b>Заказ сохранится в личном кабинете</b>
+            <span className="muted small">Создадим его прямо при оформлении — нужен только пароль. В кабинете — статус и трек посылки, а бонусы с этого заказа сразу ваши.</span>
+            <Link href="/checkout" className="btn btn--gold btn--block" aria-disabled={!lines.length}>
+              Оформить заказ
             </Link>
             <Link href="/login?next=/checkout" className="btn btn--line btn--block" aria-disabled={!lines.length}>
               У меня есть аккаунт — войти

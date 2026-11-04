@@ -42,8 +42,8 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           ? `Когда остаток варианта опускается до ${limit} шт, админам с подключённым Telegram приходит предупреждение.`
           : "Предупреждения выключены."}{" "}
         {me.role === "OWNER" && <Link href="/admin/settings#stock-settings">Изменить порог</Link>}
-        {" · "}Остатки уже за вычетом товара в неоплаченных заказах (резерв). Массово поменять остатки —{" "}
-        <Link href="/admin/catalog/import">через Excel</Link>.
+        {" · "}Остатки уже за вычетом товара в неоплаченных заказах (резерв). Поменять остатки и цены —{" "}
+        <Link href="/admin/catalog/prices">таблицей</Link> или <Link href="/admin/catalog/import">через Excel</Link>.
       </p>
 
       <form className="row" style={{ alignItems: "flex-end" }}>
