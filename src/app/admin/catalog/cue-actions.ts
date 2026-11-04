@@ -107,7 +107,9 @@ export async function quickCue(_: QuickState, form: FormData): Promise<QuickStat
   }
 
   // Упаковка для СДЭК — по конструкции
-  const box = /3\/4/.test(d.construction) ? { lengthCm: 115, widthCm: 12, heightCm: 12 } : /1\/2/.test(d.construction) ? { lengthCm: 85, widthCm: 12, heightCm: 12 } : { lengthCm: 150, widthCm: 10, heightCm: 10 };
+  const box = /тр[её]хсостав/i.test(d.construction)
+    ? { lengthCm: 65, widthCm: 12, heightCm: 12 }
+    : /3\/4/.test(d.construction) ? { lengthCm: 115, widthCm: 12, heightCm: 12 } : /1\/2/.test(d.construction) ? { lengthCm: 85, widthCm: 12, heightCm: 12 } : { lengthCm: 150, widthCm: 10, heightCm: 10 };
   const name = d.name.replace(/\s+/g, " ");
   const slug = await freeSlug(name);
   const { nextSku } = await import("@/lib/sku");

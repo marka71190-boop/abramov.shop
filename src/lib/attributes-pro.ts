@@ -45,7 +45,7 @@ export const PRO_ATTRIBUTES: Def[] = [
   { key: "length", name: "Длина", unit: "см", type: "number", sortOrder: 20, groups: ["cues", "cases"] },
   { key: "tip", name: "Диаметр наклейки", unit: "мм", type: "number", sortOrder: 30, groups: ["cues", "tips"] },
   { key: "hardness", name: "Жёсткость", unit: "", type: "select", options: ["Мягкая", "Средняя", "Средне-жёсткая", "Жёсткая", "Очень жёсткая"], sortOrder: 40, groups: ["cues", "tips"] },
-  { key: "construction", name: "Конструкция", unit: "", type: "select", options: ["Цельный", "Разборный 1/2", "Разборный 3/4"], sortOrder: 50, groups: ["cues"] },
+  { key: "construction", name: "Конструкция", unit: "", type: "select", options: ["Цельный", "Разборный 1/2", "Разборный 3/4", "Трёхсоставной"], sortOrder: 50, groups: ["cues"] },
   // Кии
   { key: "shaft", name: "Шафт", unit: "", type: "select", options: ["Клён", "Граб", "Ясень", "Бук", "Карбон"], sortOrder: 52, groups: ["cues"] },
   {

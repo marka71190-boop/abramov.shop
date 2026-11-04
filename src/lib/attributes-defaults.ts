@@ -8,7 +8,7 @@ export const DEFAULT_ATTRIBUTES: { key: string; name: string; unit: string; type
   { key: "length", name: "Длина", unit: "см", type: "number", sortOrder: 20 },
   { key: "tip", name: "Диаметр наклейки", unit: "мм", type: "number", sortOrder: 30 },
   { key: "hardness", name: "Жёсткость", unit: "", type: "select", options: ["Мягкая", "Средняя", "Средне-жёсткая", "Жёсткая", "Очень жёсткая"], sortOrder: 40 },
-  { key: "construction", name: "Конструкция", unit: "", type: "select", options: ["Цельный", "Разборный 1/2", "Разборный 3/4"], sortOrder: 50 },
+  { key: "construction", name: "Конструкция", unit: "", type: "select", options: ["Цельный", "Разборный 1/2", "Разборный 3/4", "Трёхсоставной"], sortOrder: 50 },
   { key: "color", name: "Цвет", unit: "", type: "select", options: ["Синий", "Голубой", "Зелёный", "Серый", "Белый", "Чёрный", "Красный"], sortOrder: 60 },
   { key: "material", name: "Материал", unit: "", type: "text", sortOrder: 70 },
   { key: "country", name: "Страна", unit: "", type: "select", options: ["Россия", "Япония", "США", "Тайвань", "Китай", "Бельгия", "Италия", "Германия"], sortOrder: 80 },

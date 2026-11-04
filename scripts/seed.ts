@@ -240,6 +240,11 @@ async function main() {
     await db.insert(s.setting).values({ key: "attributes_pro_seeded", value: true }).onConflictDoNothing({ target: s.setting.key });
   }
 
+  // Конструкция кия: трёхсоставной (добавляем вариант, если владелец его ещё не завёл)
+  const construction = await db.query.attribute.findFirst({ where: eq(s.attribute.key, "construction") });
+  if (construction && construction.type === "select" && !construction.options.some((o) => /тр[её]хсостав/i.test(o)))
+    await db.update(s.attribute).set({ options: [...construction.options, "Трёхсоставной"] }).where(eq(s.attribute.id, construction.id));
+
   // Журнал: стартовые статьи — один раз, черновиками (владелец проверяет и публикует сам)
   const articlesSeeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "articles_seeded") });
   if (!articlesSeeded) {
