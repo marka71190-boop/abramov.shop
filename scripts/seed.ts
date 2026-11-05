@@ -224,6 +224,13 @@ async function main() {
   }
 
   await db.insert(s.setting).values({ key: "site", value: DEFAULT_SETTINGS }).onConflictDoNothing({ target: s.setting.key });
+  // Реквизиты банка для счетов: подставляем, если в настройках ещё пусто (правки владельца не трогаем)
+  {
+    const { SELLER_BANK } = await import("../src/lib/site");
+    const row = await db.query.setting.findFirst({ where: eq(s.setting.key, "site") });
+    const v = (row?.value ?? {}) as { b2b?: Record<string, unknown> };
+    if (row && !v.b2b?.account) await db.update(s.setting).set({ value: { ...v, b2b: { ...(v.b2b ?? {}), ...SELLER_BANK } } }).where(eq(s.setting.key, "site"));
+  }
   // Характеристики товаров: стартовый набор — один раз (дальше владелец правит в админке, удалённое не возвращаем)
   const seeded = await db.query.setting.findFirst({ where: eq(s.setting.key, "attributes_seeded") });
   if (!seeded) {

@@ -4267,32 +4267,28 @@ button.addr-card[aria-checked="true"] strong {
   color: #555;
   margin-top: 6px;
 }
-.invoice__title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-  border-bottom: 2px solid #111;
-  padding-bottom: 8px;
-}
 .invoice__title {
   font-size: 19px;
   font-weight: 700;
-  margin: 0;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  margin: 6px 0 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #111;
   font-family: var(--font-body);
 }
-.invoice__qr {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  font-size: 9.5px;
-  color: #555;
+.invoice__qrcell {
   width: 30mm;
   text-align: center;
+  vertical-align: middle !important;
+  font-size: 9.5px;
+  color: #333;
 }
 .invoice__qr svg {
   width: 26mm;
   height: 26mm;
+  display: block;
+  margin: 0 auto 2px;
 }
 .invoice__parties td {
   padding: 3px 0;
@@ -4309,8 +4305,29 @@ button.addr-card[aria-checked="true"] strong {
   text-align: left;
 }
 .invoice__items th {
-  background: #f1f1f1;
-  font-weight: 600;
+  font-weight: 700;
+  text-align: center;
+}
+.invoice__items {
+  border: 2px solid #111;
+}
+.invoice__colnums td {
+  padding: 0 6px !important;
+  font-size: 9px;
+  color: #888;
+  text-align: center !important;
+  border-top: 0 !important;
+}
+.invoice__sumrow td {
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+.invoice__terms {
+  display: grid;
+  gap: 2px;
+  font-size: 11.5px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #111;
 }
 .invoice .num {
   text-align: right;
@@ -4325,15 +4342,73 @@ button.addr-card[aria-checked="true"] strong {
   text-align: right;
 }
 .invoice__sign {
-  margin-top: 24px;
-  padding-top: 10px;
-  border-top: 2px solid #111;
+  position: relative;
+  margin-top: 18px;
+}
+.invoice__signrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.invoice__signcell {
+  position: relative;
+  display: block;
+  width: 50mm;
+  text-align: center;
+}
+.invoice__signcell .invoice__cap {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+}
+.invoice__signcell--wide {
+  width: 70mm;
+}
+.invoice__signimg {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  height: 16mm;
+  transform: translateX(-50%);
+  mix-blend-mode: multiply;
 }
 .invoice__line {
-  display: inline-block;
-  width: 50mm;
+  display: block;
+  width: 100%;
+  min-height: 16px;
   border-bottom: 1px solid #111;
-  margin: 0 8px;
+}
+.invoice__line--text {
+  text-align: center;
+}
+.invoice__mp {
+  position: relative;
+  margin: 18px 0 0 60mm;
+  min-height: 36mm;
+}
+.invoice__stamp {
+  position: absolute;
+  top: -6mm;
+  left: -6mm;
+  width: 40mm;
+  height: 40mm;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.sign-preview {
+  width: 120px;
+  height: 64px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--c-line-2);
+}
+.sign-preview--empty {
+  display: grid;
+  place-items: center;
+  color: #888;
+  font-size: 12px;
 }
 .invoice__warn {
   padding: 8px 12px;

@@ -70,6 +70,9 @@ export interface SiteSettings {
     account: string; // расчётный счёт
     corrAccount: string;
     vatNote: string; // «Без НДС» или «В т. ч. НДС 5 %»
+    phone: string; // телефон продавца в счёте
+    signatureUrl: string; // подпись предпринимателя (картинка) — в счёте
+    stampUrl: string; // печать — в счёте
   };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
@@ -147,6 +150,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     account: "",
     corrAccount: "",
     vatNote: "Без НДС",
+    phone: "",
+    signatureUrl: "",
+    stampUrl: "",
   },
   giftCards: {
     enabled: true,

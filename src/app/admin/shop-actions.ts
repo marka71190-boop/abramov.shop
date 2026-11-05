@@ -679,6 +679,9 @@ const B2bIn = z.object({
   account: z.string().trim().regex(/^(\d{20})?$/, "Расчётный счёт — 20 цифр"),
   corrAccount: z.string().trim().regex(/^(\d{20})?$/, "Корр. счёт — 20 цифр"),
   vatNote: z.string().trim().min(3).max(60),
+  phone: z.string().trim().max(40).default(""),
+  signatureUrl: z.string().trim().regex(/^(\/media\/[0-9a-f-]{36})?$/).default(""),
+  stampUrl: z.string().trim().regex(/^(\/media\/[0-9a-f-]{36})?$/).default(""),
 });
 
 export async function saveB2bSettings(_: ActionState, form: FormData): Promise<ActionState> {

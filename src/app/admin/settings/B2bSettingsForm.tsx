@@ -1,10 +1,51 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { uploadPhotos } from "@/components/admin/upload-photos";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import { saveB2bSettings } from "../shop-actions";
 
+/** Картинка для счёта: подпись или печать (лучше PNG на прозрачном фоне) */
+function ImageField({ name, label, value, onChange }: { name: string; label: string; value: string; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="field">
+      {label}
+      <input type="hidden" name={name} value={value} />
+      <div className="row" style={{ gap: 10, alignItems: "center" }}>
+        {value ? <img src={value} alt="" className="sign-preview" /> : <span className="sign-preview sign-preview--empty">нет</span>}
+        <label className="btn btn--line btn--sm">
+          {busy ? "Загружаем…" : value ? "Заменить" : "Загрузить"}
+          <input
+            type="file"
+            accept="image/*,.heic,.heif"
+            hidden
+            onChange={async (e) => {
+              if (!e.target.files?.length) return;
+              setBusy(true);
+              setErr(null);
+              const r = await uploadPhotos(e.target.files);
+              setBusy(false);
+              if (r.urls[0]) onChange(r.urls[0]);
+              else setErr(r.errors[0] ?? "Не удалось загрузить");
+            }}
+          />
+        </label>
+        {value && (
+          <button type="button" className="linklike small" onClick={() => onChange("")}>
+            Убрать
+          </button>
+        )}
+      </div>
+      {err && <span className="form-error small">{err}</span>}
+    </div>
+  );
+}
+
 export function B2bSettingsForm({ s }: { s: SiteSettings["b2b"] }) {
   const [state, action, pending] = useActionState(saveB2bSettings, {});
+  const [signature, setSignature] = useState(s.signatureUrl);
+  const [stamp, setStamp] = useState(s.stampUrl);
   return (
     <form action={action} className="panel stack" id="b2b">
       <h2 style={{ marginBottom: 0 }}>Опт и счета</h2>
@@ -53,6 +94,18 @@ export function B2bSettingsForm({ s }: { s: SiteSettings["b2b"] }) {
           Корр. счёт
           <input className="input" name="corrAccount" defaultValue={s.corrAccount} inputMode="numeric" maxLength={20} />
         </label>
+        <label className="field">
+          Телефон в счёте
+          <input className="input" name="phone" defaultValue={s.phone} placeholder="+7 900 000-00-00" maxLength={40} />
+        </label>
+      </div>
+      <h3 style={{ margin: "8px 0 0" }}>Подпись и печать в счёте</h3>
+      <p className="small muted" style={{ margin: 0 }}>
+        Сфотографируйте подпись и печать на белом листе или загрузите PNG на прозрачном фоне — они встанут в счёт рядом с «Предприниматель» и «М.П.».
+      </p>
+      <div className="form-grid">
+        <ImageField name="signatureUrl" label="Подпись" value={signature} onChange={setSignature} />
+        <ImageField name="stampUrl" label="Печать" value={stamp} onChange={setStamp} />
       </div>
       {state.error && <div className="form-error">{state.error}</div>}
       {state.ok && <div className="form-ok">{state.ok}</div>}
