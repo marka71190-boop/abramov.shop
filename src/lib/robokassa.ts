@@ -8,8 +8,9 @@
  *   ROBOKASSA_PASSWORD2  — Пароль #2 (подпись уведомления об оплате и проверка статуса)
  *   ROBOKASSA_HASH       — алгоритм подписи как в кабинете: md5 (по умолчанию), sha256, sha512…
  *   ROBOKASSA_TEST=1     — тестовый режим (тогда пароли — тестовые из кабинета)
- *   ROBOKASSA_SNO        — система налогообложения для чека (usn_income, usn_income_outcome, osn, patent…); пусто — как в кабинете
- *   ROBOKASSA_TAX        — НДС в чеке: none (по умолчанию), vat0, vat10, vat20…
+ *   ROBOKASSA_SNO        — система налогообложения для чека (usn_income, usn_income_outcome, osn, esn, patent); пусто — как в кабинете
+ *   ROBOKASSA_TAX        — НДС в чеке: none (по умолчанию, без НДС), vat5, vat7, vat10, vat22…
+ *   ROBOKASSA_PAYMENT_METHOD — признак расчёта: full_payment (по умолчанию) или full_prepayment
  *
  * В кабинете Робокассы → Технические настройки:
  *   Result URL  — https://abramov.shop/api/payments/robokassa/result  (метод POST)
@@ -46,17 +47,48 @@ function sameSig(a: string, b: string) {
 /** Копейки → «1234.50» */
 export const outSum = (kop: number) => (kop / 100).toFixed(2);
 
-/** Чек по 54-ФЗ для Робочеков (если фискализация включена в кабинете Робокассы) */
+/** Допустимые значения из документации Робокассы (docs.robokassa.ru/ru/fiscalization) */
+const SNO = new Set(["osn", "usn_income", "usn_income_outcome", "esn", "patent"]);
+const TAX = new Set(["none", "vat0", "vat10", "vat110", "vat20", "vat22", "vat120", "vat122", "vat5", "vat7", "vat105", "vat107"]);
+const METHOD = new Set(["full_prepayment", "full_payment"]);
+
+/** Значение из переменной окружения, только если Робокасса его примет; иначе — запасное (и пишем в лог) */
+function envOf(name: string, allowed: Set<string>, fallback: string | undefined) {
+  const v = process.env[name]?.trim().toLowerCase();
+  if (!v) return fallback;
+  if (allowed.has(v)) return v;
+  console.error(`[robokassa] ${name}=${v} — такого значения нет в документации, использую ${fallback ?? "настройку кабинета"}`);
+  return fallback;
+}
+
+/** Наименование без спецсимволов: Робокасса их не принимает (кавычки, &, <, >, переносы строк) */
+const cleanName = (n: string) =>
+  n
+    .replace(/[«»"'`\\&<>|]/g, "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 128) || "Товар";
+
+/**
+ * Чек по 54-ФЗ (Робочеки, облачная или своя касса — что подключено в кабинете Робокассы).
+ * Сумма строк = OutSum: строки уже со скидками и бонусами (receiptLines делит их до копейки).
+ *   ROBOKASSA_SNO — система налогообложения (пусто — как в кабинете)
+ *   ROBOKASSA_TAX — НДС у каждой позиции: none (без НДС), vat5, vat7, vat22…
+ *   ROBOKASSA_PAYMENT_METHOD — признак расчёта за товары: full_payment (по умолчанию) или full_prepayment
+ */
 function receiptJson(lines: ReceiptLine[]) {
-  const tax = (process.env.ROBOKASSA_TAX || "none").trim();
-  const sno = process.env.ROBOKASSA_SNO?.trim();
+  const sno = envOf("ROBOKASSA_SNO", SNO, undefined);
+  const tax = envOf("ROBOKASSA_TAX", TAX, "none")!;
+  const method = envOf("ROBOKASSA_PAYMENT_METHOD", METHOD, "full_payment")!;
   return JSON.stringify({
     ...(sno ? { sno } : {}),
     items: lines.slice(0, 100).map((l) => ({
-      name: l.name.replace(/["\\]/g, "").slice(0, 128),
+      name: cleanName(l.name),
       quantity: l.quantity,
       sum: Number(((l.price * l.quantity) / 100).toFixed(2)),
-      payment_method: l.mode === "advance" ? "advance" : "full_payment",
+      // Подарочный сертификат — аванс; товары и доставка — как в настройке
+      payment_method: l.mode === "advance" ? "advance" : method,
       payment_object: l.kind,
       tax,
     })),
