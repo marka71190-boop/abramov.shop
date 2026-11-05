@@ -44,6 +44,9 @@ function sameSig(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/** Как urlencode() в PHP — так кодирует Receipt официальный пример Робокассы (пробел → «+», !'()*~ — в %XX) */
+const phpUrlencode = (v: string) => encodeURIComponent(v).replace(/[!'()*~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`).replace(/%20/g, "+");
+
 /** Копейки → «1234.50» */
 export const outSum = (kop: number) => (kop / 100).toFixed(2);
 
@@ -101,8 +104,10 @@ function receiptJson(lines: ReceiptLine[]) {
  */
 export function paymentForm(p: { invId: number; amount: number; description: string; email: string; receipt: ReceiptLine[] }) {
   const sum = outSum(p.amount);
-  const receipt = encodeURIComponent(receiptJson(p.receipt));
+  const receipt = phpUrlencode(receiptJson(p.receipt));
   const signature = hash(`${login()}:${sum}:${p.invId}:${receipt}:${pass1()}`);
+  // Для разбора ошибок 29/«Оплата недоступна»: только несекретное — без паролей, почты и состава заказа
+  console.info(`[robokassa] счёт InvId=${p.invId} OutSum=${sum} login=${login()} test=${isTest() ? 1 : 0} hash=${(process.env.ROBOKASSA_HASH || "md5").toLowerCase()} pass1=${pass1() ? "задан" : "ПУСТО"}`);
   return {
     action: PAY_URL,
     fields: {
