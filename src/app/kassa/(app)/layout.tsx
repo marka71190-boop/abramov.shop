@@ -22,8 +22,10 @@ export default async function KassaLayout({ children }: { children: React.ReactN
         <div className="row small" style={{ gap: 14 }}>
           <span className="muted">{me.name}</span>
           {admin && <Link href="/admin">Админка</Link>}
-          <Link href="/">На сайт</Link>
-          <SignOutButton className="linklike">Выйти</SignOutButton>
+          {!me.isDevice && <Link href="/">На сайт</Link>}
+          <SignOutButton className="linklike" to={me.isDevice ? "/kassa/login" : "/"}>
+            Выйти
+          </SignOutButton>
         </div>
       </header>
       <main className="container club-app__main stack" style={{ gap: 16 }}>

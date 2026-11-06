@@ -41,6 +41,8 @@ export function getActiveBan(u: UserRow | null | undefined, now = new Date()): A
 export async function requireUser(next = "/account") {
   const u = await getViewer();
   if (!u) redirect(`/login?next=${encodeURIComponent(next)}`);
+  // Телефон кассы — только касса
+  if (u.isDevice) redirect("/kassa");
   return u;
 }
 
@@ -48,6 +50,7 @@ export async function requireUser(next = "/account") {
 export async function requireActiveUser() {
   const u = await getViewer();
   if (!u) throw new Error("Нужно войти в аккаунт");
+  if (u.isDevice) throw new Error("Это аккаунт кассы — заказы и кабинет на нём недоступны");
   if (getActiveBan(u)) throw new Error("Аккаунт заблокирован");
   return u;
 }
@@ -97,7 +100,9 @@ export async function requireAdmin(level: "MANAGER" | "OWNER" | "MONEY" = "MANAG
 /** Касса: кассир, менеджер или владелец (без действующего бана) */
 export async function requireCashier(next = "/kassa") {
   const u = await getViewer();
-  if (!u) redirect(`/login?next=${encodeURIComponent(next)}`);
+  if (!u) redirect(next === "/kassa" ? "/kassa/login" : `/login?next=${encodeURIComponent(next)}`);
+  // Отключённый телефон кассы — на страницу входа (сессии при отключении удаляются, это на всякий случай)
+  if (u.isDevice && getActiveBan(u)) redirect("/kassa/login?off=1");
   const admin = isAdmin(u);
   if (!admin && !(hasRole(u, "CASHIER") && !getActiveBan(u))) redirect("/");
   return { me: u, admin };

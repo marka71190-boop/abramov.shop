@@ -143,9 +143,16 @@ export async function shiftOpen(_: ShiftState, fd: FormData): Promise<ShiftState
     place = String(fd.get("place") ?? "").trim().slice(0, 120) || null;
     if (!place) return { error: "Выберите клуб или впишите, где продаёте" };
   }
+  // Общий телефон кассы: кто сегодня на смене — чтобы недостача была не «у телефона», а у человека
+  const staffName = String(fd.get("staffName") ?? "")
+    .replace(/[^\p{L}\s.'-]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  if (me.isDevice && staffName.length < 2) return { error: "Впишите, кто на смене — имя и фамилию" };
   try {
-    const shift = await openShift(me.id, { openingCash: opening, place, clubId });
-    await audit(me.id, "pos.shift_open", "pos_shift", shift.id, { opening, place });
+    const shift = await openShift(me.id, { openingCash: opening, place, clubId, staffName: me.isDevice ? staffName : null });
+    await audit(me.id, "pos.shift_open", "pos_shift", shift.id, { opening, place, staff: me.isDevice ? staffName : undefined });
     refresh();
     return { ok: "Смена открыта" };
   } catch (e) {

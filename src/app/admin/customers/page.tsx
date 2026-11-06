@@ -80,7 +80,9 @@ export default async function CustomersPage({ searchParams }: Props) {
                   <td>{u.tier}</td>
                   <td>{fmtDate(u.createdAt)}</td>
                   <td>
-                    {ban ? (
+                    {u.isDevice ? (
+                      <span className="pill">{ban ? "Телефон кассы · отключён" : "Телефон кассы"}</span>
+                    ) : ban ? (
                       <span className="pill pill--bad">Бан{ban.until ? ` до ${fmtDate(ban.until)}` : ""}</span>
                     ) : rolesOf(u).length ? (
                       <span className="pill pill--warn">{rolesLabel(u)}</span>

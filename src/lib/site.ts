@@ -38,4 +38,13 @@ export const SELLER_BANK = {
  * Такой адрес никуда не пишет — в кабинете клиента просим указать настоящий (для чеков и входа).
  */
 export const PLACEHOLDER_DOMAIN = "no-email.abramov.shop";
-export const isPlaceholderEmail = (email: string | null | undefined) => !!email?.toLowerCase().endsWith(`@${PLACEHOLDER_DOMAIN}`);
+
+/** Рабочие телефоны кассы: логин «kassa1» — это адрес kassa1@kassa.abramov.shop, писем на него нет */
+export const KASSA_DOMAIN = "kassa.abramov.shop";
+export const kassaEmail = (login: string) => (login.includes("@") ? login.trim().toLowerCase() : `${login.trim().toLowerCase()}@${KASSA_DOMAIN}`);
+export const kassaLogin = (email: string) => email.replace(`@${KASSA_DOMAIN}`, "");
+
+export const isPlaceholderEmail = (email: string | null | undefined) => {
+  const e = email?.toLowerCase() ?? "";
+  return e.endsWith(`@${PLACEHOLDER_DOMAIN}`) || e.endsWith(`@${KASSA_DOMAIN}`);
+};

@@ -16,10 +16,10 @@ export async function currentShift(sellerId: string) {
   return (await db.query.posShift.findFirst({ where: and(eq(s.posShift.sellerId, sellerId), eq(s.posShift.status, "OPEN")) })) ?? null;
 }
 
-export async function openShift(sellerId: string, p: { openingCash: number; place: string | null; clubId: string | null }) {
+export async function openShift(sellerId: string, p: { openingCash: number; place: string | null; clubId: string | null; staffName?: string | null }) {
   if (await currentShift(sellerId)) throw new ShiftError("Смена уже открыта");
   try {
-    const [row] = await db.insert(s.posShift).values({ sellerId, openingCash: p.openingCash, place: p.place, clubId: p.clubId }).returning();
+    const [row] = await db.insert(s.posShift).values({ sellerId, openingCash: p.openingCash, place: p.place, clubId: p.clubId, staffName: p.staffName ?? null }).returning();
     return row;
   } catch {
     // Две вкладки открыли смену одновременно — уникальный индекс пропустит только одну
@@ -61,7 +61,7 @@ export async function closeShift(shiftId: string, byId: string, counted: number,
   void import("@/lib/telegram")
     .then((m) =>
       m.notifyAdmins(
-        `🧾 <b>Смена закрыта</b>${seller?.name ? ` — ${esc(seller.name)}` : ""}${shift.place ? `, ${esc(shift.place)}` : ""}\n` +
+        `🧾 <b>Смена закрыта</b>${seller?.name ? ` — ${esc(seller.name)}` : ""}${shift.staffName ? ` (${esc(shift.staffName)})` : ""}${shift.place ? `, ${esc(shift.place)}` : ""}\n` +
           `Продажи: ${t.count} чек., наличные ${rub(t.cash)}, СБП и карта ${rub(t.other)}\n` +
           `В кассе должно быть ${rub(expected)}, пересчитали ${rub(counted)}\n` +
           (diff === 0 ? "✅ Всё сходится" : diff < 0 ? `⚠️ <b>Недостача ${rub(-diff)}</b>` : `⚠️ Излишек ${rub(diff)}`) +

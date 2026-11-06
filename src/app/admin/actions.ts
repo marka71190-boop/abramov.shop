@@ -121,6 +121,8 @@ export async function setRoles(
   const { splitRoles, STAFF_ROLES, ROLE_LABELS, rolesOf } = await import("@/lib/roles");
   const list = (Array.isArray(roles) ? roles : []).map(String).filter((r) => (STAFF_ROLES as string[]).includes(r));
   if (userId === me.id && !list.includes("OWNER")) return { error: "Нельзя снять права владельца с самого себя" };
+  const target = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { isDevice: true } });
+  if (target?.isDevice) return { error: "Это телефон кассы — его клуб и пароль меняются в разделе «Касса» → «Телефоны кассы»" };
   const { role, extraRoles } = splitRoles(list);
   const all = [role, ...extraRoles];
   let club: string | null = null;

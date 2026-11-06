@@ -74,6 +74,7 @@ const PlaceIn = QuoteIn.extend({
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
   const user = await getViewer();
   if (!user) return { error: "Войдите в аккаунт, чтобы оформить заказ" };
+  if (user.isDevice) return { error: "Это аккаунт кассы — заказы с него не оформляются" };
   if (getActiveBan(user)) return { error: "Аккаунт заблокирован" };
   const settings = await getSettings();
   if (settings.pdPause && !isAdmin(user)) return { error: settings.pdPauseMessage };

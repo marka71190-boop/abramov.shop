@@ -379,6 +379,13 @@
       "when": 1793996852764,
       "tag": "0053_tin_customs",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794003776172,
+      "tag": "0054_kassa_devices",
+      "breakpoints": true
     }
   ]
 }

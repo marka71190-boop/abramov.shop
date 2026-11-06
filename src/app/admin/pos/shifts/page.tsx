@@ -84,7 +84,14 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
                     <div className="muted">{sh.closedAt ? `до ${fmtDateTime(sh.closedAt).slice(-5)}` : <span className="pill pill--warn">открыта</span>}</div>
                   </td>
                   <td className="small">
-                    {seller ?? "—"}
+                    {sh.staffName ? (
+                      <>
+                        <b>{sh.staffName}</b>
+                        <div className="muted">{seller ?? "—"}</div>
+                      </>
+                    ) : (
+                      (seller ?? "—")
+                    )}
                     {sh.place && <div className="muted">{sh.place}</div>}
                     {sh.note && <div className="muted">«{sh.note}»</div>}
                   </td>

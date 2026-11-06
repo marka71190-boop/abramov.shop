@@ -72,6 +72,7 @@ export const user = pgTable(
     adminSections: text("admin_sections").array(), // менеджер: какие разделы админки видит; пусто — все
     clubIds: text("club_ids").array().default(sql`'{}'::text[]`).notNull(), // кассир: в каких клубах работает (пусто — где угодно)
     extraRoles: text("extra_roles").array().default(sql`'{}'::text[]`).notNull(), // дополнительные роли (тренер + кассир…), главная — в role
+    isDevice: boolean("is_device").default(false).notNull(), // рабочий телефон кассы: только касса своего клуба, без заказов и кабинета
     organizationId: text("organization_id"), // сотрудник организации-оптовика
     country: text("country").default("RU").notNull(), // куда доставлять: код страны; XX — страны нет в списке СДЭК, вписал сам
     countryName: text("country_name"), // название страны, если вписал сам
@@ -1578,6 +1579,7 @@ export const posShift = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     place: text("place"),
+    staffName: text("staff_name"), // кто на смене — для общего телефона кассы
     clubId: text("club_id"), // клуб смены (пусто — турнир или другое место)
     status: text("status").default("OPEN").notNull(), // OPEN | CLOSED
     openingCash: integer("opening_cash").default(0).notNull(), // размен на начало, копейки

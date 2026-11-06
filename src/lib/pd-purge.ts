@@ -129,9 +129,21 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
     }
     await tx.update(s.auditLog).set({ details: null }).where(eq(s.auditLog.action, "consent.export"));
 
+    // Касса: продажи и смены удаляемых сотрудников остаются в учёте — переносим на владельца,
+    // имена на сменах стираем. Телефоны кассы не удаляем: персональных данных у них нет
+    const staffGone = and(ne(s.user.id, keepId), eq(s.user.isDevice, false));
+    const gone = (await tx.select({ id: s.user.id }).from(s.user).where(staffGone)).map((r) => r.id);
+    if (gone.length) {
+      await tx.update(s.posSale).set({ sellerId: keepId }).where(inArray(s.posSale.sellerId, gone));
+      // Открытые смены закрываем (у владельца может быть своя открытая — одна на продавца)
+      await tx.update(s.posShift).set({ status: "CLOSED", closedAt: new Date(), note: "Закрыта при удалении персональных данных" }).where(and(inArray(s.posShift.sellerId, gone), eq(s.posShift.status, "OPEN")));
+      await tx.update(s.posShift).set({ sellerId: keepId }).where(inArray(s.posShift.sellerId, gone));
+    }
+    await tx.update(s.posShift).set({ staffName: null });
+
     // Аккаунты (каскадом уходят сессии, входы, бонусы, адреса, избранное, отзывы, корзины, рассылки)
     const reviews = await tx.$count(s.review, ne(s.review.userId, keepId));
-    const users = (await tx.delete(s.user).where(ne(s.user.id, keepId)).returning({ id: s.user.id })).length;
+    const users = (await tx.delete(s.user).where(staffGone).returning({ id: s.user.id })).length;
     await tx.update(s.user).set({ referredById: null }).where(eq(s.user.id, keepId));
 
     if (mediaIds.size) await tx.delete(s.media).where(inArray(s.media.id, [...mediaIds]));

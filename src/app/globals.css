@@ -4375,6 +4375,49 @@ button.addr-card[aria-checked="true"] strong {
   }
 }
 
+/* ---- Касса: вход телефона и выдача логина */
+.kassa-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--c-bg);
+}
+.kassa-login__box {
+  width: 100%;
+  max-width: 380px;
+}
+.kassa-creds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--c-gold);
+  border-radius: 10px;
+}
+.kassa-creds__qr {
+  width: 132px;
+  height: 132px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 6px;
+  flex: none;
+}
+.kassa-creds__qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.kassa-creds__val {
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+.kassa-creds > .stack {
+  flex: 1 1 220px;
+}
+
 /* ---- Инвойс для таможни (Почта России, заказы за рубеж) */
 .customs__sub {
   font-size: 13px;

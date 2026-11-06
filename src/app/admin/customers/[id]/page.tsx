@@ -60,8 +60,13 @@ export default async function CustomerPage({ params }: Props) {
           <div>
             <span className="muted">Реферальный код:</span> {u.referralCode ?? "—"}
           </div>
-          {me.role === "OWNER" && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
-          {me.role === "OWNER" && (
+          {u.isDevice && (
+            <div className="notice notice--muted" style={{ margin: 0 }}>
+              Это рабочий телефон кассы — клуб, пароль и отключение в разделе <Link href="/admin/pos/devices">«Телефоны кассы»</Link>.
+            </div>
+          )}
+          {me.role === "OWNER" && !u.isDevice && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
+          {me.role === "OWNER" && !u.isDevice && (
             <RoleForm
               userId={u.id}
               roles={rolesOf(u)}

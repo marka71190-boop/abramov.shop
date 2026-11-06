@@ -67,9 +67,10 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: 0 }}>Касса</h1>
         {admin && (
-          <Link href="/admin/pos/shifts" className="small">
-            Смены и сверка наличных →
-          </Link>
+          <span className="row small" style={{ gap: 16 }}>
+            {me.role === "OWNER" && <Link href="/admin/pos/devices">Телефоны кассы →</Link>}
+            <Link href="/admin/pos/shifts">Смены и сверка наличных →</Link>
+          </span>
         )}
       </div>
       <p className="muted" style={{ margin: 0 }}>
@@ -89,11 +90,13 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
               places={places}
               clubs={sellerClubs}
               allowOther={!fixed}
+              askName={me.isDevice}
               shift={
                 shift && shiftT
                   ? {
                       openedAt: shift.openedAt.toISOString(),
                       place: shift.place,
+                      staffName: shift.staffName,
                       opening: shift.openingCash,
                       cash: shiftT.cash,
                       other: shiftT.other,

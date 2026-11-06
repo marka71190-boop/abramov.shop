@@ -39,6 +39,9 @@ export async function grantWelcomeBonus(userId: string) {
   const settings = await getSettings();
   const amount = settings.loyalty.welcomeBonus;
   if (amount <= 0) return 0;
+  // Телефону кассы бонусы не положены
+  const who = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { isDevice: true } });
+  if (!who || who.isDevice) return 0;
   const days = settings.loyalty.expiryDays || null;
   return db.transaction(async (tx) => {
     // Блокировка на пользователя: два одновременных вызова не начислят дважды

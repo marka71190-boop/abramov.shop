@@ -3,7 +3,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { unsubscribePush } from "@/components/pwa/pwa";
 
-export function SignOutButton({ className, children }: { className?: string; children: React.ReactNode }) {
+export function SignOutButton({ className, children, to = "/" }: { className?: string; children: React.ReactNode; to?: string }) {
   const [busy, setBusy] = useState(false);
   return (
     <button
@@ -15,7 +15,7 @@ export function SignOutButton({ className, children }: { className?: string; chi
         // Уведомления этого устройства — только для вошедшего: после выхода чужие заказы сюда не приходят
         await unsubscribePush().catch(() => {});
         await authClient.signOut();
-        window.location.href = "/";
+        window.location.href = to;
       }}
     >
       {children}

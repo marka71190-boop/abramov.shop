@@ -10,6 +10,7 @@ type Line = { o: PickOption; qty: number; price: string };
 const fmt = (kop: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(kop / 100) + " ₽";
 const toKop = (v: string) => Math.round(Number(v.replace(",", ".").replace(/\s/g, "")) * 100);
 const PLACE_KEY = "pos-place";
+const STAFF_KEY = "pos-staff";
 
 export function PosTerminal({
   options,
@@ -287,11 +288,13 @@ export function ShiftPanel({
   places,
   clubs,
   allowOther,
+  askName = false,
 }: {
-  shift: { openedAt: string; place: string | null; opening: number; cash: number; other: number; count: number; pending: number } | null;
+  shift: { openedAt: string; place: string | null; staffName?: string | null; opening: number; cash: number; other: number; count: number; pending: number } | null;
   places: string[]; // турниры и другие места, где уже продавали
   clubs: { id: string; title: string }[]; // клубы, где может работать продавец
   allowOther: boolean; // можно ли продавать не в клубе (турнир)
+  askName?: boolean; // общий телефон кассы: спросить, кто на смене
 }) {
   const router = useRouter();
   const [openState, openAction, opening] = useActionState<ShiftState, FormData>(async (s, fd) => {
@@ -308,6 +311,13 @@ export function ShiftPanel({
   const [counted, setCounted] = useState("");
   const [place, setPlace] = useState("");
   const [clubId, setClubId] = useState(clubs.length === 1 ? clubs[0].id : "");
+  const [staffName, setStaffName] = useState("");
+  useEffect(() => {
+    if (!askName) return;
+    try {
+      setStaffName(localStorage.getItem(STAFF_KEY) ?? "");
+    } catch {}
+  }, [askName]);
   // Клуб запоминаем на этом телефоне
   useEffect(() => {
     try {
@@ -334,6 +344,26 @@ export function ShiftPanel({
         </div>
         {closeState.ok && <div className="form-ok">{closeState.ok}</div>}
         <div className="pos-grid">
+          {askName && (
+            <label className="field" style={{ margin: 0 }}>
+              Кто на смене
+              <input
+                className="input"
+                name="staffName"
+                value={staffName}
+                onChange={(e) => {
+                  setStaffName(e.target.value);
+                  try {
+                    localStorage.setItem(STAFF_KEY, e.target.value);
+                  } catch {}
+                }}
+                placeholder="Имя и фамилия"
+                autoComplete="name"
+                maxLength={60}
+                required
+              />
+            </label>
+          )}
           <label className="field" style={{ margin: 0 }}>
             Размен в кассе, ₽
             <input className="input" name="opening" inputMode="decimal" placeholder="0" />
@@ -403,6 +433,7 @@ export function ShiftPanel({
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div className="small">
           <strong>Смена с {time}</strong>
+          {shift.staffName ? ` · ${shift.staffName}` : ""}
           {shift.place ? ` · ${shift.place}` : ""}
           <div className="muted">
             {shift.count} чек. · наличные {fmt(shift.cash)} · СБП и карта {fmt(shift.other)} · в кассе должно быть <b>{fmt(expected)}</b>

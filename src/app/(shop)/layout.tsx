@@ -8,6 +8,7 @@ import { Analytics } from "@/components/analytics/Analytics";
 import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { TopStrip } from "@/components/banners/TopStrip";
 import { GuestBar } from "@/components/GuestBar";
 import { GUEST_BAR_COOKIE } from "@/lib/guest-bar";
@@ -28,6 +29,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
   const [viewer, settings] = await Promise.all([getViewer(), getSettings()]);
+  // Рабочий телефон кассы: магазин, кабинет и заказы ему не нужны — сразу в кассу
+  if (viewer?.isDevice) redirect("/kassa");
   const admin = isAdmin(viewer);
 
   // Режим техработ: покупатели видят заглушку, админы — сайт с предупреждением
