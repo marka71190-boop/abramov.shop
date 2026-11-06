@@ -17,7 +17,7 @@ function days(n: number) {
 }
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
-  await requireAdmin("OWNER");
+  await requireAdmin("MONEY");
   const sp = await searchParams;
   const period = PERIODS.includes(Number(sp.days)) ? Number(sp.days) : 30;
   const list = days(period);

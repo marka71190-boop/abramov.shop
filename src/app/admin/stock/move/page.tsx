@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { variantOptions } from "@/lib/stock-moves";
-import { requireAdmin } from "@/lib/viewer";
+import { redirect } from "next/navigation";
+import { isDirector, requireAdmin } from "@/lib/viewer";
 import { MoveForm } from "./MoveForm";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ const KINDS = [
 ] as const;
 
 export default async function StockMovePage({ searchParams }: { searchParams: Promise<{ t?: string }> }) {
-  await requireAdmin();
+  const me = await requireAdmin();
+  if (isDirector(me)) redirect("/admin/stock");
   const { t } = await searchParams;
   const kind = KINDS.find((k) => k.key === t) ?? KINDS[0];
   const options = await variantOptions();

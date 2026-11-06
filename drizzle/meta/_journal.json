@@ -323,6 +323,13 @@
       "when": 1793964997259,
       "tag": "0045_cashier_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793965677271,
+      "tag": "0046_director",
+      "breakpoints": true
     }
   ]
 }

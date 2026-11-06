@@ -74,7 +74,7 @@ export function BonusForm({ userId }: { userId: string }) {
   );
 }
 
-type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER";
+type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER" | "DIRECTOR";
 
 export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role: Role; clubId: string | null; clubs: { id: string; name: string; city: string }[] }) {
   const [pending, start] = useTransition();
@@ -114,6 +114,7 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
           <option value="CLUB">Администратор клуба (только выдача и приём киёв)</option>
           <option value="CASHIER">Кассир (только касса: продажи в клубе и на турнирах)</option>
           <option value="MANAGER">Менеджер (доступ в админку)</option>
+          <option value="DIRECTOR">Руководитель (только смотрит: финансы, заказы, склад)</option>
           <option value="OWNER">Владелец (всё, включая настройки)</option>
         </select>
       </label>
@@ -141,6 +142,12 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
             Уведомления — в Telegram (подключает в личном кабинете) или на почту.
           </span>
         </label>
+      )}
+      {r === "DIRECTOR" && (
+        <span className="muted small">
+          Руководитель видит выручку и прибыль, аналитику, заказы, продажи кассы, склад и возвраты — без кнопок изменения: товары, цены, заказы и настройки не трогает. В Telegram — отчёты с прибылью и вечерняя
+          сводка. Какие из этих разделов ему видны — галочками ниже.
+        </span>
       )}
       {r === "CASHIER" && (
         <span className="muted small">
@@ -171,7 +178,7 @@ export function SectionsForm({ userId, value, groups }: { userId: string; value:
     <div className="stack" style={{ gap: 10, marginTop: 8 }}>
       <div>
         <strong>Разделы админки</strong>
-        <div className="muted small">Менеджер видит в меню и может открыть только отмеченное. «Обзор» открыт всегда, разделы владельца (финансы, настройки…) менеджеру не выдаются.</div>
+        <div className="muted small">Сотрудник видит в меню и может открыть только отмеченное. «Обзор» открыт всегда, настройки и управление сайтом остаются только у владельца.</div>
       </div>
       <div className="sections-grid">
         {groups.map((g) => (

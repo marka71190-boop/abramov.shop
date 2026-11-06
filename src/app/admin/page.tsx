@@ -6,13 +6,13 @@ import { openReturnsCount } from "@/lib/returns";
 import { lowStockCount } from "@/lib/low-stock";
 import { getSettings } from "@/lib/settings";
 import { canSee, sectionOf } from "@/lib/admin-sections";
-import { requireAdmin } from "@/lib/viewer";
+import { isDirector, requireAdmin, seesMoney } from "@/lib/viewer";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { pushPublicKey } from "@/lib/push";
 
-export default async function AdminHome({ searchParams }: { searchParams: Promise<{ closed?: string }> }) {
+export default async function AdminHome({ searchParams }: { searchParams: Promise<{ closed?: string; readonly?: string }> }) {
   const me = await requireAdmin();
-  const { closed } = await searchParams;
+  const { closed, readonly } = await searchParams;
   // Плитки только тех разделов, что открыты этому сотруднику
   const open = (href: string) => {
     const item = sectionOf(href);
@@ -48,7 +48,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
     { label: "Отправить", value: num(toShip), href: "/admin/orders?status=PAID" },
     { label: "Оплачено за сутки", value: num(paidToday), href: "/admin/orders" },
     // Выручку видит только владелец
-    ...(owner ? [{ label: "Выручка за 30 дней", value: rub(revenue.sum), href: "/admin/analytics" }] : []),
+    ...(seesMoney(me) ? [{ label: "Выручка за 30 дней", value: rub(revenue.sum), href: "/admin/analytics" }] : []),
     { label: "Ждут оплату", value: num(awaiting), href: "/admin/orders?status=AWAITING_PAYMENT" },
     { label: "Заявки на возврат", value: num(returnsOpen), href: "/admin/returns" },
     { label: "Заканчивается товаров", value: num(lowStock), href: "/admin/stock?f=low" },
@@ -66,6 +66,12 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   return (
     <>
       <h1>Обзор</h1>
+      {isDirector(me) && (
+        <div className="notice notice--muted" style={{ margin: 0 }}>
+          {readonly ? "Руководитель только смотрит отчёты — менять данные может владелец или менеджер. " : "Режим руководителя: отчёты без кнопок изменения. "}
+          Главное — в <Link href="/admin/finance">Финансах</Link>: выручка и прибыль за любой период.
+        </div>
+      )}
       {closed && <div className="form-error">Этот раздел вам не открыт. Если он нужен для работы — попросите владельца добавить его в вашей карточке сотрудника.</div>}
       {pushPublicKey() && (
         <details className="panel" style={{ marginBottom: 16 }}>

@@ -107,10 +107,10 @@ export async function adjustBonus(_: ActionState, form: FormData): Promise<Actio
   return { ok: `Готово. Баланс: ${res.balance} бонусов` };
 }
 
-export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER", clubId?: string | null) {
+export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER" | "DIRECTOR", clubId?: string | null) {
   const me = await requireAdmin("OWNER");
   if (userId === me.id && role !== "OWNER") throw new Error("Нельзя снять права владельца с самого себя");
-  if (!["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER"].includes(role)) throw new Error("Неизвестная роль");
+  if (!["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER", "DIRECTOR"].includes(role)) throw new Error("Неизвестная роль");
   let club: string | null = null;
   if (role === "CLUB") {
     const c = clubId ? await db.query.club.findFirst({ where: eq(s.club.id, clubId), columns: { id: true } }) : null;
@@ -119,7 +119,7 @@ export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OW
   }
   await db
     .update(s.user)
-    .set({ role, clubId: club, ...(role === "MANAGER" ? {} : { adminSections: null }) })
+    .set({ role, clubId: club, adminSections: null })
     .where(eq(s.user.id, userId));
   await audit(me.id, "user.role", "user", userId, { role, clubId: club });
   if (role === "COACH") {
@@ -142,16 +142,16 @@ export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OW
 /** Какие разделы админки видит менеджер. Пустой выбор — все разделы менеджера */
 export async function setAdminSections(userId: string, keys: string[]): Promise<{ ok?: string; error?: string }> {
   const me = await requireAdmin("OWNER");
-  const { MANAGER_ITEMS } = await import("@/lib/admin-sections");
-  const allowed = new Set(MANAGER_ITEMS.map((i) => i.key));
-  const clean = [...new Set((Array.isArray(keys) ? keys : []).map(String))].filter((k) => allowed.has(k));
+  const { pickableItems } = await import("@/lib/admin-sections");
   const u = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { role: true } });
-  if (u?.role !== "MANAGER") return { error: "Разделы выбираются только менеджеру" };
+  const allowed = new Set(pickableItems(u?.role ?? "").map((i) => i.key));
+  if (!allowed.size) return { error: "Разделы выбираются только менеджеру и руководителю" };
+  const clean = [...new Set((Array.isArray(keys) ? keys : []).map(String))].filter((k) => allowed.has(k));
   const value = clean.length && clean.length < allowed.size ? clean : null;
   await db.update(s.user).set({ adminSections: value }).where(eq(s.user.id, userId));
   await audit(me.id, "user.admin_sections", "user", userId, { sections: value ?? "все" });
   revalidatePath(`/admin/customers/${userId}`);
-  return { ok: value ? `Открыто разделов: ${value.length}` : "Открыты все разделы менеджера" };
+  return { ok: value ? `Открыто разделов: ${value.length}` : "Открыты все разделы" };
 }
 
 // ---------------- Видимость: страницы, категории, товары ----------------

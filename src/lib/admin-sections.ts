@@ -103,8 +103,16 @@ export const ALL_ITEMS = ADMIN_GROUPS.flatMap((g) => g.items);
 /** Разделы, которые можно выдать менеджеру (галочками в его карточке) */
 export const MANAGER_ITEMS = ALL_ITEMS.filter((i) => !i.owner && !i.always);
 
+/** Руководитель: только смотрит самое нужное — деньги, заказы, склад. Ничего не меняет */
+export const DIRECTOR_KEYS = ["finance", "analytics", "orders", "pos", "stock", "returns"];
+export const DIRECTOR_ITEMS = ALL_ITEMS.filter((i) => DIRECTOR_KEYS.includes(i.key));
+
+/** Кому выбирают разделы галочками и из какого списка */
+export const pickableItems = (role: string) => (role === "DIRECTOR" ? DIRECTOR_ITEMS : role === "MANAGER" ? MANAGER_ITEMS : []);
+
 /** Какой раздел открыт по пути страницы: самый длинный подходящий href */
-export function sectionOf(path: string): AdminItem | null {
+export function sectionOf(rawPath: string): AdminItem | null {
+  const path = rawPath.split(/[?#]/)[0];
   let best: AdminItem | null = null;
   for (const i of ALL_ITEMS) {
     const hit = i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`);
@@ -119,6 +127,7 @@ export function sectionOf(path: string): AdminItem | null {
  */
 export function canSee(role: string, sections: string[] | null | undefined, item: AdminItem) {
   if (role === "OWNER") return true;
+  if (role === "DIRECTOR") return !!item.always || (DIRECTOR_KEYS.includes(item.key) && (!sections?.length || sections.includes(item.key)));
   if (role !== "MANAGER") return false;
   if (item.owner) return false;
   if (item.always || !sections?.length) return true;

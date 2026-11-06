@@ -138,7 +138,14 @@ async function setAdminCommands(onlyChat?: string) {
     const { ADMIN_COMMANDS } = await import("@/lib/finance-bot");
     const chats = onlyChat
       ? [onlyChat]
-      : (await db.select({ chatId: s.user.telegramChatId }).from(s.user).where(staffWithTelegram())).map((r) => r.chatId).filter((c): c is string => !!c);
+      : (
+          await db
+            .select({ chatId: s.user.telegramChatId })
+            .from(s.user)
+            .where(and(inArray(s.user.role, ["OWNER", "MANAGER", "DIRECTOR"]), isNotNull(s.user.telegramChatId)))
+        )
+          .map((r) => r.chatId)
+          .filter((c): c is string => !!c);
     for (const chat_id of chats) await call("setMyCommands", { commands: ADMIN_COMMANDS, scope: { type: "chat", chat_id } }).catch(() => {});
   } catch (e) {
     console.error("[telegram] команды админов:", e instanceof Error ? e.message : e);
@@ -200,13 +207,14 @@ export async function handleUpdate(u: TgUpdate) {
       const user = await linkByCode(code, chatId);
       if (user) {
         const admin = user.role === "OWNER" || user.role === "MANAGER";
-        if (admin) void setAdminCommands(chatId);
+        if (admin || user.role === "DIRECTOR") void setAdminCommands(chatId);
         const clubStaff = user.role === "CLUB";
         return send(
           chatId,
           `Готово${callNameOf(user) ? `, ${esc(callNameOf(user))}` : ""}! Telegram привязан к аккаунту Abramov Shop.\n\n` +
             `Сюда придут оплата, трек-номер СДЭК и вручение заказа, а ещё начисление бонусов.` +
             (admin ? `\n\n<b>Вы админ</b> — сюда же будут приходить новые оплаченные заказы, а по командам — выручка и склад.` : "") +
+            (user.role === "DIRECTOR" ? `\n\n<b>Вы руководитель</b> — команды /today, /week, /month, /stock покажут выручку, прибыль и склад, а вечером придёт сводка за день.` : "") +
             (clubStaff ? `\n\n<b>Вы администратор клуба</b> — сюда будут приходить заказы на выдачу в вашем клубе и кии для мастерской.` : "") +
             `\n\n/orders — мои заказы\n/bonus — мои бонусы`,
         );
@@ -230,7 +238,7 @@ export async function handleUpdate(u: TgUpdate) {
   }
 
   // Отчёты для владельца и менеджеров (без персональных данных покупателей)
-  const staff = (user.role === "OWNER" || user.role === "MANAGER") && !(user.bannedAt && (!user.bannedUntil || user.bannedUntil > new Date()));
+  const staff = (user.role === "OWNER" || user.role === "MANAGER" || user.role === "DIRECTOR") && !(user.bannedAt && (!user.bannedUntil || user.bannedUntil > new Date()));
   if (staff && text.startsWith("/")) {
     const { adminCommand } = await import("@/lib/finance-bot");
     const r = await adminCommand(user.role, text);

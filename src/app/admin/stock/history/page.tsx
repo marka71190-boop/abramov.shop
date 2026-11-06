@@ -3,12 +3,12 @@ import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { fmtDateTime, rub } from "@/lib/format";
 import { MOVE_TYPES } from "@/lib/stock-moves";
-import { requireAdmin } from "@/lib/viewer";
+import { isDirector, requireAdmin } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
 export default async function StockHistoryPage({ searchParams }: { searchParams: Promise<{ t?: string; q?: string; days?: string }> }) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const { t = "", q = "", days = "90" } = await searchParams;
   const since = new Date(Date.now() - Math.min(3650, Math.max(1, Number(days) || 90)) * 86400_000);
   const rows = await db
@@ -28,7 +28,7 @@ export default async function StockHistoryPage({ searchParams }: { searchParams:
   return (
     <>
       <h1>Журнал движений товара</h1>
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row" style={{ gap: 6, display: isDirector(me) ? "none" : undefined }}>
         <Link href="/admin/stock/move?t=RECEIPT" className="btn btn--sm btn--gold">
           + Приход
         </Link>

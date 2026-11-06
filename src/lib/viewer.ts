@@ -51,6 +51,15 @@ export async function requireActiveUser() {
   return u;
 }
 
+/** Руководитель: смотрит отчёты в админке, ничего не меняет */
+export function isDirector(u: (Pick<UserRow, "role"> & Partial<Pick<UserRow, "bannedAt" | "bannedUntil">>) | null | undefined) {
+  if (u?.role !== "DIRECTOR") return false;
+  return !u.bannedAt || (!!u.bannedUntil && u.bannedUntil <= new Date());
+}
+
+/** Видит деньги: выручку, прибыль, себестоимость */
+export const seesMoney = (u: Pick<UserRow, "role">) => u.role === "OWNER" || u.role === "DIRECTOR";
+
 /** Открыт ли менеджеру раздел админки (владелец выбирает разделы в карточке сотрудника) */
 export function hasSection(u: Pick<UserRow, "role" | "adminSections">, key: string) {
   const item = ALL_ITEMS.find((i) => i.key === key);
@@ -61,10 +70,20 @@ export function hasSection(u: Pick<UserRow, "role" | "adminSections">, key: stri
  * Для админки. Владелец — всё, менеджер — всё, кроме настроек и выдачи ролей,
  * а если владелец выбрал ему разделы — только их.
  */
-export async function requireAdmin(level: "MANAGER" | "OWNER" = "MANAGER") {
+export async function requireAdmin(level: "MANAGER" | "OWNER" | "MONEY" = "MANAGER") {
   const u = await getViewer();
   if (!u) redirect("/login?next=/admin");
-  if (!isAdmin(u) || (level === "OWNER" && u.role !== "OWNER")) redirect("/");
+  if (isDirector(u)) {
+    // Руководитель: только просмотр страниц админки. Любое действие (кнопка, форма) и запросы вне админки — нельзя
+    const h = await headers();
+    const path = h.get("x-admin-path");
+    if (level === "OWNER" || h.get("next-action") || !path) redirect("/admin?readonly=1");
+    const item = sectionOf(path);
+    if (item && !canSee(u.role, u.adminSections, item)) redirect("/admin?closed=1");
+    return u;
+  }
+  // MONEY — финансы и аналитика: владелец (и руководитель — выше)
+  if (!isAdmin(u) || ((level === "OWNER" || level === "MONEY") && u.role !== "OWNER")) redirect("/");
   if (u.role === "MANAGER" && u.adminSections?.length) {
     // Путь страницы передаёт src/proxy.ts; вне админки (API, кабинеты) заголовка нет
     const path = (await headers()).get("x-admin-path");

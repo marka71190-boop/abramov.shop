@@ -45,7 +45,8 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 // CLUB — администратор клуба: видит только выдачу заказов и приём киёв своего клуба
 // CASHIER — кассир: видит только кассу (/kassa)
-export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER"]);
+// DIRECTOR — руководитель: смотрит отчёты (финансы, аналитика, заказы, склад), ничего не меняет
+export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER", "DIRECTOR"]);
 export const tierEnum = pgEnum("loyalty_tier", ["SILVER", "GOLD", "BLACK"]);
 
 export const user = pgTable(

@@ -19,7 +19,7 @@ import { Logo } from "@/components/Logo";
 import { db, schema as s } from "@/db";
 import { getPublicCategories } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
-import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
+import { getActiveBan, getViewer, isAdmin, isDirector } from "@/lib/viewer";
 import { publicWhere } from "@/lib/visibility";
 import { and } from "drizzle-orm";
 
@@ -92,7 +92,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       <div className="ban-shell" inert={ban ? true : undefined}>
         {stripItems.length > 0 && <TopStrip items={stripItems} />}
         {!viewer && !settings.pdPause && jar.get(GUEST_BAR_COOKIE)?.value !== "0" && <GuestBar welcome={settings.loyalty.welcomeBonus} />}
-        <Header signedIn={!!viewer} admin={admin} club={viewer?.role === "CLUB"} coach={viewer?.role === "COACH"} cashier={viewer?.role === "CASHIER"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
+        <Header signedIn={!!viewer} admin={admin || isDirector(viewer)} club={viewer?.role === "CLUB"} coach={viewer?.role === "COACH"} cashier={viewer?.role === "CASHIER"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>

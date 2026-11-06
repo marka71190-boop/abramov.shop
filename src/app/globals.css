@@ -1369,7 +1369,7 @@ h3 {
   position: sticky;
   top: 0;
   align-self: flex-start;
-  max-height: 100vh;
+  height: 100vh;
   overflow-y: auto;
 }
 .admin-nav {
@@ -1442,7 +1442,7 @@ h3 {
     position: sticky;
     z-index: 30;
     flex: 1 1 100%;
-    max-height: none;
+    height: auto;
     overflow: visible;
     padding: 0;
     border-right: 0;

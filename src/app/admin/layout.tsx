@@ -39,7 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ADMIN
           </span>
         </Link>
-        <AdminNav role={me.role} sections={me.role === "MANAGER" ? (me.adminSections ?? null) : null} badges={await badges()} />
+        <AdminNav role={me.role} sections={me.role === "OWNER" ? null : (me.adminSections ?? null)} badges={await badges()} />
       </nav>
       <main className="admin__main">{children}</main>
     </div>

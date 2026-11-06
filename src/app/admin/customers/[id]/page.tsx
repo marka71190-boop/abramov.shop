@@ -1,4 +1,4 @@
-import { ADMIN_GROUPS, MANAGER_ITEMS } from "@/lib/admin-sections";
+import { ADMIN_GROUPS, pickableItems } from "@/lib/admin-sections";
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,11 +61,12 @@ export default async function CustomerPage({ params }: Props) {
           </div>
           {me.role === "OWNER" && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
           {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} clubId={u.clubId} clubs={(await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city }))} />}
-          {me.role === "OWNER" && u.role === "MANAGER" && (
+          {me.role === "OWNER" && pickableItems(u.role).length > 0 && (
             <SectionsForm
+              key={u.role}
               userId={u.id}
               value={u.adminSections}
-              groups={ADMIN_GROUPS.map((g) => ({ label: g.label, items: g.items.filter((i) => MANAGER_ITEMS.includes(i)).map((i) => ({ key: i.key, label: i.label })) })).filter((g) => g.items.length)}
+              groups={ADMIN_GROUPS.map((g) => ({ label: g.label, items: g.items.filter((i) => pickableItems(u.role).includes(i)).map((i) => ({ key: i.key, label: i.label })) })).filter((g) => g.items.length)}
             />
           )}
         </div>

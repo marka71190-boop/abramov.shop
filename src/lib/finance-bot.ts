@@ -101,7 +101,7 @@ export async function salesText() {
 
 /** Команда админа в боте. null — это не команда отчёта */
 export async function adminCommand(role: string, text: string): Promise<{ html: string; button?: { text: string; url: string } } | null> {
-  const owner = role === "OWNER";
+  const owner = role === "OWNER" || role === "DIRECTOR"; // видит прибыль и себестоимость
   const cmd = text.split(/[\s@]/)[0].toLowerCase();
   const site = SITE.url;
   if (cmd === "/today") return { html: await periodText("today", owner), button: owner ? { text: "Финансы на сайте", url: `${site}/admin/finance?p=today` } : undefined };
@@ -117,7 +117,7 @@ export const ADMIN_HELP =
   "\n\n<b>Для админа</b>\n/today — выручка и прибыль за сегодня\n/yesterday — за вчера\n/week — за 7 дней\n/month — за месяц\n/sales — продажи в кассе сегодня\n/stock — склад: что заканчивается";
 
 /**
- * Вечерняя сводка владельцу — раз в день в выбранный час.
+ * Вечерняя сводка владельцу и руководителям — раз в день в выбранный час.
  * Проверяется каждые 10 минут; отметка «уже отправили сегодня» — в таблице setting.
  */
 export async function dailyFinanceReport() {
@@ -139,7 +139,7 @@ export async function dailyFinanceReport() {
   const owners = await db
     .select({ chatId: s.user.telegramChatId })
     .from(s.user)
-    .where(and(eq(s.user.role, "OWNER"), isNotNull(s.user.telegramChatId), sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`));
+    .where(and(inArray(s.user.role, ["OWNER", "DIRECTOR"]), isNotNull(s.user.telegramChatId), sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`));
   if (!owners.length) return;
   const html = `${await periodText("today", true)}\n\n/week — за неделю · /month — за месяц · /stock — склад`;
   for (const o of owners) if (o.chatId) await send(o.chatId, html, [{ text: "Финансы на сайте", url: `${SITE.url}/admin/finance?p=today` }]).catch(() => {});

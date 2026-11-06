@@ -148,6 +148,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             Вы тренер Abramov. <Link href="/coach">Открыть кабинет тренера →</Link> — профиль, расписание и записи.
           </div>
         )}
+        {user.role === "DIRECTOR" && (
+          <div className="notice notice--muted" style={{ margin: 0 }}>
+            Вы руководитель Abramov Shop. <Link href="/admin/finance">Открыть финансы →</Link> — выручка, прибыль, заказы и склад. Отчёты приходят и в Telegram, если подключите его ниже.
+          </div>
+        )}
         {user.role === "CASHIER" && (
           <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы кассир Abramov Shop. <Link href="/kassa">Открыть кассу →</Link>

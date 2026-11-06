@@ -39,7 +39,8 @@ function Row({ label, value, sub, strong, minus, hint }: { label: React.ReactNod
 }
 
 export default async function FinancePage({ searchParams }: { searchParams: Promise<{ p?: string; from?: string; to?: string }> }) {
-  await requireAdmin("OWNER");
+  const me = await requireAdmin("MONEY");
+  const owner = me.role === "OWNER"; // руководитель только смотрит
   const sp = await searchParams;
   const period = periodRange(sp.p ?? "month", sp.from, sp.to);
   const [r, settings, expenses] = await Promise.all([
@@ -205,13 +206,18 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         <h2 className="h4" style={{ margin: 0 }}>
           Расходы
         </h2>
-        <p className="muted small" style={{ margin: 0 }}>
-          Реклама, аренда, зарплата, налоги — всё, что не товар. Закупку товара проводите <Link href="/admin/stock/move?t=RECEIPT">приходом на складе</Link>: она станет себестоимостью
-          проданного.
-        </p>
-        <div className="panel" style={{ padding: 16 }}>
-          <ExpenseForm categories={cats} today={mskDate()} />
-        </div>
+        {owner && (
+          <>
+            <p className="muted small" style={{ margin: 0 }}>
+              Реклама, аренда, зарплата, налоги — всё, что не товар. Закупку товара проводите <Link href="/admin/stock/move?t=RECEIPT">приходом на складе</Link>: она станет себестоимостью
+              проданного.
+            </p>
+            <div className="panel" style={{ padding: 16 }}>
+              <ExpenseForm categories={cats} today={mskDate()} />
+            </div>
+          </>
+        )}
+        {!owner && !expenses.length && <p className="muted" style={{ margin: 0 }}>За этот период расходов не внесено.</p>}
         {expenses.length > 0 && (
           <div className="table-wrap">
             <table className="table">
@@ -231,9 +237,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                     <td>{e.category}</td>
                     <td className="small muted">{e.note}</td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{rub(e.amount)}</td>
-                    <td style={{ textAlign: "right" }}>
-                      <DeleteExpense id={e.id} />
-                    </td>
+                    <td style={{ textAlign: "right" }}>{owner && <DeleteExpense id={e.id} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -242,14 +246,16 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         )}
       </section>
 
-      <section className="stack" style={{ gap: 12 }} id="finance-settings">
-        <h2 className="h4" style={{ margin: 0 }}>
-          Настройки расчёта
-        </h2>
-        <div className="panel" style={{ padding: 16 }}>
-          <FinanceSettingsForm v={settings.finance} />
-        </div>
-      </section>
+      {owner && (
+        <section className="stack" style={{ gap: 12 }} id="finance-settings">
+          <h2 className="h4" style={{ margin: 0 }}>
+            Настройки расчёта
+          </h2>
+          <div className="panel" style={{ padding: 16 }}>
+            <FinanceSettingsForm v={settings.finance} />
+          </div>
+        </section>
+      )}
     </>
   );
 }
