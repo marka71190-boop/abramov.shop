@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 /** Счётчики в меню: сколько ждёт действия. Ошибка одного счётчика не ломает админку */
 async function badges(): Promise<Partial<Record<BadgeKey, number>>> {
   const safe = (p: Promise<number>) => p.catch(() => 0);
-  const [orders, returns, stock, questions, reviews, service, orgs, turnkey] = await Promise.all([
+  const [orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches] = await Promise.all([
     safe(db.$count(s.order, inArray(s.order.status, ["PAID", "ASSEMBLING"]))),
     safe(openReturnsCount()),
     safe(lowStockCount()),
@@ -25,8 +25,9 @@ async function badges(): Promise<Partial<Record<BadgeKey, number>>> {
     safe(db.$count(s.serviceRequest, eq(s.serviceRequest.status, "NEW"))),
     safe(db.$count(s.organization, eq(s.organization.status, "PENDING"))),
     safe(db.$count(s.turnkeyRequest, and(eq(s.turnkeyRequest.status, "NEW")))),
+    safe(db.$count(s.coachApplication, eq(s.coachApplication.status, "NEW"))),
   ]);
-  return { orders, returns, stock, questions, reviews, service, orgs, turnkey };
+  return { orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches };
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

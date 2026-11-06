@@ -61,6 +61,7 @@ export const BACKUP_TABLES = [
   "pos_shift",
   "supplier_order",
   "supplier_order_item",
+  "coach_application",
 ] as const;
 
 export async function createBackup(opts: { withMedia: boolean }) {

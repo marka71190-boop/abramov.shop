@@ -14,3 +14,19 @@ export async function toggleCoach(userId: string) {
   revalidatePath("/admin/coaches");
   revalidatePath("/trenirovki", "layout");
 }
+
+export async function reviewApplication(id: string, decision: "APPROVE" | "REJECT", reply: string): Promise<{ ok?: string; error?: string }> {
+  const me = await requireAdmin("OWNER");
+  const { approveApplication, rejectApplication, ApplyError } = await import("@/lib/coach-apply");
+  const text = String(reply ?? "").trim().slice(0, 1000) || null;
+  try {
+    if (decision === "APPROVE") await approveApplication(String(id), me.id, text);
+    else await rejectApplication(String(id), me.id, text);
+  } catch (e) {
+    return { error: e instanceof ApplyError ? e.message : "Не получилось" };
+  }
+  await audit(me.id, decision === "APPROVE" ? "coach.application_approve" : "coach.application_reject", "coach_application", String(id));
+  revalidatePath("/admin/coaches");
+  revalidatePath("/trenirovki", "layout");
+  return { ok: decision === "APPROVE" ? "Одобрено: тренеру открыт кабинет, ему ушло уведомление" : "Отклонено, заявителю ушёл ответ" };
+}

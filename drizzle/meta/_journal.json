@@ -351,6 +351,13 @@
       "when": 1793969180299,
       "tag": "0049_club_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793975691813,
+      "tag": "0050_coach_application",
+      "breakpoints": true
     }
   ]
 }

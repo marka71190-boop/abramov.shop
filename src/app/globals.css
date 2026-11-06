@@ -7079,3 +7079,31 @@ tr.is-muted td {
   font-size: 14px;
   color: var(--c-muted);
 }
+
+/* Заявка «Стать тренером» */
+.coach-apply__rule {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 2px solid var(--c-gold);
+  background: var(--c-gold-soft);
+}
+.coach-apply__big {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 5vw, 38px);
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--c-gold-hi);
+}
+.coach-apply__clubs {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+.coach-apply__agree {
+  padding: 14px;
+  border: 1px solid var(--c-gold);
+  margin: 0;
+}

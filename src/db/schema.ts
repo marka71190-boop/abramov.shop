@@ -1641,3 +1641,32 @@ export const supplierOrderItem = pgTable("supplier_order_item", {
 
 export const supplierOrderRelations = relations(supplierOrder, ({ many }) => ({ items: many(supplierOrderItem) }));
 export const supplierOrderItemRelations = relations(supplierOrderItem, ({ one }) => ({ order: one(supplierOrder, { fields: [supplierOrderItem.orderId], references: [supplierOrder.id] }) }));
+
+/** Заявка «Стать тренером»: человек с аккаунтом рассказывает о себе, владелец одобряет — получает роль тренера */
+export const coachApplication = pgTable(
+  "coach_application",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").default("NEW").notNull(), // NEW — ждёт решения, APPROVED, REJECTED
+    fullName: text("full_name").notNull(),
+    phone: text("phone").notNull(),
+    city: text("city"),
+    rank: text("rank"), // спортивное звание: МС, КМС…
+    games: text("games").array().default(sql`'{}'::text[]`).notNull(),
+    coachYears: integer("coach_years"),
+    achievements: text("achievements"),
+    about: text("about"),
+    clubIds: text("club_ids").array().default(sql`'{}'::text[]`).notNull(), // в каких наших клубах хочет тренировать
+    pricePerHour: integer("price_per_hour"), // желаемая цена индивидуального часа, копейки
+    links: text("links"),
+    clubsOnlyAccepted: boolean("clubs_only_accepted").default(false).notNull(), // согласен: тренировки только в наших клубах
+    reply: text("reply"), // причина отказа или комментарий владельца
+    reviewedById: text("reviewed_by_id").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: ts("reviewed_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("coach_application_status_idx").on(t.status), index("coach_application_user_idx").on(t.userId)],
+);

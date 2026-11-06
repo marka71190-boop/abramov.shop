@@ -33,6 +33,9 @@ export default async function TrainingsPage({ searchParams }: Props) {
         <p className="muted" style={{ margin: 0, fontSize: 17 }}>
           Индивидуальные и групповые занятия с тренерами. Выберите тренера и свободное время — он подтвердит заявку. Оплата в клубе после тренировки, накануне пришлём напоминание.
         </p>
+        <Link href="/trenirovki/stat-trenerom" className="small">
+          Вы тренер? Подайте заявку на размещение →
+        </Link>
       </div>
 
       {clubs.length > 1 && (

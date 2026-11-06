@@ -1,13 +1,42 @@
 import { userHasRole } from "@/lib/roles-sql";
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { ensureCoachProfile } from "@/lib/trainings";
 import { requireAdmin } from "@/lib/viewer";
+import { clubTitle } from "@/lib/club-label";
+import { purgeOldApplications } from "@/lib/coach-apply";
+import { Applications } from "./Applications";
 import { toggleCoach } from "./actions";
 
 export default async function CoachesAdmin() {
-  await requireAdmin();
+  const me = await requireAdmin();
+  await purgeOldApplications().catch(() => {});
+  const [apps, allClubs] = await Promise.all([
+    db
+      .select({ a: s.coachApplication, email: s.user.email })
+      .from(s.coachApplication)
+      .innerJoin(s.user, eq(s.user.id, s.coachApplication.userId))
+      .where(eq(s.coachApplication.status, "NEW"))
+      .orderBy(asc(s.coachApplication.createdAt)),
+    db.query.club.findMany({ columns: { id: true, name: true, address: true } }),
+  ]);
+  const list = apps.map(({ a, email }) => ({
+    id: a.id,
+    createdAt: a.createdAt.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" }),
+    fullName: a.fullName,
+    phone: a.phone,
+    email,
+    city: a.city,
+    rank: a.rank,
+    games: a.games,
+    coachYears: a.coachYears,
+    achievements: a.achievements,
+    about: a.about,
+    clubs: a.clubIds.map((id) => allClubs.find((c) => c.id === id)).filter((c) => !!c).map((c) => clubTitle(c!)),
+    price: a.pricePerHour,
+    links: a.links,
+  }));
   const users = await db.query.user.findMany({ where: userHasRole("COACH"), columns: { id: true, name: true, email: true } });
   const now = new Date();
   const month = new Date(+now + 30 * 86400_000);
@@ -45,8 +74,20 @@ export default async function CoachesAdmin() {
           Раздел на сайте
         </Link>
       </div>
+      <section id="applications" className="stack" style={{ gap: 10 }}>
+        <h2 className="h4" style={{ margin: 0 }}>
+          Заявки «Стать тренером» {list.length > 0 && <span className="admin-badge">{list.length}</span>}
+        </h2>
+        {list.length ? (
+          <Applications list={list} canDecide={me.role === "OWNER"} />
+        ) : (
+          <p className="muted small" style={{ margin: 0 }}>
+            Новых заявок нет. Форма для тренеров: <Link href="/trenirovki/stat-trenerom">abramov.shop/trenirovki/stat-trenerom</Link>
+          </p>
+        )}
+      </section>
       <p className="muted" style={{ marginTop: 0 }}>
-        Чтобы добавить тренера: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». У него появится кабинет: дневник,
+        Тренера можно добавить и без заявки: он регистрируется на сайте, затем откройте его в «Клиентах» и выберите роль «Тренер». У него появится кабинет: дневник,
         рабочее время, заявки клиентов, групповые, профиль. Отсюда можно скрыть тренера с сайта или вести расписание за него.
       </p>
       {rows.length ? (
