@@ -1,8 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
-import { posCancel, posCreate, posStatus, type SaleView } from "./actions";
+import { posCancel, posCreate, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
 
 type Method = "CASH" | "SBP" | "CARD";
 type Line = { o: PickOption; qty: number; price: string };
@@ -300,5 +300,128 @@ export function CancelSale({ id, paid, cash }: { id: string; paid: boolean; cash
         {pending ? "…" : ask ? "Да, отменить" : "Отменить"}
       </button>
     </span>
+  );
+}
+
+/** Смена: открыть с разменом / закрыть с пересчётом наличных */
+export function ShiftPanel({
+  shift,
+  places,
+}: {
+  shift: { openedAt: string; place: string | null; opening: number; cash: number; other: number; count: number; pending: number } | null;
+  places: string[];
+}) {
+  const router = useRouter();
+  const [openState, openAction, opening] = useActionState<ShiftState, FormData>(async (s, fd) => {
+    const r = await shiftOpen(s, fd);
+    if (r.ok) router.refresh();
+    return r;
+  }, {});
+  const [closeState, closeAction, closing] = useActionState<ShiftState, FormData>(async (s, fd) => {
+    const r = await shiftClose(s, fd);
+    if (r.ok) router.refresh();
+    return r;
+  }, {});
+  const [ask, setAsk] = useState(false);
+  const [counted, setCounted] = useState("");
+  const [place, setPlace] = useState("");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(PLACE_KEY);
+      if (v) setPlace(v);
+    } catch {}
+  }, []);
+
+  if (!shift) {
+    return (
+      <form action={openAction} className="pos-shift stack" style={{ gap: 12 }}>
+        <div>
+          <strong>Откройте смену</strong>
+          <div className="muted small">Впишите, сколько наличных в кассе для сдачи. В конце смены пересчитаете — сайт сверит с продажами.</div>
+        </div>
+        {closeState.ok && <div className="form-ok">{closeState.ok}</div>}
+        <div className="pos-grid">
+          <label className="field" style={{ margin: 0 }}>
+            Размен в кассе, ₽
+            <input className="input" name="opening" inputMode="decimal" placeholder="0" />
+          </label>
+          <label className="field" style={{ margin: 0 }}>
+            Где продаём
+            <input
+              className="input"
+              name="place"
+              list="pos-places-shift"
+              value={place}
+              onChange={(e) => {
+                setPlace(e.target.value);
+                try {
+                  localStorage.setItem(PLACE_KEY, e.target.value);
+                } catch {}
+              }}
+              placeholder="Клуб или турнир"
+              maxLength={120}
+            />
+            <datalist id="pos-places-shift">
+              {places.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+        {openState.error && <div className="form-error">{openState.error}</div>}
+        <button className="btn btn--gold" disabled={opening}>
+          {opening ? "Открываем…" : "Открыть смену"}
+        </button>
+      </form>
+    );
+  }
+
+  const expected = shift.opening + shift.cash;
+  const diff = counted.trim() ? toKop(counted) - expected : null;
+  const time = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short", timeZone: "Europe/Moscow" }).format(new Date(shift.openedAt));
+  return (
+    <div className="pos-shift stack" style={{ gap: 10 }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div className="small">
+          <strong>Смена с {time}</strong>
+          {shift.place ? ` · ${shift.place}` : ""}
+          <div className="muted">
+            {shift.count} чек. · наличные {fmt(shift.cash)} · СБП и карта {fmt(shift.other)} · в кассе должно быть <b>{fmt(expected)}</b>
+          </div>
+        </div>
+        {!ask && (
+          <button type="button" className="btn btn--line btn--sm" onClick={() => setAsk(true)}>
+            Закрыть смену
+          </button>
+        )}
+      </div>
+      {ask && (
+        <form action={closeAction} className="stack" style={{ gap: 10 }}>
+          <div className="pos-grid">
+            <label className="field" style={{ margin: 0 }}>
+              Пересчитали наличные, ₽
+              <input className="input" name="counted" inputMode="decimal" value={counted} onChange={(e) => setCounted(e.target.value)} autoFocus required />
+              {diff != null && (
+                <span className={diff === 0 ? "small form-ok-text" : "small is-loss"}>{diff === 0 ? "Сходится" : diff < 0 ? `Недостача ${fmt(-diff)}` : `Излишек ${fmt(diff)}`}</span>
+              )}
+            </label>
+            <label className="field" style={{ margin: 0 }}>
+              Комментарий
+              <input className="input" name="note" maxLength={300} placeholder={diff ? "Почему не сходится" : "Необязательно"} />
+            </label>
+          </div>
+          {shift.pending > 0 && <div className="form-error">Есть продажа по QR, которая ждёт оплату — дождитесь её или отмените</div>}
+          {closeState.error && <div className="form-error">{closeState.error}</div>}
+          <div className="row" style={{ gap: 10 }}>
+            <button className="btn btn--gold btn--sm" disabled={closing}>
+              {closing ? "Закрываем…" : "Закрыть смену"}
+            </button>
+            <button type="button" className="btn btn--line btn--sm" onClick={() => setAsk(false)}>
+              Не сейчас
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }

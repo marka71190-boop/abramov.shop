@@ -337,6 +337,13 @@
       "when": 1793966190043,
       "tag": "0047_extra_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793968316357,
+      "tag": "0048_shifts_supplier",
+      "breakpoints": true
     }
   ]
 }

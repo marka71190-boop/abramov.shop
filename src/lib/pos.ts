@@ -46,6 +46,7 @@ export interface NewSale {
   method: PosMethod;
   place: string | null;
   contact?: string | null;
+  shiftId?: string | null;
 }
 
 /** Кассир: цены — как в каталоге, скидка на чек — не больше maxDiscountPct % */
@@ -85,7 +86,7 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
   const sale = await db.transaction(async (tx) => {
     const [sale] = await tx
       .insert(s.posSale)
-      .values({ number: saleNumber(), status: paidNow ? "PAID" : "PENDING", method: input.method, subtotal, discount, total, cost, place: input.place, sellerId, paidAt: paidNow ? new Date() : null })
+      .values({ number: saleNumber(), status: paidNow ? "PAID" : "PENDING", method: input.method, subtotal, discount, total, cost, place: input.place, sellerId, shiftId: input.shiftId ?? null, paidAt: paidNow ? new Date() : null })
       .returning();
     for (const l of lines) {
       const r = await tx

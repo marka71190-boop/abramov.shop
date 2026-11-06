@@ -50,6 +50,9 @@ export interface SiteSettings {
   };
   stock: {
     lowThreshold: number; // предупреждать, когда остаток варианта не больше; 0 — не предупреждать
+    leadDays: number; // «Что докупить»: сколько дней идёт поставка
+    coverDays: number; // на сколько дней продаж заказывать
+    salesWindowDays: number; // по продажам за сколько дней считать скорость
   };
   service: {
     enabled: boolean; // приём заявок в мастерскую на сайте
@@ -140,6 +143,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   stock: {
     lowThreshold: 3,
+    leadDays: 14,
+    coverDays: 30,
+    salesWindowDays: 60,
   },
   reviews: {
     requestDays: 5,

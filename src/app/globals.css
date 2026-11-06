@@ -7065,3 +7065,17 @@ tr.is-muted td {
 .roles-grid__item.is-implied {
   opacity: 0.55;
 }
+.form-ok-text {
+  color: var(--c-success);
+}
+.pos-shift {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--c-line-2);
+}
+.so-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 14px;
+  color: var(--c-muted);
+}

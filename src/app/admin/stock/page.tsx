@@ -9,41 +9,18 @@ const FILTERS = [
   { key: "out", label: "Закончились" },
 ] as const;
 
-export default async function StockPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ f?: string; q?: string }>;
-}) {
+export default async function StockPage({ searchParams }: { searchParams: Promise<{ f?: string; q?: string }> }) {
   const me = await requireAdmin();
   const { f = "", q = "" } = await searchParams;
   const [all, limit] = await Promise.all([stockReport(), lowStockThreshold()]);
   const needle = q.trim().toLowerCase();
   const rows = all
-    .filter((r) =>
-      f === "low"
-        ? r.stock <= Math.max(limit, 0)
-        : f === "out"
-          ? r.stock <= 0
-          : true,
-    )
-    .filter(
-      (r) =>
-        !needle ||
-        `${r.product} ${r.variant} ${r.sku ?? ""}`
-          .toLowerCase()
-          .includes(needle),
-    );
+    .filter((r) => (f === "low" ? r.stock <= Math.max(limit, 0) : f === "out" ? r.stock <= 0 : true))
+    .filter((r) => !needle || `${r.product} ${r.variant} ${r.sku ?? ""}`.toLowerCase().includes(needle));
   const out = all.filter((r) => r.stock <= 0).length;
   const low = all.filter((r) => r.stock > 0 && r.stock <= limit).length;
-  const value = all.reduce(
-    (a, r) =>
-      a + (r.stock > 0 && r.costPrice != null ? r.stock * r.costPrice : 0),
-    0,
-  );
-  const retail = all.reduce(
-    (a, r) => a + (r.stock > 0 ? r.stock * r.price : 0),
-    0,
-  );
+  const value = all.reduce((a, r) => a + (r.stock > 0 && r.costPrice != null ? r.stock * r.costPrice : 0), 0);
+  const retail = all.reduce((a, r) => a + (r.stock > 0 ? r.stock * r.price : 0), 0);
   const noCost = all.filter((r) => r.stock > 0 && r.costPrice == null).length;
 
   return (
@@ -51,54 +28,42 @@ export default async function StockPage({
       <h1>Остатки</h1>
       {!isDirector(me) && (
         <div className="row" style={{ gap: 6 }}>
-          <Link
-            href="/admin/stock/move?t=RECEIPT"
-            className="btn btn--sm btn--gold"
-          >
+          <Link href="/admin/stock/move?t=RECEIPT" className="btn btn--sm btn--gold">
             + Приход товара
           </Link>
-          <Link
-            href="/admin/stock/move?t=WRITE_OFF"
-            className="btn btn--sm btn--line"
-          >
+          <Link href="/admin/stock/move?t=WRITE_OFF" className="btn btn--sm btn--line">
             Списание
           </Link>
-          <Link
-            href="/admin/stock/move?t=INVENTORY"
-            className="btn btn--sm btn--line"
-          >
+          <Link href="/admin/stock/move?t=INVENTORY" className="btn btn--sm btn--line">
             Инвентаризация
+          </Link>
+          <Link href="/admin/stock/reorder" className="btn btn--sm btn--line">
+            Что докупить
+          </Link>
+          <Link href="/admin/stock/orders" className="btn btn--sm btn--line">
+            Заказы поставщикам
+          </Link>
+          <Link href="/admin/stock/labels" className="btn btn--sm btn--line">
+            Этикетки
           </Link>
           <Link href="/admin/stock/history" className="btn btn--sm btn--line">
             Журнал движений
           </Link>
-          <Link href="/admin/pos" className="btn btn--sm btn--line">
-            Касса
-          </Link>
         </div>
       )}
       {isDirector(me) && (
-        <Link href="/admin/stock/history" className="small">
-          Журнал движений товара →
-        </Link>
+        <div className="row small" style={{ gap: 16 }}>
+          <Link href="/admin/stock/reorder">Что докупить →</Link>
+          <Link href="/admin/stock/history">Журнал движений товара →</Link>
+        </div>
       )}
       <div className="stats">
-        <Link
-          href="/admin/stock?f=out"
-          className="stat"
-          style={{ color: "inherit", textDecoration: "none" }}
-        >
+        <Link href="/admin/stock?f=out" className="stat" style={{ color: "inherit", textDecoration: "none" }}>
           <div className="muted small">Закончились</div>
           <div className="stat__value">{num(out)}</div>
         </Link>
-        <Link
-          href="/admin/stock?f=low"
-          className="stat"
-          style={{ color: "inherit", textDecoration: "none" }}
-        >
-          <div className="muted small">
-            Осталось {limit > 0 ? `${limit} шт и меньше` : "мало"}
-          </div>
+        <Link href="/admin/stock?f=low" className="stat" style={{ color: "inherit", textDecoration: "none" }}>
+          <div className="muted small">Осталось {limit > 0 ? `${limit} шт и меньше` : "мало"}</div>
           <div className="stat__value">{num(low)}</div>
         </Link>
         <div className="stat">
@@ -113,35 +78,21 @@ export default async function StockPage({
       </div>
       {noCost > 0 && (
         <p className="small" style={{ margin: 0 }}>
-          <span className="pill pill--warn">
-            Без закупочной цены: {num(noCost)}
-          </span>{" "}
-          — у этих товаров прибыль не посчитается. Впишите закупку в{" "}
-          <Link href="/admin/catalog/prices">таблице цен</Link> или проведите
-          приход.
+          <span className="pill pill--warn">Без закупочной цены: {num(noCost)}</span> — у этих товаров прибыль не посчитается. Впишите закупку в{" "}
+          <Link href="/admin/catalog/prices">таблице цен</Link> или проведите приход.
         </p>
       )}
       <p className="muted small" style={{ margin: 0 }}>
-        {limit > 0
-          ? `Когда остаток варианта опускается до ${limit} шт, админам с подключённым Telegram приходит предупреждение.`
-          : "Предупреждения выключены."}{" "}
-        {me.role === "OWNER" && (
-          <Link href="/admin/settings#stock-settings">Изменить порог</Link>
-        )}
-        {" · "}Остатки уже за вычетом товара в неоплаченных заказах (резерв).
-        Поменять остатки и цены —{" "}
-        <Link href="/admin/catalog/prices">таблицей</Link> или{" "}
+        {limit > 0 ? `Когда остаток варианта опускается до ${limit} шт, админам с подключённым Telegram приходит предупреждение.` : "Предупреждения выключены."}{" "}
+        {me.role === "OWNER" && <Link href="/admin/settings#stock-settings">Изменить порог</Link>}
+        {" · "}Остатки уже за вычетом товара в неоплаченных заказах (резерв). Поменять остатки и цены — <Link href="/admin/catalog/prices">таблицей</Link> или{" "}
         <Link href="/admin/catalog/import">через Excel</Link>.
       </p>
 
       <form className="row" style={{ alignItems: "flex-end" }}>
         <div className="row" style={{ gap: 6 }}>
           {FILTERS.map((x) => (
-            <Link
-              key={x.key}
-              href={`/admin/stock${x.key ? `?f=${x.key}` : ""}`}
-              className={`btn btn--sm ${f === x.key ? "btn--gold" : "btn--line"}`}
-            >
+            <Link key={x.key} href={`/admin/stock${x.key ? `?f=${x.key}` : ""}`} className={`btn btn--sm ${f === x.key ? "btn--gold" : "btn--line"}`}>
               {x.label}
             </Link>
           ))}
@@ -149,12 +100,7 @@ export default async function StockPage({
         <input type="hidden" name="f" value={f} />
         <label className="field" style={{ flex: "1 1 220px" }}>
           Поиск
-          <input
-            className="input"
-            name="q"
-            defaultValue={q}
-            placeholder="Название или артикул"
-          />
+          <input className="input" name="q" defaultValue={q} placeholder="Название или артикул" />
         </label>
       </form>
 
@@ -175,56 +121,23 @@ export default async function StockPage({
             {rows.map((r) => {
               const perDay = r.sold30 / 30;
               const days = perDay > 0 ? Math.floor(r.stock / perDay) : null;
-              const tone =
-                r.stock <= 0
-                  ? "pill--bad"
-                  : r.stock <= limit
-                    ? "pill--warn"
-                    : "";
+              const tone = r.stock <= 0 ? "pill--bad" : r.stock <= limit ? "pill--warn" : "";
               return (
                 <tr key={r.variantId}>
                   <td>
-                    <Link href={`/admin/catalog/product/${r.productId}`}>
-                      {r.product}
-                    </Link>
+                    <Link href={`/admin/catalog/product/${r.productId}`}>{r.product}</Link>
                     {r.multi && <div className="muted small">{r.variant}</div>}
-                    {r.visibility !== "PUBLISHED" && (
-                      <div className="muted small">
-                        {r.visibility === "DRAFT" ? "черновик" : "скрыт"}
-                      </div>
-                    )}
+                    {r.visibility !== "PUBLISHED" && <div className="muted small">{r.visibility === "DRAFT" ? "черновик" : "скрыт"}</div>}
                   </td>
                   <td className="small">{r.sku ?? "—"}</td>
-                  <td style={{ textAlign: "right" }}>
-                    {tone ? (
-                      <span className={`pill ${tone}`}>
-                        {r.stock <= 0 ? "нет" : num(r.stock)}
-                      </span>
-                    ) : (
-                      num(r.stock)
-                    )}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {r.reserved ? num(r.reserved) : "—"}
-                  </td>
+                  <td style={{ textAlign: "right" }}>{tone ? <span className={`pill ${tone}`}>{r.stock <= 0 ? "нет" : num(r.stock)}</span> : num(r.stock)}</td>
+                  <td style={{ textAlign: "right" }}>{r.reserved ? num(r.reserved) : "—"}</td>
                   <td style={{ textAlign: "right" }} className="small">
-                    {r.costPrice != null ? (
-                      rub(r.costPrice)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+                    {r.costPrice != null ? rub(r.costPrice) : <span className="muted">—</span>}
                   </td>
-                  <td style={{ textAlign: "right" }}>
-                    {r.sold30 ? num(r.sold30) : "—"}
-                  </td>
+                  <td style={{ textAlign: "right" }}>{r.sold30 ? num(r.sold30) : "—"}</td>
                   <td style={{ textAlign: "right" }} className="small">
-                    {r.stock <= 0
-                      ? "—"
-                      : days == null
-                        ? "продаж не было"
-                        : days > 365
-                          ? "больше года"
-                          : `${num(days)} дн.`}
+                    {r.stock <= 0 ? "—" : days == null ? "продаж не было" : days > 365 ? "больше года" : `${num(days)} дн.`}
                   </td>
                 </tr>
               );

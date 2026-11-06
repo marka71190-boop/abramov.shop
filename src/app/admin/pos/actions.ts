@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
 import { cancelSale, createSale, PosError, refreshSale, type SaleRow } from "@/lib/pos";
+import { closeShift, currentShift, openShift, ShiftError } from "@/lib/pos-shifts";
 import { qrSvg } from "@/lib/qr";
 import { getSettings } from "@/lib/settings";
 import { withStockNotices } from "@/lib/stock-moves";
@@ -57,10 +58,13 @@ export async function posCreate(raw: unknown): Promise<{ sale?: SaleView; error?
   const p = In.safeParse(raw);
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте продажу" };
   try {
+    // Продажа — только в открытой смене: так наличные сходятся с продажами
+    const shift = await currentShift(me.id);
+    if (!shift) return { error: "Сначала откройте смену" };
     const limits = admin ? { lockPrices: false, maxDiscountPct: null } : { lockPrices: true, maxDiscountPct: (await getSettings()).finance.cashierMaxDiscount };
     const sale = await withStockNotices(
       p.data.items.map((i) => i.variantId),
-      () => createSale(me.id, p.data, limits),
+      () => createSale(me.id, { ...p.data, place: p.data.place || shift.place, shiftId: shift.id }, limits),
     );
     await audit(me.id, "pos.sale", "pos_sale", sale.id, { number: sale.number, method: sale.method, total: sale.total, discount: sale.discount });
     revalidatePath("/", "layout");
@@ -109,5 +113,44 @@ export async function posCancel(id: string): Promise<{ ok?: string; error?: stri
   } catch (e) {
     console.error("[pos] отмена:", e);
     return { error: "Не получилось отменить — возможно, ЮKassa не приняла возврат. Попробуйте ещё раз" };
+  }
+}
+
+const money = (v: FormDataEntryValue | null) => {
+  const n = Math.round(Number(String(v ?? "").replace(",", ".").replace(/\s/g, "")) * 100);
+  return Number.isFinite(n) && n >= 0 && n <= 100_000_000_00 ? n : null;
+};
+
+export type ShiftState = { ok?: string; error?: string };
+
+export async function shiftOpen(_: ShiftState, fd: FormData): Promise<ShiftState> {
+  const { me } = await requireCashier();
+  const opening = String(fd.get("opening") ?? "").trim() ? money(fd.get("opening")) : 0;
+  if (opening == null) return { error: "Размен — сумма в рублях, например 2000" };
+  const place = String(fd.get("place") ?? "").trim().slice(0, 120) || null;
+  try {
+    const shift = await openShift(me.id, { openingCash: opening, place });
+    await audit(me.id, "pos.shift_open", "pos_shift", shift.id, { opening, place });
+    refresh();
+    return { ok: "Смена открыта" };
+  } catch (e) {
+    return { error: e instanceof ShiftError ? e.message : "Не получилось открыть смену" };
+  }
+}
+
+export async function shiftClose(_: ShiftState, fd: FormData): Promise<ShiftState> {
+  const { me } = await requireCashier();
+  const counted = money(fd.get("counted"));
+  if (counted == null || !String(fd.get("counted") ?? "").trim()) return { error: "Пересчитайте наличные и впишите сумму" };
+  const shift = await currentShift(me.id);
+  if (!shift) return { error: "Смена уже закрыта" };
+  try {
+    const r = await closeShift(shift.id, me.id, counted, String(fd.get("note") ?? "").trim().slice(0, 300) || null);
+    await audit(me.id, "pos.shift_close", "pos_shift", shift.id, { expected: r.expected, counted, diff: r.diff });
+    refresh();
+    const fmt = (k: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(k / 100) + " ₽";
+    return { ok: r.diff === 0 ? "Смена закрыта — всё сходится" : r.diff < 0 ? `Смена закрыта. Недостача ${fmt(-r.diff)}` : `Смена закрыта. Излишек ${fmt(r.diff)}` };
+  } catch (e) {
+    return { error: e instanceof ShiftError ? e.message : "Не получилось закрыть смену" };
   }
 }

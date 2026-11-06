@@ -1540,11 +1540,38 @@ export const posSale = pgTable(
     qrUrl: text("qr_url"),
     place: text("place"), // где продали: клуб, турнир
     sellerId: text("seller_id").references(() => user.id, { onDelete: "set null" }),
+    shiftId: text("shift_id"), // смена кассира
     paidAt: ts("paid_at"),
     cancelledAt: ts("cancelled_at"),
     createdAt: createdAt(),
   },
-  (t) => [index("pos_sale_status_idx").on(t.status), index("pos_sale_paid_idx").on(t.paidAt)],
+  (t) => [index("pos_sale_status_idx").on(t.status), index("pos_sale_paid_idx").on(t.paidAt), index("pos_sale_shift_idx").on(t.shiftId)],
+);
+
+/**
+ * Смена кассы: открыли с разменом, продавали, закрыли — пересчитали наличные.
+ * Должно быть = размен + наличные продажи смены; разница — недостача (−) или излишек (+).
+ */
+export const posShift = pgTable(
+  "pos_shift",
+  {
+    id: id(),
+    sellerId: text("seller_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    place: text("place"),
+    status: text("status").default("OPEN").notNull(), // OPEN | CLOSED
+    openingCash: integer("opening_cash").default(0).notNull(), // размен на начало, копейки
+    cashSales: integer("cash_sales"), // наличные продажи смены — на момент закрытия
+    otherSales: integer("other_sales"), // СБП и карта — на момент закрытия
+    expectedCash: integer("expected_cash"), // должно быть в кассе
+    countedCash: integer("counted_cash"), // пересчитали
+    note: text("note"),
+    openedAt: createdAt(),
+    closedAt: ts("closed_at"),
+    closedById: text("closed_by_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (t) => [index("pos_shift_seller_idx").on(t.sellerId), uniqueIndex("pos_shift_one_open").on(t.sellerId).where(sql`status = 'OPEN'`)],
 );
 
 export const posSaleItem = pgTable("pos_sale_item", {
@@ -1577,3 +1604,37 @@ export const expense = pgTable(
   },
   (t) => [index("expense_day_idx").on(t.day)],
 );
+
+/** Заказ поставщику: составили по «Что докупить», отправили, приняли — товар пришёл на склад */
+export const supplierOrder = pgTable(
+  "supplier_order",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // З-261106-01 → Z-261106-AB12
+    supplier: text("supplier").notNull(),
+    status: text("status").default("DRAFT").notNull(), // DRAFT — черновик, ORDERED — заказали, RECEIVED — пришло, CANCELLED
+    note: text("note"),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    orderedAt: ts("ordered_at"),
+    receivedAt: ts("received_at"),
+  },
+  (t) => [index("supplier_order_status_idx").on(t.status)],
+);
+
+export const supplierOrderItem = pgTable("supplier_order_item", {
+  id: id(),
+  orderId: text("order_id")
+    .notNull()
+    .references(() => supplierOrder.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").references(() => productVariant.id, { onDelete: "set null" }),
+  productId: text("product_id").references(() => product.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  sku: text("sku"),
+  qty: integer("qty").notNull(),
+  unitCost: integer("unit_cost"), // ожидаемая закупочная цена, копейки
+  receivedQty: integer("received_qty"),
+});
+
+export const supplierOrderRelations = relations(supplierOrder, ({ many }) => ({ items: many(supplierOrderItem) }));
+export const supplierOrderItemRelations = relations(supplierOrderItem, ({ one }) => ({ order: one(supplierOrder, { fields: [supplierOrderItem.orderId], references: [supplierOrder.id] }) }));

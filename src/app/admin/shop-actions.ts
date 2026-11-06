@@ -540,7 +540,7 @@ export async function updateShopSettings(_: ActionState, form: FormData): Promis
       abandonedPromoFreeShipBelow: d.abandonedPromoFreeShipBelow,
       abandonedPromoSkipBuyersDays: d.abandonedPromoSkipBuyersDays,
     },
-    stock: { lowThreshold: d.lowStock },
+    stock: { ...cur.stock, lowThreshold: d.lowStock },
     reviews: { ...cur.reviews, requestDays: d.reviewRequestDays },
     giftCards: {
       enabled: form.get("giftEnabled") === "on",
