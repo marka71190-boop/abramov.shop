@@ -70,6 +70,7 @@ export const user = pgTable(
     role: roleEnum("role").default("CUSTOMER").notNull(),
     clubId: text("club_id"), // для роли CLUB: в каком клубе работает
     adminSections: text("admin_sections").array(), // менеджер: какие разделы админки видит; пусто — все
+    extraRoles: text("extra_roles").array().default(sql`'{}'::text[]`).notNull(), // дополнительные роли (тренер + кассир…), главная — в role
     organizationId: text("organization_id"), // сотрудник организации-оптовика
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.

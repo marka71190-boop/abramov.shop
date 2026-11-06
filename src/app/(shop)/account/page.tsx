@@ -1,3 +1,4 @@
+import { hasRole } from "@/lib/roles";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { callNameOf, greetingOf } from "@/lib/names";
 import type { Metadata } from "next";
@@ -9,7 +10,7 @@ import { getActiveConsent } from "@/lib/consent";
 import { fmtDate, fmtDateTime, num, prettyPhone, rub } from "@/lib/format";
 import { makeReferralCode, TIER_NAME, tierProgress } from "@/lib/loyalty";
 import { getSettings } from "@/lib/settings";
-import { requireUser } from "@/lib/viewer";
+import { isAdmin, requireUser } from "@/lib/viewer";
 import { setMarketing, setTelegramNotify } from "./actions";
 import { NameForm, BirthdayForm, CopyButton, RealEmailForm, SetPasswordNotice, TelegramConnect, Toggle, VerifyEmailNotice } from "./Toggles";
 import { mailEnabled } from "@/lib/mail";
@@ -143,7 +144,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               </div>
             );
           })())}
-        {user.role === "COACH" && (
+        {hasRole(user, "COACH") && (
           <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы тренер Abramov. <Link href="/coach">Открыть кабинет тренера →</Link> — профиль, расписание и записи.
           </div>
@@ -153,12 +154,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             Вы руководитель Abramov Shop. <Link href="/admin/finance">Открыть финансы →</Link> — выручка, прибыль, заказы и склад. Отчёты приходят и в Telegram, если подключите его ниже.
           </div>
         )}
-        {user.role === "CASHIER" && (
+        {hasRole(user, "CASHIER") && !isAdmin(user) && (
           <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы кассир Abramov Shop. <Link href="/kassa">Открыть кассу →</Link>
           </div>
         )}
-        {user.role === "CLUB" && (
+        {hasRole(user, "CLUB") && (
           <div className="notice notice--muted" style={{ margin: 0 }}>
             Вы администратор клуба. <Link href="/club">Открыть раздел «Клуб» →</Link> — заказы на выдачу и кии для мастерской. Чтобы получать
             уведомления в Telegram, подключите его ниже в «Настройках».

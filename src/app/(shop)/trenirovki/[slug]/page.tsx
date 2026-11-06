@@ -1,3 +1,4 @@
+import { hasRole } from "@/lib/roles";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,8 +13,8 @@ import { Schedule } from "../Schedule";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ trial?: string }> };
 
 async function load(slug: string) {
-  const p = await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.slug, slug), with: { user: { columns: { role: true } } } });
-  return p && p.user.role === "COACH" ? p : null;
+  const p = await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.slug, slug), with: { user: { columns: { role: true, extraRoles: true } } } });
+  return p && hasRole(p.user, "COACH") ? p : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

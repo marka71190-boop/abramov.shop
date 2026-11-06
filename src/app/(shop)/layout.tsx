@@ -1,3 +1,4 @@
+import { hasRole } from "@/lib/roles";
 import { asc, eq } from "drizzle-orm";
 import { BanModal } from "@/components/BanModal";
 import { CartProvider, RefCatcher } from "@/components/cart/CartProvider";
@@ -92,7 +93,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       <div className="ban-shell" inert={ban ? true : undefined}>
         {stripItems.length > 0 && <TopStrip items={stripItems} />}
         {!viewer && !settings.pdPause && jar.get(GUEST_BAR_COOKIE)?.value !== "0" && <GuestBar welcome={settings.loyalty.welcomeBonus} />}
-        <Header signedIn={!!viewer} admin={admin || isDirector(viewer)} club={viewer?.role === "CLUB"} coach={viewer?.role === "COACH"} cashier={viewer?.role === "CASHIER"} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
+        <Header signedIn={!!viewer} admin={admin || isDirector(viewer)} club={hasRole(viewer, "CLUB")} coach={hasRole(viewer, "COACH")} cashier={hasRole(viewer, "CASHIER") && !admin} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>

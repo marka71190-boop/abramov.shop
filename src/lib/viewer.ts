@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema as s } from "@/db";
 import { ALL_ITEMS, canSee, sectionOf } from "@/lib/admin-sections";
+import { hasRole, rolesOf } from "@/lib/roles";
 import { auth } from "@/lib/auth";
 
 export type UserRow = typeof s.user.$inferSelect;
@@ -58,12 +59,12 @@ export function isDirector(u: (Pick<UserRow, "role"> & Partial<Pick<UserRow, "ba
 }
 
 /** Видит деньги: выручку, прибыль, себестоимость */
-export const seesMoney = (u: Pick<UserRow, "role">) => u.role === "OWNER" || u.role === "DIRECTOR";
+export const seesMoney = (u: Pick<UserRow, "role" | "extraRoles">) => u.role === "OWNER" || hasRole(u, "DIRECTOR");
 
 /** Открыт ли менеджеру раздел админки (владелец выбирает разделы в карточке сотрудника) */
-export function hasSection(u: Pick<UserRow, "role" | "adminSections">, key: string) {
+export function hasSection(u: Pick<UserRow, "role" | "extraRoles" | "adminSections">, key: string) {
   const item = ALL_ITEMS.find((i) => i.key === key);
-  return !!item && canSee(u.role, u.adminSections, item);
+  return !!item && canSee(rolesOf(u), u.adminSections, item);
 }
 
 /**
@@ -79,16 +80,16 @@ export async function requireAdmin(level: "MANAGER" | "OWNER" | "MONEY" = "MANAG
     const path = h.get("x-admin-path");
     if (level === "OWNER" || h.get("next-action") || !path) redirect("/admin?readonly=1");
     const item = sectionOf(path);
-    if (item && !canSee(u.role, u.adminSections, item)) redirect("/admin?closed=1");
+    if (item && !canSee(rolesOf(u), u.adminSections, item)) redirect("/admin?closed=1");
     return u;
   }
-  // MONEY — финансы и аналитика: владелец (и руководитель — выше)
-  if (!isAdmin(u) || ((level === "OWNER" || level === "MONEY") && u.role !== "OWNER")) redirect("/");
+  // MONEY — финансы и аналитика: владелец и руководитель (в том числе менеджер, который ещё и руководитель)
+  if (!isAdmin(u) || (level === "OWNER" && u.role !== "OWNER") || (level === "MONEY" && !seesMoney(u))) redirect("/");
   if (u.role === "MANAGER" && u.adminSections?.length) {
     // Путь страницы передаёт src/proxy.ts; вне админки (API, кабинеты) заголовка нет
     const path = (await headers()).get("x-admin-path");
     const item = path ? sectionOf(path) : null;
-    if (item && !canSee(u.role, u.adminSections, item)) redirect("/admin?closed=1");
+    if (item && !canSee(rolesOf(u), u.adminSections, item)) redirect("/admin?closed=1");
   }
   return u;
 }
@@ -98,6 +99,6 @@ export async function requireCashier(next = "/kassa") {
   const u = await getViewer();
   if (!u) redirect(`/login?next=${encodeURIComponent(next)}`);
   const admin = isAdmin(u);
-  if (!admin && !(u.role === "CASHIER" && !getActiveBan(u))) redirect("/");
+  if (!admin && !(hasRole(u, "CASHIER") && !getActiveBan(u))) redirect("/");
   return { me: u, admin };
 }

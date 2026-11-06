@@ -3,6 +3,7 @@
  * Только цифры и названия товаров — никаких персональных данных покупателей.
  * Прибыль и себестоимость видит только владелец, менеджер — выручку и продажи.
  */
+import { userHasAnyRole } from "@/lib/roles-sql";
 import "server-only";
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -100,8 +101,8 @@ export async function salesText() {
 }
 
 /** Команда админа в боте. null — это не команда отчёта */
-export async function adminCommand(role: string, text: string): Promise<{ html: string; button?: { text: string; url: string } } | null> {
-  const owner = role === "OWNER" || role === "DIRECTOR"; // видит прибыль и себестоимость
+export async function adminCommand(u: { role: string; extraRoles?: string[] | null }, text: string): Promise<{ html: string; button?: { text: string; url: string } } | null> {
+  const owner = u.role === "OWNER" || !!u.extraRoles?.includes("DIRECTOR") || u.role === "DIRECTOR"; // видит прибыль и себестоимость
   const cmd = text.split(/[\s@]/)[0].toLowerCase();
   const site = SITE.url;
   if (cmd === "/today") return { html: await periodText("today", owner), button: owner ? { text: "Финансы на сайте", url: `${site}/admin/finance?p=today` } : undefined };
@@ -139,7 +140,7 @@ export async function dailyFinanceReport() {
   const owners = await db
     .select({ chatId: s.user.telegramChatId })
     .from(s.user)
-    .where(and(inArray(s.user.role, ["OWNER", "DIRECTOR"]), isNotNull(s.user.telegramChatId), sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`));
+    .where(and(userHasAnyRole(["OWNER", "DIRECTOR"]), isNotNull(s.user.telegramChatId), sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`));
   if (!owners.length) return;
   const html = `${await periodText("today", true)}\n\n/week — за неделю · /month — за месяц · /stock — склад`;
   for (const o of owners) if (o.chatId) await send(o.chatId, html, [{ text: "Финансы на сайте", url: `${SITE.url}/admin/finance?p=today` }]).catch(() => {});

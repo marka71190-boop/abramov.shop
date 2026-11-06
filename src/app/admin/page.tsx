@@ -6,6 +6,7 @@ import { openReturnsCount } from "@/lib/returns";
 import { lowStockCount } from "@/lib/low-stock";
 import { getSettings } from "@/lib/settings";
 import { canSee, sectionOf } from "@/lib/admin-sections";
+import { rolesOf } from "@/lib/roles";
 import { isDirector, requireAdmin, seesMoney } from "@/lib/viewer";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { pushPublicKey } from "@/lib/push";
@@ -16,7 +17,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   // Плитки только тех разделов, что открыты этому сотруднику
   const open = (href: string) => {
     const item = sectionOf(href);
-    return !item || canSee(me.role, me.adminSections, item);
+    return !item || canSee(rolesOf(me), me.adminSections, item);
   };
   const owner = me.role === "OWNER";
   const dayAgo = new Date(Date.now() - 24 * 3600_000);

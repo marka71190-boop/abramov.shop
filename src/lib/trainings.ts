@@ -8,6 +8,8 @@
  *
  * Оплата — в клубе. Время — московское (клубы в Краснодаре, Ростове и Аксае, UTC+3).
  */
+import { hasRole } from "@/lib/roles";
+import { userHasRole } from "@/lib/roles-sql";
 import "server-only";
 import { and, asc, eq, gt, gte, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -72,7 +74,7 @@ export async function requireCoach() {
   const me = await getViewer();
   if (!me) redirect("/login?next=/coach");
   if (getActiveBan(me)) redirect("/");
-  if (me.role !== "COACH" && !isAdmin(me)) redirect("/account");
+  if (!hasRole(me, "COACH") && !isAdmin(me)) redirect("/account");
   return me;
 }
 
@@ -192,8 +194,8 @@ export async function trialAvailable(userId: string, coachId: string, q: Q = db)
 }
 
 export async function requestTraining(userId: string, input: { coachId: string; clubId: string; startsAt: Date; durationMin: number; comment: string; trial?: boolean }) {
-  const profile = await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.userId, input.coachId), with: { user: { columns: { role: true } } } });
-  if (!profile || !profile.isPublished || profile.user.role !== "COACH") throw new BookingError("Тренер не найден");
+  const profile = await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.userId, input.coachId), with: { user: { columns: { role: true, extraRoles: true } } } });
+  if (!profile || !profile.isPublished || !hasRole(profile.user, "COACH")) throw new BookingError("Тренер не найден");
   if (input.coachId === userId) throw new BookingError("Это вы");
   const trial = !!input.trial;
   if (trial) {
@@ -323,7 +325,7 @@ export async function upcomingSlots(opts: { clubId?: string; coachId?: string; d
         gt(s.trainingSlot.startsAt, now),
         lte(s.trainingSlot.startsAt, until),
         eq(s.coachProfile.isPublished, true),
-        eq(s.user.role, "COACH"),
+        userHasRole("COACH"),
         eq(s.club.isActive, true),
         opts.clubId ? eq(s.trainingSlot.clubId, opts.clubId) : undefined,
         opts.coachId ? eq(s.trainingSlot.coachId, opts.coachId) : undefined,
@@ -340,7 +342,7 @@ export async function publicCoaches() {
     .select({ profile: s.coachProfile })
     .from(s.coachProfile)
     .innerJoin(s.user, eq(s.user.id, s.coachProfile.userId))
-    .where(and(eq(s.coachProfile.isPublished, true), eq(s.user.role, "COACH")))
+    .where(and(eq(s.coachProfile.isPublished, true), userHasRole("COACH")))
     .orderBy(asc(s.coachProfile.sortOrder), asc(s.coachProfile.displayName))
     .then((r) => r.map((x) => x.profile));
 }

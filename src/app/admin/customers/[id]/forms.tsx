@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useState, useTransition } from "react";
-import { adjustBonus, banUser, setAdminSections, setRole, type ActionState } from "../../actions";
+import { ROLE_HINTS, ROLE_LABELS, STAFF_ROLES } from "@/lib/roles";
+import { adjustBonus, banUser, setAdminSections, setRoles, type ActionState } from "../../actions";
 import { adminSetBirthday } from "../../shop-actions";
 
 function Result({ state }: { state: ActionState }) {
@@ -74,62 +75,47 @@ export function BonusForm({ userId }: { userId: string }) {
   );
 }
 
-type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER" | "DIRECTOR";
-
-export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role: Role; clubId: string | null; clubs: { id: string; name: string; city: string }[] }) {
+/** Роли сотрудника: можно отметить несколько */
+export function RoleForm({ userId, roles, clubId, clubs, self }: { userId: string; roles: string[]; clubId: string | null; clubs: { id: string; name: string; city: string }[]; self: boolean }) {
   const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
-  const [r, setR] = useState<Role>(role);
+  const [picked, setPicked] = useState<Set<string>>(new Set(roles));
   const [club, setClub] = useState(clubId ?? "");
-  const save = (nextRole: Role, nextClub: string) => {
-    setError(null);
-    setOk(false);
-    if (nextRole === "CLUB" && !nextClub) return; // ждём выбора клуба
-    start(async () => {
-      try {
-        await setRole(userId, nextRole, nextRole === "CLUB" ? nextClub : null);
-        setOk(true);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Не получилось");
-      }
-    });
+  const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
+  const owner = picked.has("OWNER");
+  const dirty = [...picked].sort().join() !== [...roles].sort().join() || (picked.has("CLUB") && club !== (clubId ?? ""));
+  const flip = (r: string) => {
+    const n = new Set(picked);
+    if (n.has(r)) n.delete(r);
+    else n.add(r);
+    setPicked(n);
+    setMsg({});
   };
   return (
     <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-      <label className="field">
-        Роль
-        <select
-          className="select"
-          value={r}
-          disabled={pending}
-          onChange={(e) => {
-            const v = e.target.value as Role;
-            setR(v);
-            save(v, club);
-          }}
-        >
-          <option value="CUSTOMER">Покупатель</option>
-          <option value="COACH">Тренер (свой кабинет: профиль, расписание, записи)</option>
-          <option value="CLUB">Администратор клуба (только выдача и приём киёв)</option>
-          <option value="CASHIER">Кассир (только касса: продажи в клубе и на турнирах)</option>
-          <option value="MANAGER">Менеджер (доступ в админку)</option>
-          <option value="DIRECTOR">Руководитель (только смотрит: финансы, заказы, склад)</option>
-          <option value="OWNER">Владелец (всё, включая настройки)</option>
-        </select>
-      </label>
-      {r === "CLUB" && (
-        <label className="field">
-          Клуб
-          <select
-            className="select"
-            value={club}
-            disabled={pending}
-            onChange={(e) => {
-              setClub(e.target.value);
-              save("CLUB", e.target.value);
-            }}
-          >
+      <div>
+        <strong>Роли</strong>
+        <div className="muted small">Можно несколько: например, тренер и кассир. Ничего не отмечено — обычный покупатель.</div>
+      </div>
+      <div className="roles-grid">
+        {STAFF_ROLES.map((r) => {
+          // Касса и отчёты уже входят в старшие роли
+          const impliedBy = owner && ["MANAGER", "DIRECTOR", "CASHIER"].includes(r) ? "Владельца" : picked.has("MANAGER") && r === "CASHIER" ? "Менеджера" : null;
+          const implied = !!impliedBy;
+          return (
+            <label key={r} className={`check roles-grid__item${implied ? " is-implied" : ""}`} style={{ margin: 0 }}>
+              <input type="checkbox" checked={picked.has(r) || implied} disabled={pending || implied || (self && r === "OWNER")} onChange={() => flip(r)} />
+              <span>
+                {ROLE_LABELS[r]}
+                <span className="muted small"> — {impliedBy ? `уже входит в роль «${impliedBy}»` : ROLE_HINTS[r]}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {picked.has("CLUB") && (
+        <label className="field" style={{ margin: 0 }}>
+          Клуб администратора
+          <select className="select" value={club} disabled={pending} onChange={(e) => setClub(e.target.value)}>
             <option value="">— выберите клуб —</option>
             {clubs.map((c) => (
               <option key={c.id} value={c.id}>
@@ -137,26 +123,34 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
               </option>
             ))}
           </select>
-          <span className="muted small">
-            Сотрудник входит на сайт своим логином и паролем — ему открывается раздел «Клуб»: заказы на выдачу и кии для мастерской только этого клуба.
-            Уведомления — в Telegram (подключает в личном кабинете) или на почту.
-          </span>
+          <span className="muted small">Раздел «Клуб»: заказы на выдачу и кии для мастерской только этого клуба. Уведомления — в Telegram или на почту.</span>
         </label>
       )}
-      {r === "DIRECTOR" && (
-        <span className="muted small">
-          Руководитель видит выручку и прибыль, аналитику, заказы, продажи кассы, склад и возвраты — без кнопок изменения: товары, цены, заказы и настройки не трогает. В Telegram — отчёты с прибылью и вечерняя
-          сводка. Какие из этих разделов ему видны — галочками ниже.
-        </span>
+      {picked.has("CASHIER") && !owner && !picked.has("MANAGER") && (
+        <span className="muted small">Кассир: касса на /kassa — цены не меняет, скидка в пределах лимита из «Финансов», оплаченные продажи не отменяет.</span>
       )}
-      {r === "CASHIER" && (
-        <span className="muted small">
-          Кассир входит на сайт своим логином — ему открывается только «Касса» (/kassa): продажи за наличные и по QR. Цены не меняет, скидку даёт в пределах лимита из «Финансов», оплаченные продажи не
-          отменяет, видит только свои продажи и не видит прибыль.
-        </span>
+      {picked.has("DIRECTOR") && !owner && !picked.has("MANAGER") && (
+        <span className="muted small">Руководитель: финансы, аналитика, заказы, касса, склад — только просмотр. В Telegram — отчёты с прибылью и вечерняя сводка.</span>
       )}
-      {error && <span className="form-error">{error}</span>}
-      {ok && <span className="form-ok small">Сохранено</span>}
+      {picked.has("DIRECTOR") && picked.has("MANAGER") && !owner && (
+        <span className="muted small">Менеджер + руководитель: работает в админке как менеджер и вдобавок видит финансы и аналитику.</span>
+      )}
+      <div className="row" style={{ gap: 10, alignItems: "center" }}>
+        <button
+          type="button"
+          className="btn btn--line btn--sm"
+          disabled={pending || !dirty}
+          onClick={() =>
+            start(async () => {
+              setMsg(await setRoles(userId, [...picked], picked.has("CLUB") ? club : null));
+            })
+          }
+        >
+          {pending ? "Сохраняем…" : "Сохранить роли"}
+        </button>
+        {msg.ok && <span className="form-ok small">{msg.ok}</span>}
+        {msg.error && <span className="form-error small">{msg.error}</span>}
+      </div>
     </div>
   );
 }

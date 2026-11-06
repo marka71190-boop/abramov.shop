@@ -108,7 +108,8 @@ export const DIRECTOR_KEYS = ["finance", "analytics", "orders", "pos", "stock", 
 export const DIRECTOR_ITEMS = ALL_ITEMS.filter((i) => DIRECTOR_KEYS.includes(i.key));
 
 /** Кому выбирают разделы галочками и из какого списка */
-export const pickableItems = (role: string) => (role === "DIRECTOR" ? DIRECTOR_ITEMS : role === "MANAGER" ? MANAGER_ITEMS : []);
+export const pickableItems = (roles: string[]) =>
+  roles.includes("OWNER") ? [] : ALL_ITEMS.filter((i) => !i.always && ((roles.includes("MANAGER") && !i.owner) || (roles.includes("DIRECTOR") && DIRECTOR_KEYS.includes(i.key))));
 
 /** Какой раздел открыт по пути страницы: самый длинный подходящий href */
 export function sectionOf(rawPath: string): AdminItem | null {
@@ -123,13 +124,13 @@ export function sectionOf(rawPath: string): AdminItem | null {
 
 /**
  * Может ли сотрудник открыть раздел.
- * sections — выбор владельца для этого менеджера; null/пусто — все разделы менеджера.
+ * roles — все роли человека; sections — выбор владельца; null/пусто — все разделы его ролей.
  */
-export function canSee(role: string, sections: string[] | null | undefined, item: AdminItem) {
-  if (role === "OWNER") return true;
-  if (role === "DIRECTOR") return !!item.always || (DIRECTOR_KEYS.includes(item.key) && (!sections?.length || sections.includes(item.key)));
-  if (role !== "MANAGER") return false;
-  if (item.owner) return false;
+export function canSee(roles: string[], sections: string[] | null | undefined, item: AdminItem) {
+  if (roles.includes("OWNER")) return true;
+  // Что даёт каждая роль; несколько ролей — объединяем
+  const byRole = (roles.includes("MANAGER") && !item.owner) || (roles.includes("DIRECTOR") && DIRECTOR_KEYS.includes(item.key));
+  if (!byRole && !(item.always && (roles.includes("MANAGER") || roles.includes("DIRECTOR")))) return false;
   if (item.always || !sections?.length) return true;
   return sections.includes(item.key);
 }

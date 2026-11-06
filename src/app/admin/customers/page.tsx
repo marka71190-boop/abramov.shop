@@ -1,3 +1,4 @@
+import { rolesLabel, rolesOf } from "@/lib/roles";
 import { and, desc, ilike, isNotNull, or, type SQL } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
@@ -81,8 +82,8 @@ export default async function CustomersPage({ searchParams }: Props) {
                   <td>
                     {ban ? (
                       <span className="pill pill--bad">Бан{ban.until ? ` до ${fmtDate(ban.until)}` : ""}</span>
-                    ) : u.role !== "CUSTOMER" ? (
-                      <span className="pill pill--warn">{u.role === "OWNER" ? "Владелец" : u.role === "CLUB" ? "Клуб" : u.role === "COACH" ? "Тренер" : u.role === "CASHIER" ? "Кассир" : u.role === "DIRECTOR" ? "Руководитель" : "Менеджер"}</span>
+                    ) : rolesOf(u).length ? (
+                      <span className="pill pill--warn">{rolesLabel(u)}</span>
                     ) : (
                       <span className="pill pill--ok">Активен</span>
                     )}

@@ -7,6 +7,8 @@
  * Клиент привязывает Telegram из личного кабинета: кнопка ведёт на t.me/<бот>?start=<одноразовый код>.
  * Админы и менеджеры привязывают так же — и дополнительно получают уведомления о новых заказах.
  */
+import { hasRole } from "@/lib/roles";
+import { userHasAnyRole } from "@/lib/roles-sql";
 import { callNameOf } from "@/lib/names";
 import "server-only";
 import { createHash } from "node:crypto";
@@ -142,7 +144,7 @@ async function setAdminCommands(onlyChat?: string) {
           await db
             .select({ chatId: s.user.telegramChatId })
             .from(s.user)
-            .where(and(inArray(s.user.role, ["OWNER", "MANAGER", "DIRECTOR"]), isNotNull(s.user.telegramChatId)))
+            .where(and(userHasAnyRole(["OWNER", "MANAGER", "DIRECTOR"]), isNotNull(s.user.telegramChatId)))
         )
           .map((r) => r.chatId)
           .filter((c): c is string => !!c);
@@ -207,14 +209,14 @@ export async function handleUpdate(u: TgUpdate) {
       const user = await linkByCode(code, chatId);
       if (user) {
         const admin = user.role === "OWNER" || user.role === "MANAGER";
-        if (admin || user.role === "DIRECTOR") void setAdminCommands(chatId);
-        const clubStaff = user.role === "CLUB";
+        if (admin || hasRole(user, "DIRECTOR")) void setAdminCommands(chatId);
+        const clubStaff = hasRole(user, "CLUB");
         return send(
           chatId,
           `Готово${callNameOf(user) ? `, ${esc(callNameOf(user))}` : ""}! Telegram привязан к аккаунту Abramov Shop.\n\n` +
             `Сюда придут оплата, трек-номер СДЭК и вручение заказа, а ещё начисление бонусов.` +
             (admin ? `\n\n<b>Вы админ</b> — сюда же будут приходить новые оплаченные заказы, а по командам — выручка и склад.` : "") +
-            (user.role === "DIRECTOR" ? `\n\n<b>Вы руководитель</b> — команды /today, /week, /month, /stock покажут выручку, прибыль и склад, а вечером придёт сводка за день.` : "") +
+            (hasRole(user, "DIRECTOR") && !admin ? `\n\n<b>Вы руководитель</b> — команды /today, /week, /month, /stock покажут выручку, прибыль и склад, а вечером придёт сводка за день.` : "") +
             (clubStaff ? `\n\n<b>Вы администратор клуба</b> — сюда будут приходить заказы на выдачу в вашем клубе и кии для мастерской.` : "") +
             `\n\n/orders — мои заказы\n/bonus — мои бонусы`,
         );
@@ -238,10 +240,10 @@ export async function handleUpdate(u: TgUpdate) {
   }
 
   // Отчёты для владельца и менеджеров (без персональных данных покупателей)
-  const staff = (user.role === "OWNER" || user.role === "MANAGER" || user.role === "DIRECTOR") && !(user.bannedAt && (!user.bannedUntil || user.bannedUntil > new Date()));
+  const staff = (user.role === "OWNER" || user.role === "MANAGER" || hasRole(user, "DIRECTOR")) && !(user.bannedAt && (!user.bannedUntil || user.bannedUntil > new Date()));
   if (staff && text.startsWith("/")) {
     const { adminCommand } = await import("@/lib/finance-bot");
-    const r = await adminCommand(user.role, text);
+    const r = await adminCommand(user, text);
     if (r) return send(chatId, r.html, r.button ? [r.button] : undefined);
   }
 

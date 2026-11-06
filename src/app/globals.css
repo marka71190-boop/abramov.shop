@@ -7058,3 +7058,10 @@ tr.is-muted td {
 .pos-total .btn {
   flex: 0 1 auto;
 }
+.roles-grid {
+  display: grid;
+  gap: 8px;
+}
+.roles-grid__item.is-implied {
+  opacity: 0.55;
+}

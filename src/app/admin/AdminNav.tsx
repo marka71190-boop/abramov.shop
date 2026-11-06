@@ -10,7 +10,7 @@ const OPEN_KEY = "admin-nav-open";
  * Меню админки: разделы по группам, редко нужные группы свёрнуты.
  * Счётчик у пункта — сколько ждёт действия. На телефоне — кнопка «Меню» и выдвижная панель.
  */
-export function AdminNav({ role, sections, badges }: { role: string; sections: string[] | null; badges: Partial<Record<BadgeKey, number>> }) {
+export function AdminNav({ roles, sections, badges }: { roles: string[]; sections: string[] | null; badges: Partial<Record<BadgeKey, number>> }) {
   const path = usePathname();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [drawer, setDrawer] = useState(false);
@@ -33,7 +33,7 @@ export function AdminNav({ role, sections, badges }: { role: string; sections: s
   };
 
   const current = sectionOf(path);
-  const groups = ADMIN_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => canSee(role, sections, i)) })).filter((g) => g.items.length);
+  const groups = ADMIN_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => canSee(roles, sections, i)) })).filter((g) => g.items.length);
   const total = groups.flatMap((g) => g.items).reduce((a, i) => a + (i.badge ? (badges[i.badge] ?? 0) : 0), 0);
 
   return (

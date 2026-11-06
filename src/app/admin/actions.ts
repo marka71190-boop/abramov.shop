@@ -107,44 +107,65 @@ export async function adjustBonus(_: ActionState, form: FormData): Promise<Actio
   return { ok: `Готово. Баланс: ${res.balance} бонусов` };
 }
 
-export async function setRole(userId: string, role: "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER" | "DIRECTOR", clubId?: string | null) {
+/**
+ * Роли сотрудника — можно несколько (тренер и кассир, менеджер и тренер…).
+ * Главной становится самая старшая из выбранных, остальные — дополнительные.
+ */
+export async function setRoles(userId: string, roles: string[], clubId?: string | null): Promise<{ ok?: string; error?: string }> {
   const me = await requireAdmin("OWNER");
-  if (userId === me.id && role !== "OWNER") throw new Error("Нельзя снять права владельца с самого себя");
-  if (!["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER", "DIRECTOR"].includes(role)) throw new Error("Неизвестная роль");
+  const { splitRoles, STAFF_ROLES, ROLE_LABELS, rolesOf } = await import("@/lib/roles");
+  const list = (Array.isArray(roles) ? roles : []).map(String).filter((r) => (STAFF_ROLES as string[]).includes(r));
+  if (userId === me.id && !list.includes("OWNER")) return { error: "Нельзя снять права владельца с самого себя" };
+  const { role, extraRoles } = splitRoles(list);
+  const all = [role, ...extraRoles];
   let club: string | null = null;
-  if (role === "CLUB") {
+  if (all.includes("CLUB")) {
     const c = clubId ? await db.query.club.findFirst({ where: eq(s.club.id, clubId), columns: { id: true } }) : null;
-    if (!c) throw new Error("Выберите клуб");
+    if (!c) return { error: "Выберите клуб для администратора клуба" };
     club = c.id;
   }
-  await db
-    .update(s.user)
-    .set({ role, clubId: club, adminSections: null })
-    .where(eq(s.user.id, userId));
-  await audit(me.id, "user.role", "user", userId, { role, clubId: club });
-  if (role === "COACH") {
-    // Кабинет тренера: профиль создаётся сразу, тренер дальше заполняет его сам
-    const { ensureCoachProfile } = await import("@/lib/trainings");
-    await ensureCoachProfile(userId);
-    const { notifyUser } = await import("@/lib/telegram");
-    const { SITE } = await import("@/lib/site");
-    void notifyUser(userId, "🎱 Вам открыт кабинет тренера Abramov: заполните профиль и добавьте расписание.", { text: "Кабинет тренера", url: `${SITE.url}/coach` });
+  const before = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { role: true, extraRoles: true, adminSections: true } });
+  if (!before) return { error: "Пользователь не найден" };
+  const had = rolesOf(before);
+  // Выбор разделов админки: сохраняем, что можно; добавили руководителя — открываем его разделы,
+  // добавили менеджера — все разделы (владелец потом сузит галочками)
+  const { pickableItems, DIRECTOR_KEYS } = await import("@/lib/admin-sections");
+  const added0 = all.filter((r) => !had.includes(r as never));
+  let sections: string[] | null = null;
+  if (before.adminSections?.length && !added0.includes("MANAGER")) {
+    const can = new Set(pickableItems(all).map((i) => i.key));
+    sections = [...new Set([...before.adminSections, ...(added0.includes("DIRECTOR") ? DIRECTOR_KEYS : [])])].filter((k) => can.has(k));
+    if (!sections.length || sections.length >= can.size) sections = null;
   }
-  if (role === "CASHIER") {
+  await db.update(s.user).set({ role, extraRoles, clubId: club, adminSections: sections }).where(eq(s.user.id, userId));
+  await audit(me.id, "user.role", "user", userId, { role, extraRoles, clubId: club });
+
+  const added = all.filter((r) => !had.includes(r as never));
+  if (added.length) {
     const { notifyUser } = await import("@/lib/telegram");
     const { SITE } = await import("@/lib/site");
-    void notifyUser(userId, "🧾 Вам открыта касса Abramov Shop: продажи в клубе и на турнирах — наличными и по QR.", { text: "Открыть кассу", url: `${SITE.url}/kassa` });
+    if (added.includes("COACH")) {
+      // Кабинет тренера: профиль создаётся сразу, тренер дальше заполняет его сам
+      const { ensureCoachProfile } = await import("@/lib/trainings");
+      await ensureCoachProfile(userId);
+      void notifyUser(userId, "🎱 Вам открыт кабинет тренера Abramov: заполните профиль и добавьте расписание.", { text: "Кабинет тренера", url: `${SITE.url}/coach` });
+    }
+    if (added.includes("CASHIER")) {
+      void notifyUser(userId, "🧾 Вам открыта касса Abramov Shop: продажи в клубе и на турнирах — наличными и по QR.", { text: "Открыть кассу", url: `${SITE.url}/kassa` });
+    }
   }
   revalidatePath("/trenirovki");
   revalidatePath(`/admin/customers/${userId}`);
+  return { ok: all[0] === "CUSTOMER" ? "Теперь это обычный покупатель" : `Роли: ${all.map((r) => ROLE_LABELS[r]).join(", ")}` };
 }
 
 /** Какие разделы админки видит менеджер. Пустой выбор — все разделы менеджера */
 export async function setAdminSections(userId: string, keys: string[]): Promise<{ ok?: string; error?: string }> {
   const me = await requireAdmin("OWNER");
   const { pickableItems } = await import("@/lib/admin-sections");
-  const u = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { role: true } });
-  const allowed = new Set(pickableItems(u?.role ?? "").map((i) => i.key));
+  const u = await db.query.user.findFirst({ where: eq(s.user.id, userId), columns: { role: true, extraRoles: true } });
+  const { rolesOf } = await import("@/lib/roles");
+  const allowed = new Set(pickableItems(rolesOf(u)).map((i) => i.key));
   if (!allowed.size) return { error: "Разделы выбираются только менеджеру и руководителю" };
   const clean = [...new Set((Array.isArray(keys) ? keys : []).map(String))].filter((k) => allowed.has(k));
   const value = clean.length && clean.length < allowed.size ? clean : null;

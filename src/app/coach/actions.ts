@@ -1,4 +1,5 @@
 "use server";
+import { hasRole } from "@/lib/roles";
 import { and, eq, gt, lt, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -15,8 +16,8 @@ async function target(form: FormData | null, asUser?: string) {
   const me = await requireCoach();
   const wanted = asUser ?? (form?.get("coachId") ? String(form.get("coachId")) : "");
   if (isAdmin(me) && wanted && wanted !== me.id) {
-    const u = await db.query.user.findFirst({ where: eq(s.user.id, wanted), columns: { id: true, role: true } });
-    if (!u || u.role !== "COACH") throw new Error("Тренер не найден");
+    const u = await db.query.user.findFirst({ where: eq(s.user.id, wanted), columns: { id: true, role: true, extraRoles: true } });
+    if (!u || !hasRole(u, "COACH")) throw new Error("Тренер не найден");
     return { me, coachId: u.id };
   }
   return { me, coachId: me.id };

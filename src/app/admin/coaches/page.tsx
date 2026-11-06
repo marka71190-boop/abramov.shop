@@ -1,3 +1,4 @@
+import { userHasRole } from "@/lib/roles-sql";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
@@ -7,7 +8,7 @@ import { toggleCoach } from "./actions";
 
 export default async function CoachesAdmin() {
   await requireAdmin();
-  const users = await db.query.user.findMany({ where: eq(s.user.role, "COACH"), columns: { id: true, name: true, email: true } });
+  const users = await db.query.user.findMany({ where: userHasRole("COACH"), columns: { id: true, name: true, email: true } });
   const now = new Date();
   const month = new Date(+now + 30 * 86400_000);
   const ago = new Date(+now - 30 * 86400_000);

@@ -330,6 +330,13 @@
       "when": 1793965677271,
       "tag": "0046_director",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793966190043,
+      "tag": "0047_extra_roles",
+      "breakpoints": true
     }
   ]
 }

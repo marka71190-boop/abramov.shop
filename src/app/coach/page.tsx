@@ -1,3 +1,5 @@
+import { hasRole } from "@/lib/roles";
+import { userHasRole } from "@/lib/roles-sql";
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
@@ -29,8 +31,8 @@ export default async function CoachPage({ searchParams }: Props) {
   const sp = await searchParams;
   const admin = isAdmin(me);
   // Админ может вести кабинет за любого тренера
-  const coaches = admin ? await db.query.user.findMany({ where: eq(s.user.role, "COACH"), columns: { id: true, name: true }, orderBy: asc(s.user.name) }) : [];
-  const coachId = admin ? (coaches.find((c) => c.id === sp.u)?.id ?? (me.role === "COACH" ? me.id : coaches[0]?.id)) : me.id;
+  const coaches = admin ? await db.query.user.findMany({ where: userHasRole("COACH"), columns: { id: true, name: true }, orderBy: asc(s.user.name) }) : [];
+  const coachId = admin ? (coaches.find((c) => c.id === sp.u)?.id ?? (hasRole(me, "COACH") ? me.id : coaches[0]?.id)) : me.id;
   if (!coachId) {
     return (
       <div className="panel stack">

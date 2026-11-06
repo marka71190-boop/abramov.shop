@@ -5,6 +5,8 @@
  * В Telegram, как и админам, без имени, телефона и адреса покупателя (152-ФЗ): только номер, состав и что сделать.
  * Имя покупателя для сверки администратор видит в разделе «Клуб» на сайте после входа.
  */
+import { hasRole } from "@/lib/roles";
+import { userHasRole } from "@/lib/roles-sql";
 import "server-only";
 import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -22,7 +24,7 @@ export async function requireClubStaff() {
   if (getActiveBan(me)) redirect("/");
   const all = await listClubs();
   if (isAdmin(me) && hasSection(me, "club")) return { me, clubs: all, admin: true };
-  if (me.role !== "CLUB" || !me.clubId) redirect(isAdmin(me) ? "/admin?closed=1" : "/");
+  if (!hasRole(me, "CLUB") || !me.clubId) redirect(isAdmin(me) ? "/admin?closed=1" : "/");
   const mine = all.filter((c) => c.id === me.clubId);
   return { me, clubs: mine, admin: false };
 }
@@ -32,7 +34,7 @@ export async function assertClubAccess(clubId: string | null) {
   const me = await getViewer();
   if (!me || getActiveBan(me)) throw new Error("Нужно войти в аккаунт");
   if (isAdmin(me) && hasSection(me, "club")) return me;
-  if (me.role === "CLUB" && me.clubId && me.clubId === clubId) return me;
+  if (hasRole(me, "CLUB") && me.clubId && me.clubId === clubId) return me;
   throw new Error("Это заказ другого клуба");
 }
 
@@ -41,7 +43,7 @@ export async function notifyClub(clubId: string | null, html: string, button?: {
   if (!clubId) return;
   try {
     const staff = await db.query.user.findMany({
-      where: and(eq(s.user.role, "CLUB"), eq(s.user.clubId, clubId)),
+      where: and(userHasRole("CLUB"), eq(s.user.clubId, clubId)),
       columns: { id: true, email: true, telegramChatId: true, bannedAt: true, bannedUntil: true },
     });
     const live = staff.filter((u) => !u.bannedAt || (u.bannedUntil && u.bannedUntil <= new Date()));

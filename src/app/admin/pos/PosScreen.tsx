@@ -6,7 +6,7 @@ import { fmtDateTime, rub } from "@/lib/format";
 import { POS_METHODS, type PosMethod } from "@/lib/pos";
 import { variantOptions } from "@/lib/stock-moves";
 import { getSettings } from "@/lib/settings";
-import type { UserRow } from "@/lib/viewer";
+import { seesMoney, type UserRow } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
 import { CancelSale, PosTerminal } from "./PosTerminal";
 
@@ -138,7 +138,7 @@ export async function PosScreen({
               <div className="muted small">СБП и карта</div>
               <div className="stat__value">{rub(by("SBP") + by("CARD"))}</div>
             </div>
-            {admin && (me.role === "OWNER" || me.role === "DIRECTOR") && (
+            {admin && seesMoney(me) && (
               <div className="stat">
                 <div className="muted small">Прибыль с товара</div>
                 <div className="stat__value">{rub(profit)}</div>

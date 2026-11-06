@@ -6,6 +6,7 @@ import { db, schema as s } from "@/db";
 import type { BadgeKey } from "@/lib/admin-sections";
 import { lowStockCount } from "@/lib/low-stock";
 import { openReturnsCount } from "@/lib/returns";
+import { rolesOf } from "@/lib/roles";
 import { requireAdmin } from "@/lib/viewer";
 import { AdminNav } from "./AdminNav";
 
@@ -39,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ADMIN
           </span>
         </Link>
-        <AdminNav role={me.role} sections={me.role === "OWNER" ? null : (me.adminSections ?? null)} badges={await badges()} />
+        <AdminNav roles={rolesOf(me)} sections={me.role === "OWNER" ? null : (me.adminSections ?? null)} badges={await badges()} />
       </nav>
       <main className="admin__main">{children}</main>
     </div>
