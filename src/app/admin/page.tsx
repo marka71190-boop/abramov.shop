@@ -5,12 +5,19 @@ import { num, rub } from "@/lib/format";
 import { openReturnsCount } from "@/lib/returns";
 import { lowStockCount } from "@/lib/low-stock";
 import { getSettings } from "@/lib/settings";
+import { canSee, sectionOf } from "@/lib/admin-sections";
 import { requireAdmin } from "@/lib/viewer";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { pushPublicKey } from "@/lib/push";
 
-export default async function AdminHome() {
+export default async function AdminHome({ searchParams }: { searchParams: Promise<{ closed?: string }> }) {
   const me = await requireAdmin();
+  const { closed } = await searchParams;
+  // Плитки только тех разделов, что открыты этому сотруднику
+  const open = (href: string) => {
+    const item = sectionOf(href);
+    return !item || canSee(me.role, me.adminSections, item);
+  };
   const owner = me.role === "OWNER";
   const dayAgo = new Date(Date.now() - 24 * 3600_000);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600_000);
@@ -59,6 +66,7 @@ export default async function AdminHome() {
   return (
     <>
       <h1>Обзор</h1>
+      {closed && <div className="form-error">Этот раздел вам не открыт. Если он нужен для работы — попросите владельца добавить его в вашей карточке сотрудника.</div>}
       {pushPublicKey() && (
         <details className="panel" style={{ marginBottom: 16 }}>
           <summary>Уведомления о новых заказах на этот телефон или компьютер</summary>
@@ -77,7 +85,7 @@ export default async function AdminHome() {
         </div>
       )}
       <div className="stats">
-        {orderStats.map((x) => (
+        {orderStats.filter((x) => open(x.href)).map((x) => (
           <Link key={x.label} href={x.href} className="stat" style={{ color: "inherit", textDecoration: "none" }}>
             <div className="muted small">{x.label}</div>
             <div className="stat__value">{x.value}</div>
@@ -85,7 +93,7 @@ export default async function AdminHome() {
         ))}
       </div>
       <div className="stats">
-        {stats.map((x) => (
+        {stats.filter((x) => open(x.href)).map((x) => (
           <Link key={x.label} href={x.href} className="stat" style={{ color: "inherit", textDecoration: "none" }}>
             <div className="muted small">{x.label}</div>
             <div className="stat__value">{num(x.value)}</div>

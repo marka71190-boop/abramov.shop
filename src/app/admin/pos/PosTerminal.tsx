@@ -11,7 +11,19 @@ const fmt = (kop: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDig
 const toKop = (v: string) => Math.round(Number(v.replace(",", ".").replace(/\s/g, "")) * 100);
 const PLACE_KEY = "pos-place";
 
-export function PosTerminal({ options, places, ykEnabled }: { options: PickOption[]; places: string[]; ykEnabled: boolean }) {
+export function PosTerminal({
+  options,
+  places,
+  ykEnabled,
+  canEditPrice = true,
+  maxDiscountPct = null,
+}: {
+  options: PickOption[];
+  places: string[];
+  ykEnabled: boolean;
+  canEditPrice?: boolean;
+  maxDiscountPct?: number | null; // кассир: скидка не больше, %
+}) {
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>([]);
   const [discount, setDiscount] = useState("");
@@ -47,6 +59,7 @@ export function PosTerminal({ options, places, ykEnabled }: { options: PickOptio
     return Math.min(subtotal, Math.max(0, toKop(v) || 0));
   })();
   const total = subtotal - disc;
+  const discTooBig = maxDiscountPct != null && disc > Math.round((subtotal * maxDiscountPct) / 100);
   const change = given.trim() ? toKop(given) - total : null;
 
   const add = (o: PickOption) => {
@@ -182,24 +195,31 @@ export function PosTerminal({ options, places, ykEnabled }: { options: PickOptio
                   +
                 </button>
               </div>
-              <label className="pos-price">
-                <input className="input" inputMode="decimal" value={l.price} onChange={(e) => upd(i, { price: e.target.value })} aria-label="Цена за 1 шт, ₽" />
-                <span className="muted small">₽</span>
-              </label>
+              {canEditPrice ? (
+                <label className="pos-price">
+                  <input className="input" inputMode="decimal" value={l.price} onChange={(e) => upd(i, { price: e.target.value })} aria-label="Цена за 1 шт, ₽" />
+                  <span className="muted small">₽</span>
+                </label>
+              ) : (
+                <span className="pos-price">{fmt(toKop(l.price) * l.qty)}</span>
+              )}
             </li>
           ))}
         </ul>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Найдите товар — он добавится в чек. Цену в строке можно поменять.
+          Найдите товар — он добавится в чек.{canEditPrice ? " Цену в строке можно поменять." : ""}
         </p>
       )}
 
       <div className="pos-grid">
-        <label className="field" style={{ margin: 0 }}>
-          Скидка
-          <input className="input" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="500 или 10%" inputMode="decimal" />
-        </label>
+        {maxDiscountPct !== 0 && (
+          <label className="field" style={{ margin: 0 }}>
+            Скидка{maxDiscountPct != null ? ` (до ${maxDiscountPct} %)` : ""}
+            <input className="input" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder={maxDiscountPct != null ? `${maxDiscountPct}%` : "500 или 10%"} inputMode="decimal" />
+            {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — только менеджер</span>}
+          </label>
+        )}
         <label className="field" style={{ margin: 0 }}>
           Где продаём
           <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} list="pos-places" placeholder="Клуб или турнир" maxLength={120} />
@@ -246,7 +266,7 @@ export function PosTerminal({ options, places, ykEnabled }: { options: PickOptio
           <div className="muted small">{disc > 0 ? `${fmt(subtotal)} − скидка ${fmt(disc)}` : "К оплате"}</div>
           <div className="pos-total__sum">{fmt(total)}</div>
         </div>
-        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (method !== "CASH" && total <= 0)} onClick={submit}>
+        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || discTooBig || (method !== "CASH" && total <= 0)} onClick={submit}>
           {pending ? "Проводим…" : method === "CASH" ? "Продать за наличные" : "Показать QR"}
         </button>
       </div>

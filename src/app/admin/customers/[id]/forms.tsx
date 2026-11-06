@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState, useTransition } from "react";
-import { adjustBonus, banUser, setRole, type ActionState } from "../../actions";
+import { adjustBonus, banUser, setAdminSections, setRole, type ActionState } from "../../actions";
 import { adminSetBirthday } from "../../shop-actions";
 
 function Result({ state }: { state: ActionState }) {
@@ -74,7 +74,7 @@ export function BonusForm({ userId }: { userId: string }) {
   );
 }
 
-type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH";
+type Role = "CUSTOMER" | "MANAGER" | "OWNER" | "CLUB" | "COACH" | "CASHIER";
 
 export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role: Role; clubId: string | null; clubs: { id: string; name: string; city: string }[] }) {
   const [pending, start] = useTransition();
@@ -112,6 +112,7 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
           <option value="CUSTOMER">Покупатель</option>
           <option value="COACH">Тренер (свой кабинет: профиль, расписание, записи)</option>
           <option value="CLUB">Администратор клуба (только выдача и приём киёв)</option>
+          <option value="CASHIER">Кассир (только касса: продажи в клубе и на турнирах)</option>
           <option value="MANAGER">Менеджер (доступ в админку)</option>
           <option value="OWNER">Владелец (всё, включая настройки)</option>
         </select>
@@ -141,8 +142,70 @@ export function RoleForm({ userId, role, clubId, clubs }: { userId: string; role
           </span>
         </label>
       )}
+      {r === "CASHIER" && (
+        <span className="muted small">
+          Кассир входит на сайт своим логином — ему открывается только «Касса» (/kassa): продажи за наличные и по QR. Цены не меняет, скидку даёт в пределах лимита из «Финансов», оплаченные продажи не
+          отменяет, видит только свои продажи и не видит прибыль.
+        </span>
+      )}
       {error && <span className="form-error">{error}</span>}
       {ok && <span className="form-ok small">Сохранено</span>}
+    </div>
+  );
+}
+
+/** Разделы админки, которые видит менеджер */
+export function SectionsForm({ userId, value, groups }: { userId: string; value: string[] | null; groups: { label: string; items: { key: string; label: string }[] }[] }) {
+  const all = groups.flatMap((g) => g.items.map((i) => i.key));
+  const [picked, setPicked] = useState<Set<string>>(new Set(value?.length ? value : all));
+  const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
+  const [pending, start] = useTransition();
+  const flip = (k: string) => {
+    const n = new Set(picked);
+    if (n.has(k)) n.delete(k);
+    else n.add(k);
+    setPicked(n);
+    setMsg({});
+  };
+  return (
+    <div className="stack" style={{ gap: 10, marginTop: 8 }}>
+      <div>
+        <strong>Разделы админки</strong>
+        <div className="muted small">Менеджер видит в меню и может открыть только отмеченное. «Обзор» открыт всегда, разделы владельца (финансы, настройки…) менеджеру не выдаются.</div>
+      </div>
+      <div className="sections-grid">
+        {groups.map((g) => (
+          <fieldset key={g.label} className="sections-grid__group">
+            <legend className="muted small">{g.label}</legend>
+            {g.items.map((i) => (
+              <label key={i.key} className="check" style={{ margin: 0 }}>
+                <input type="checkbox" checked={picked.has(i.key)} onChange={() => flip(i.key)} />
+                <span>{i.label}</span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+      </div>
+      <div className="row" style={{ gap: 10, alignItems: "center" }}>
+        <button
+          type="button"
+          className="btn btn--line btn--sm"
+          disabled={pending || !picked.size}
+          onClick={() =>
+            start(async () => {
+              setMsg(await setAdminSections(userId, [...picked]));
+            })
+          }
+        >
+          {pending ? "Сохраняем…" : "Сохранить разделы"}
+        </button>
+        <button type="button" className="linklike small" onClick={() => setPicked(new Set(all))}>
+          Отметить все
+        </button>
+        {!picked.size && <span className="small form-error">Отметьте хотя бы один раздел</span>}
+        {msg.ok && <span className="form-ok small">{msg.ok}</span>}
+        {msg.error && <span className="form-error small">{msg.error}</span>}
+      </div>
     </div>
   );
 }

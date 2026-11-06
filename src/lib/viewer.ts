@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema as s } from "@/db";
+import { ALL_ITEMS, canSee, sectionOf } from "@/lib/admin-sections";
 import { auth } from "@/lib/auth";
 
 export type UserRow = typeof s.user.$inferSelect;
@@ -50,10 +51,34 @@ export async function requireActiveUser() {
   return u;
 }
 
-/** Для админки. Владелец — всё, менеджер — всё, кроме настроек и выдачи ролей. */
+/** Открыт ли менеджеру раздел админки (владелец выбирает разделы в карточке сотрудника) */
+export function hasSection(u: Pick<UserRow, "role" | "adminSections">, key: string) {
+  const item = ALL_ITEMS.find((i) => i.key === key);
+  return !!item && canSee(u.role, u.adminSections, item);
+}
+
+/**
+ * Для админки. Владелец — всё, менеджер — всё, кроме настроек и выдачи ролей,
+ * а если владелец выбрал ему разделы — только их.
+ */
 export async function requireAdmin(level: "MANAGER" | "OWNER" = "MANAGER") {
   const u = await getViewer();
   if (!u) redirect("/login?next=/admin");
   if (!isAdmin(u) || (level === "OWNER" && u.role !== "OWNER")) redirect("/");
+  if (u.role === "MANAGER" && u.adminSections?.length) {
+    // Путь страницы передаёт src/proxy.ts; вне админки (API, кабинеты) заголовка нет
+    const path = (await headers()).get("x-admin-path");
+    const item = path ? sectionOf(path) : null;
+    if (item && !canSee(u.role, u.adminSections, item)) redirect("/admin?closed=1");
+  }
   return u;
+}
+
+/** Касса: кассир, менеджер или владелец (без действующего бана) */
+export async function requireCashier(next = "/kassa") {
+  const u = await getViewer();
+  if (!u) redirect(`/login?next=${encodeURIComponent(next)}`);
+  const admin = isAdmin(u);
+  if (!admin && !(u.role === "CASHIER" && !getActiveBan(u))) redirect("/");
+  return { me: u, admin };
 }

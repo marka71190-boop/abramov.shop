@@ -11,6 +11,7 @@ export function Header({
   cue = false,
   club = false,
   coach = false,
+  cashier = false,
 }: {
   signedIn: boolean;
   admin: boolean;
@@ -18,6 +19,8 @@ export function Header({
   club?: boolean;
   /** Тренер — ссылка на кабинет тренера */
   coach?: boolean;
+  /** Кассир — ссылка на кассу */
+  cashier?: boolean;
   cue?: boolean;
   categories: { slug: string; name: string }[];
 }) {
@@ -49,6 +52,7 @@ export function Header({
           {admin && <Link href="/admin">Админка</Link>}
           {club && <Link href="/club">Клуб</Link>}
           {coach && <Link href="/coach">Тренер</Link>}
+          {cashier && <Link href="/kassa">Касса</Link>}
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />

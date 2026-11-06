@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { listClubs, type ClubRow } from "@/lib/clubs";
 import { SITE } from "@/lib/site";
-import { getActiveBan, getViewer, isAdmin } from "@/lib/viewer";
+import { getActiveBan, getViewer, hasSection, isAdmin } from "@/lib/viewer";
 
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -21,8 +21,8 @@ export async function requireClubStaff() {
   if (!me) redirect("/login?next=/club");
   if (getActiveBan(me)) redirect("/");
   const all = await listClubs();
-  if (isAdmin(me)) return { me, clubs: all, admin: true };
-  if (me.role !== "CLUB" || !me.clubId) redirect("/");
+  if (isAdmin(me) && hasSection(me, "club")) return { me, clubs: all, admin: true };
+  if (me.role !== "CLUB" || !me.clubId) redirect(isAdmin(me) ? "/admin?closed=1" : "/");
   const mine = all.filter((c) => c.id === me.clubId);
   return { me, clubs: mine, admin: false };
 }
@@ -31,7 +31,7 @@ export async function requireClubStaff() {
 export async function assertClubAccess(clubId: string | null) {
   const me = await getViewer();
   if (!me || getActiveBan(me)) throw new Error("Нужно войти в аккаунт");
-  if (isAdmin(me)) return me;
+  if (isAdmin(me) && hasSection(me, "club")) return me;
   if (me.role === "CLUB" && me.clubId && me.clubId === clubId) return me;
   throw new Error("Это заказ другого клуба");
 }

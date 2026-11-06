@@ -48,7 +48,13 @@ export interface NewSale {
   contact?: string | null;
 }
 
-export async function createSale(sellerId: string, input: NewSale): Promise<SaleRow> {
+/** Кассир: цены — как в каталоге, скидка на чек — не больше maxDiscountPct % */
+export interface SaleLimits {
+  lockPrices: boolean;
+  maxDiscountPct: number | null;
+}
+
+export async function createSale(sellerId: string, input: NewSale, limits: SaleLimits = { lockPrices: false, maxDiscountPct: null }): Promise<SaleRow> {
   if (!input.items.length) throw new PosError("Добавьте товар");
   if (input.method !== "CASH" && !yookassaEnabled()) throw new PosError("ЮKassa не подключена — принимайте наличными");
   const settings = await getSettings();
@@ -56,17 +62,21 @@ export async function createSale(sellerId: string, input: NewSale): Promise<Sale
 
   const ids = input.items.map((i) => i.variantId);
   const vars = await db
-    .select({ id: s.productVariant.id, productId: s.productVariant.productId, variant: s.productVariant.name, active: s.productVariant.isActive, cost: s.productVariant.costPrice, product: s.product.name, variants: sql<number>`(select count(*)::int from product_variant v2 where v2.product_id = ${s.productVariant.productId} and v2.is_active)` })
+    .select({ id: s.productVariant.id, productId: s.productVariant.productId, variant: s.productVariant.name, active: s.productVariant.isActive, cost: s.productVariant.costPrice, product: s.product.name, catalogPrice: sql<number>`coalesce(${s.productVariant.price}, ${s.product.price})`, variants: sql<number>`(select count(*)::int from product_variant v2 where v2.product_id = ${s.productVariant.productId} and v2.is_active)` })
     .from(s.productVariant)
     .innerJoin(s.product, eq(s.product.id, s.productVariant.productId))
     .where(inArray(s.productVariant.id, ids));
   const lines = input.items.map((i) => {
     const v = vars.find((x) => x.id === i.variantId);
     if (!v || !v.active) throw new PosError("Товар больше не продаётся — обновите страницу");
-    return { ...i, v, name: v.variants > 1 ? `${v.product} · ${v.variant}` : v.product };
+    const price = limits.lockPrices ? Number(v.catalogPrice) : i.price;
+    return { ...i, price, v, name: v.variants > 1 ? `${v.product} · ${v.variant}` : v.product };
   });
   const subtotal = lines.reduce((a, l) => a + l.price * l.qty, 0);
   const discount = Math.min(Math.max(0, input.discount), subtotal);
+  if (limits.maxDiscountPct != null && discount > Math.round((subtotal * limits.maxDiscountPct) / 100)) {
+    throw new PosError(limits.maxDiscountPct > 0 ? `Скидка кассира — не больше ${limits.maxDiscountPct} %. Бо́льшую может дать менеджер` : "Скидку может дать только менеджер");
+  }
   const total = subtotal - discount;
   if (total <= 0 && input.method !== "CASH") throw new PosError("Сумма к оплате — больше 0 ₽");
   const cost = lines.reduce((a, l) => a + (l.v.cost ?? 0) * l.qty, 0);

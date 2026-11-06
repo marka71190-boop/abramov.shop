@@ -81,6 +81,7 @@ export interface SiteSettings {
     taxPercent: number; // %, налог с выручки (УСН 6 % — 6); 0 — не учитывать
     dailyReport: boolean; // вечерняя сводка владельцу в Telegram
     reportHour: number; // во сколько (по Москве) присылать сводку
+    cashierMaxDiscount: number; // %, какую скидку на чек может дать кассир
   };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
@@ -169,6 +170,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     taxPercent: 0,
     dailyReport: true,
     reportHour: 21,
+    cashierMaxDiscount: 10,
   },
   giftCards: {
     enabled: true,

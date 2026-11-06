@@ -44,7 +44,8 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 // ============================================================
 
 // CLUB — администратор клуба: видит только выдачу заказов и приём киёв своего клуба
-export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH"]);
+// CASHIER — кассир: видит только кассу (/kassa)
+export const roleEnum = pgEnum("role", ["CUSTOMER", "MANAGER", "OWNER", "CLUB", "COACH", "CASHIER"]);
 export const tierEnum = pgEnum("loyalty_tier", ["SILVER", "GOLD", "BLACK"]);
 
 export const user = pgTable(
@@ -67,6 +68,7 @@ export const user = pgTable(
     bonusReminderAt: ts("bonus_reminder_at"), // последнее напоминание о сгорающих бонусах
     role: roleEnum("role").default("CUSTOMER").notNull(),
     clubId: text("club_id"), // для роли CLUB: в каком клубе работает
+    adminSections: text("admin_sections").array(), // менеджер: какие разделы админки видит; пусто — все
     organizationId: text("organization_id"), // сотрудник организации-оптовика
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.

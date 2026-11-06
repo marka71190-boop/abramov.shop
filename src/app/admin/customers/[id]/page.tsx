@@ -1,3 +1,4 @@
+import { ADMIN_GROUPS, MANAGER_ITEMS } from "@/lib/admin-sections";
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,7 +8,7 @@ import { orderStatus, TONE_PILL } from "@/lib/order-status";
 import { getActiveBan, requireAdmin } from "@/lib/viewer";
 import { unbanUser } from "../../actions";
 import { listClubs } from "@/lib/clubs";
-import { BanForm, BirthdayAdminForm, BonusForm, RoleForm } from "./forms";
+import { BanForm, BirthdayAdminForm, BonusForm, RoleForm, SectionsForm } from "./forms";
 
 const CONSENT_KIND = { PERSONAL_DATA: "Обработка ПДн", MARKETING: "Рассылки", COACH_TRANSFER: "Передача тренеру" } as const;
 const SOURCE = { REGISTRATION: "Регистрация", GOOGLE: "Google", VK: "VK ID", CHECKOUT: "Заказ", ACCOUNT: "Кабинет", RECONSENT: "Повторное", TRAINING: "Тренировка" } as const;
@@ -60,6 +61,13 @@ export default async function CustomerPage({ params }: Props) {
           </div>
           {me.role === "OWNER" && <BirthdayAdminForm userId={u.id} value={u.birthday} />}
           {me.role === "OWNER" && <RoleForm userId={u.id} role={u.role} clubId={u.clubId} clubs={(await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city }))} />}
+          {me.role === "OWNER" && u.role === "MANAGER" && (
+            <SectionsForm
+              userId={u.id}
+              value={u.adminSections}
+              groups={ADMIN_GROUPS.map((g) => ({ label: g.label, items: g.items.filter((i) => MANAGER_ITEMS.includes(i)).map((i) => ({ key: i.key, label: i.label })) })).filter((g) => g.items.length)}
+            />
+          )}
         </div>
 
         <div className="panel stack">
