@@ -1,6 +1,6 @@
 /**
  * Фоновые задачи сайта. Запускаются один раз при старте сервера:
- *   • каждую минуту — спрашиваем ЮKassa об оплате ожидающих заказов;
+ *   • каждую минуту — спрашиваем ЮKassa об оплате ожидающих заказов и продаж в кассе по QR;
  *   • каждые 5 минут — отменяем неоплаченные вовремя заказы (товар возвращается в продажу);
  *   • каждые 30 минут — подтягиваем трек-номера и статусы из СДЭК;
  *   • каждую минуту — очередная партия писем рассылки;
@@ -31,6 +31,14 @@ export async function register() {
   setInterval(safe("expire", expireUnpaidOrders), 5 * 60_000);
   setInterval(safe("payments", pollPendingPayments), 60_000);
   setInterval(safe("cdek", syncShipments), 30 * 60_000);
+
+  // Вечерняя сводка владельцу в Telegram (проверка раз в 10 минут, отправка — в выбранный час)
+  const { dailyFinanceReport } = await import("@/lib/finance-bot");
+  setInterval(safe("report", dailyFinanceReport), 10 * 60_000);
+
+  // Касса: оплаты по QR (СБП/карта) и отмена неоплаченных через 20 минут
+  const { pollPosSales } = await import("@/lib/pos");
+  setInterval(safe("pos", pollPosSales), 60_000);
 
   // Рассылки: очередь писем — партия раз в минуту (и сразу после перезапуска, если рассылка шла)
   const { processCampaigns } = await import("@/lib/campaigns");

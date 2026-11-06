@@ -199,6 +199,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         bundleDiscount: quote.bundleDiscount,
         bonusSpent: quote.bonus.spent,
         shippingCost: quote.shipping!.cost,
+        deliveryCost: quote.shipping!.carrierCost ?? null,
         total: quote.total,
         giftCardAmount: quote.gift?.applied ?? 0,
         bonusAccrued: quote.accrue,
@@ -230,6 +231,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         spec: l.spec ?? null,
         // Код сборки без гравировки (гравировка — имя покупателя, в галерею не попадает)
         cueKey: l.spec ? withoutEngraving(l.variantId) : null,
+        // Себестоимость на момент заказа — для отчёта о прибыли
+        unitCost: l.spec ? null : sql<number>`(select ${s.productVariant.costPrice} from ${s.productVariant} where ${s.productVariant.id} = ${l.variantRef ?? l.variantId})`,
       })),
     );
     if (promoId) await tx.insert(s.promoUsage).values({ promoId, userId: user.id, orderId: o.id });

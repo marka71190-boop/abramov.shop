@@ -92,7 +92,8 @@ export interface Quote {
   /** Почти собранный комплект: чего не хватает до скидки */
   bundleHints: { id: string; name: string; percent: number; missing: { name: string; slug: string }[] }[];
   bonus: { balance: number; available: number; spent: number; blockedByPromo: boolean };
-  shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean } | null;
+  /** carrierCost — сколько доставка стоит магазину (тариф СДЭК без наценки), для учёта прибыли */
+  shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean; carrierCost?: number } | null;
   shippingError: string | null;
   /** Итог заказа (товары после скидок + доставка) */
   total: number;
@@ -333,7 +334,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
     const club = await getClub(d.clubId);
     if (!settings.delivery.pickupEnabled) shippingError = "Самовывоз сейчас недоступен";
     else if (!club || !club.isActive || !club.pickup) shippingError = "Выберите клуб, где заберёте заказ";
-    else shipping = { cost: 0, days: null, tariff: null, free: true, estimate: false };
+    else shipping = { cost: 0, days: null, tariff: null, free: true, estimate: false, carrierCost: 0 };
   } else if (d && lines.length) {
     const st = settings.delivery;
     const tariff = d.type === "PVZ" ? st.tariffPvz : st.tariffCourier;
@@ -346,7 +347,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
         try {
           const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff, parcel: parcelFor(lines.map((l) => ({ ...l, quantity: l.qty }))) });
           const days = q.periodMin === q.periodMax ? `${q.periodMax}` : `${q.periodMin}–${q.periodMax}`;
-          shipping = { cost: free ? 0 : q.cost + st.markup * 100, days, tariff, free, estimate: false };
+          shipping = { cost: free ? 0 : q.cost + st.markup * 100, days, tariff, free, estimate: false, carrierCost: q.cost };
         } catch (e) {
           console.error("[cdek] calculate:", e);
           shippingError = "СДЭК не смог рассчитать доставку в этот город. Попробуйте другой способ или напишите в поддержку";
@@ -354,7 +355,7 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
       }
     } else {
       const flat = (d.type === "PVZ" ? st.flatPvz : st.flatCourier) * 100;
-      shipping = { cost: free ? 0 : flat, days: null, tariff, free, estimate: true };
+      shipping = { cost: free ? 0 : flat, days: null, tariff, free, estimate: true, carrierCost: flat };
     }
   }
 

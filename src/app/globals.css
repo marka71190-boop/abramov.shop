@@ -6671,3 +6671,252 @@ body:has(#compare-diff:checked) .compare-table tbody tr:not(.is-diff) {
   border: 1px solid var(--c-gold);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
 }
+
+/* Выбор товара по поиску (приход, касса) */
+.vpick {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+.vpick__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel-2);
+  max-height: 360px;
+  overflow: auto;
+}
+.vpick__list button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.vpick__list button:hover,
+.vpick__list button:focus-visible {
+  background: var(--c-gold-soft);
+  outline: none;
+}
+.vpick__name {
+  display: grid;
+  gap: 2px;
+}
+
+/* Касса */
+.pos-wrap {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 1400px) {
+  .pos-wrap {
+    grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  }
+}
+.pos-panel {
+  padding: 16px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+}
+.pos-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pos-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.pos-lines__name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.pos-qty {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--c-line-2);
+}
+.pos-qty button {
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: 0;
+  color: var(--c-text);
+  font-size: 20px;
+  cursor: pointer;
+}
+.pos-qty button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.pos-qty span {
+  min-width: 26px;
+  text-align: center;
+}
+.pos-price {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pos-price .input {
+  width: 96px;
+  min-height: 40px;
+  text-align: right;
+}
+.pos-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.pos-methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.pos-methods button {
+  min-height: 52px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel-2);
+  color: var(--c-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pos-methods button.is-on {
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+  color: var(--c-gold-hi);
+}
+.pos-methods button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pos-total {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  background: var(--c-panel);
+  border-top: 1px solid var(--c-line-2);
+}
+.pos-total__sum,
+.pos-pay__sum {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.1;
+}
+.pos-pay {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+  padding: 24px 16px;
+  border: 1px solid var(--c-line-2);
+  background: var(--c-panel);
+  max-width: 520px;
+}
+.pos-pay__sum {
+  font-size: 44px;
+}
+.pos-pay__ok {
+  font-size: 24px;
+  color: var(--c-success);
+  font-weight: 700;
+}
+.pos-qr {
+  background: #fff;
+  padding: 16px;
+  width: min(300px, 80vw);
+  aspect-ratio: 1;
+}
+.pos-qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.pos-wait {
+  animation: pos-blink 1.6s ease-in-out infinite;
+}
+@keyframes pos-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pos-wait {
+    animation: none;
+  }
+}
+tr.is-muted td {
+  opacity: 0.55;
+}
+
+/* Финансы */
+.finance-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .finance-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.pnl td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.pnl__total td {
+  font-weight: 700;
+  border-top: 1px solid var(--c-line-3);
+}
+.pnl__sub td:first-child {
+  padding-left: 24px;
+  color: var(--c-muted);
+}
+.expense-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end;
+}
+.is-loss {
+  color: var(--c-danger);
+}
+.pos-total__sum {
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .pos-lines li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .pos-lines__name {
+    grid-column: 1 / -1;
+  }
+  .pos-price {
+    justify-self: end;
+  }
+  .pos-total__sum {
+    font-size: 26px;
+  }
+}

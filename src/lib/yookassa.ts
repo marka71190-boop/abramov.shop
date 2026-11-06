@@ -20,7 +20,9 @@ export interface YkPayment {
   status: YkStatus;
   paid: boolean;
   amount: { value: string; currency: string };
-  confirmation?: { type: string; confirmation_url?: string };
+  confirmation?: { type: string; confirmation_url?: string; confirmation_data?: string };
+  /** Сколько придёт магазину за вычетом комиссии ЮKassa (есть у оплаченных платежей) */
+  income_amount?: { value: string; currency: string };
   metadata?: Record<string, string>;
   cancellation_details?: { party?: string; reason?: string };
   captured_at?: string;
@@ -120,11 +122,14 @@ export async function createPaymentFor(p: {
   metadata: Record<string, string>;
   customer: ReceiptCustomer;
   receipt: ReceiptLine[];
+  /** sbp — оплата только по СБП, вместо ссылки — QR-код (касса в клубе) */
+  method?: "sbp";
 }): Promise<YkPayment> {
   const body = (withReceipt: boolean): Record<string, unknown> => ({
     amount: money(p.amount),
     capture: true,
-    confirmation: { type: "redirect", return_url: p.returnUrl },
+    confirmation: p.method === "sbp" ? { type: "qr" } : { type: "redirect", return_url: p.returnUrl },
+    ...(p.method === "sbp" ? { payment_method_data: { type: "sbp" } } : {}),
     description: p.description.slice(0, 128),
     metadata: p.metadata,
     ...(withReceipt ? { receipt: buildReceipt(p.customer, p.receipt) } : {}),
@@ -139,7 +144,7 @@ export async function createPaymentFor(p: {
     console.warn(`[yookassa] ${e.message} — повторяю ${first ? "без чека" : "с чеком"}. Поправьте YOOKASSA_SEND_RECEIPT=${!first}`);
     payment = await request<YkPayment>("/payments", { method: "POST", body: body(!first), idempotenceKey: `${p.key}-r` });
   }
-  if (!payment.confirmation?.confirmation_url) throw new Error("ЮKassa не вернула ссылку на оплату");
+  if (!payment.confirmation?.confirmation_url && !payment.confirmation?.confirmation_data) throw new Error("ЮKassa не вернула ссылку на оплату");
   return payment;
 }
 

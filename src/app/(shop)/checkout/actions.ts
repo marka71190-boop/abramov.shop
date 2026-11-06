@@ -44,7 +44,16 @@ export async function quoteAction(raw: unknown): Promise<{ quote?: Quote; error?
   const p = QuoteIn.safeParse(raw);
   if (!p.success) return { error: "Некорректные данные корзины" };
   const viewer = await getViewer();
-  return { quote: await computeQuote(p.data, viewer && !getActiveBan(viewer) ? viewer : null, { ip, userId: viewer?.id }) };
+  return { quote: forClient(await computeQuote(p.data, viewer && !getActiveBan(viewer) ? viewer : null, { ip, userId: viewer?.id })) };
+}
+
+/** Покупателю не показываем, сколько доставка стоит магазину */
+function forClient(q: Quote): Quote;
+function forClient(q: Quote | undefined): Quote | undefined;
+function forClient(q: Quote | undefined) {
+  if (!q?.shipping) return q;
+  const { carrierCost: _, ...shipping } = q.shipping;
+  return { ...q, shipping };
 }
 
 const PlaceIn = QuoteIn.extend({
@@ -102,7 +111,7 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
     revalidatePath("/account");
     return r;
   } catch (e) {
-    if (e instanceof OrderError) return { error: e.message, quote: e.quote };
+    if (e instanceof OrderError) return { error: e.message, quote: forClient(e.quote) };
     console.error("[checkout] placeOrder:", e);
     return { error: "Не удалось оформить заказ. Попробуйте ещё раз через минуту" };
   }

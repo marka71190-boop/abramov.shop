@@ -74,6 +74,14 @@ export interface SiteSettings {
     signatureUrl: string; // подпись предпринимателя (картинка) — в счёте
     stampUrl: string; // печать — в счёте
   };
+  finance: {
+    feeYookassa: number; // %, комиссия ЮKassa по картам — если ЮKassa не прислала точную сумму
+    feeSbp: number; // %, комиссия за оплату по СБП
+    feeRobokassa: number; // %, комиссия Робокассы
+    taxPercent: number; // %, налог с выручки (УСН 6 % — 6); 0 — не учитывать
+    dailyReport: boolean; // вечерняя сводка владельцу в Telegram
+    reportHour: number; // во сколько (по Москве) присылать сводку
+  };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
     nominals: number[]; // ₽
@@ -154,6 +162,14 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     signatureUrl: "",
     stampUrl: "",
   },
+  finance: {
+    feeYookassa: 3.5,
+    feeSbp: 0.7,
+    feeRobokassa: 3.9,
+    taxPercent: 0,
+    dailyReport: true,
+    reportHour: 21,
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -179,6 +195,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     reviews: { ...d.reviews, ...(s.reviews ?? {}) },
     service: { ...d.service, ...(s.service ?? {}) },
     b2b: { ...d.b2b, ...(s.b2b ?? {}) },
+    finance: { ...d.finance, ...(s.finance ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

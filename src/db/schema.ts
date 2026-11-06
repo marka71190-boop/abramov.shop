@@ -305,6 +305,7 @@ export const productVariant = pgTable("product_variant", {
   sku: text("sku").unique(),
   price: integer("price"), // если отличается от цены товара, копейки
   stock: integer("stock").default(0).notNull(),
+  costPrice: integer("cost_price"), // закупочная цена за 1 шт., копейки (средняя по приходам); пусто — не указана
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   lowStockNotifiedAt: ts("low_stock_notified_at"), // уже предупредили админов, что заканчивается
@@ -468,6 +469,7 @@ export const order = pgTable(
     cdekPvzCode: text("cdek_pvz_code"),
     cdekCityCode: integer("cdek_city_code"),
     deliveryTariff: integer("delivery_tariff"),
+    deliveryCost: integer("delivery_cost"), // сколько доставка стоит магазину (тариф СДЭК без наценки), копейки
     deliveryDays: text("delivery_days"), // «2–4» — срок по расчёту СДЭК
     cdekOrderUuid: text("cdek_order_uuid"),
     cdekStatus: text("cdek_status"), // последний статус из СДЭК
@@ -504,6 +506,7 @@ export const orderItem = pgTable("order_item", {
   spec: text("spec"), // кий на заказ: параметры сборки, по строке «Группа: значение»
   cueKey: text("cue_key"), // кий на заказ: код сборки (без гравировки) — чтобы «собрать такой же»
   wholesale: boolean("wholesale").default(false).notNull(), // куплено по оптовой цене
+  unitCost: integer("unit_cost"), // себестоимость 1 шт. на момент заказа, копейки (для прибыли)
 });
 
 export const orgStatusEnum = pgEnum("org_status", ["PENDING", "APPROVED", "REJECTED", "BLOCKED"]);
@@ -1486,4 +1489,87 @@ export const coachAgreement = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("coach_agreement_coach_idx").on(t.coachId)],
+);
+
+// ============================================================
+// Учёт: склад, касса (продажи вживую), расходы
+// ============================================================
+
+/**
+ * Движения склада, сделанные вручную или кассой: приход, списание, инвентаризация, продажа в кассе.
+ * Продажи на сайте сюда не пишутся — они видны в заказах.
+ */
+export const stockMove = pgTable(
+  "stock_move",
+  {
+    id: id(),
+    variantId: text("variant_id").references(() => productVariant.id, { onDelete: "set null" }),
+    productId: text("product_id").references(() => product.id, { onDelete: "set null" }),
+    name: text("name").notNull(), // название товара на момент движения
+    // RECEIPT — приход, WRITE_OFF — списание, INVENTORY — инвентаризация, POS — продажа в кассе, POS_CANCEL — отмена продажи
+    type: text("type").notNull(),
+    qty: integer("qty").notNull(), // со знаком: + пришло, − ушло
+    unitCost: integer("unit_cost"), // копейки за 1 шт.
+    stockAfter: integer("stock_after"),
+    note: text("note"),
+    posSaleId: text("pos_sale_id"),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("stock_move_variant_idx").on(t.variantId), index("stock_move_created_idx").on(t.createdAt)],
+);
+
+/** Продажа в кассе (в клубе, на турнире). Покупатель не записывается — только товары и деньги. */
+export const posSale = pgTable(
+  "pos_sale",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // K-261106-7QX4
+    status: text("status").default("PENDING").notNull(), // PENDING — ждём оплату по QR, PAID, CANCELLED
+    method: text("method").notNull(), // CASH — наличные, SBP — QR СБП (ЮKassa), CARD — карта по QR-ссылке (ЮKassa)
+    subtotal: integer("subtotal").notNull(), // по ценам товаров, копейки
+    discount: integer("discount").default(0).notNull(),
+    total: integer("total").notNull(),
+    cost: integer("cost").default(0).notNull(), // себестоимость товаров, копейки
+    fee: integer("fee").default(0).notNull(), // комиссия платёжной системы, копейки
+    paymentId: text("payment_id"), // ЮKassa
+    qrUrl: text("qr_url"),
+    place: text("place"), // где продали: клуб, турнир
+    sellerId: text("seller_id").references(() => user.id, { onDelete: "set null" }),
+    paidAt: ts("paid_at"),
+    cancelledAt: ts("cancelled_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("pos_sale_status_idx").on(t.status), index("pos_sale_paid_idx").on(t.paidAt)],
+);
+
+export const posSaleItem = pgTable("pos_sale_item", {
+  id: id(),
+  saleId: text("sale_id")
+    .notNull()
+    .references(() => posSale.id, { onDelete: "cascade" }),
+  productId: text("product_id").references(() => product.id, { onDelete: "set null" }),
+  variantId: text("variant_id").references(() => productVariant.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  price: integer("price").notNull(), // копейки за 1 шт. (после скидки строки)
+  quantity: integer("quantity").notNull(),
+  unitCost: integer("unit_cost"),
+});
+
+export const posSaleRelations = relations(posSale, ({ many }) => ({ items: many(posSaleItem) }));
+export const posSaleItemRelations = relations(posSaleItem, ({ one }) => ({ sale: one(posSale, { fields: [posSaleItem.saleId], references: [posSale.id] }) }));
+
+/** Расходы для чистой прибыли: реклама, аренда, зарплата, налоги… */
+export const expense = pgTable(
+  "expense",
+  {
+    id: id(),
+    day: date("day").notNull(), // дата расхода (по Москве)
+    category: text("category").notNull(),
+    amount: integer("amount").notNull(), // копейки
+    note: text("note"),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("expense_day_idx").on(t.day)],
 );

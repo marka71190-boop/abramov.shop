@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
+import { setCost } from "@/lib/stock-moves";
 import { requireAdmin } from "@/lib/viewer";
 
 const kop = z.number().int().min(100).max(1_000_000_000);
@@ -16,6 +17,7 @@ const In = z.object({
         price: kop.nullable().optional(), // null — как у товара
         stock: z.number().int().min(0).max(1_000_000).optional(),
         stockWas: z.number().int().optional(), // чтобы не затереть продажу, случившуюся пока страница была открыта
+        cost: z.number().int().min(0).max(1_000_000_000).nullable().optional(), // закупочная цена, копейки
       }),
     )
     .max(5000),
@@ -61,6 +63,7 @@ export async function saveBulk(raw: unknown): Promise<BulkResult> {
     }
     for (const v of variants) {
       if (v.price !== undefined) await tx.update(s.productVariant).set({ price: v.price }).where(eq(s.productVariant.id, v.id));
+      if (v.cost !== undefined) await setCost(tx, me.id, v.id, v.cost);
       if (v.stock !== undefined) {
         const r = await tx
           .update(s.productVariant)

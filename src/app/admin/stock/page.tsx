@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { num } from "@/lib/format";
+import { num, rub } from "@/lib/format";
 import { lowStockThreshold, stockReport } from "@/lib/low-stock";
 import { requireAdmin } from "@/lib/viewer";
 
@@ -19,10 +19,30 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
     .filter((r) => !needle || `${r.product} ${r.variant} ${r.sku ?? ""}`.toLowerCase().includes(needle));
   const out = all.filter((r) => r.stock <= 0).length;
   const low = all.filter((r) => r.stock > 0 && r.stock <= limit).length;
+  const value = all.reduce((a, r) => a + (r.stock > 0 && r.costPrice != null ? r.stock * r.costPrice : 0), 0);
+  const retail = all.reduce((a, r) => a + (r.stock > 0 ? r.stock * r.price : 0), 0);
+  const noCost = all.filter((r) => r.stock > 0 && r.costPrice == null).length;
 
   return (
     <>
       <h1>Остатки</h1>
+      <div className="row" style={{ gap: 6 }}>
+        <Link href="/admin/stock/move?t=RECEIPT" className="btn btn--sm btn--gold">
+          + Приход товара
+        </Link>
+        <Link href="/admin/stock/move?t=WRITE_OFF" className="btn btn--sm btn--line">
+          Списание
+        </Link>
+        <Link href="/admin/stock/move?t=INVENTORY" className="btn btn--sm btn--line">
+          Инвентаризация
+        </Link>
+        <Link href="/admin/stock/history" className="btn btn--sm btn--line">
+          Журнал движений
+        </Link>
+        <Link href="/admin/pos" className="btn btn--sm btn--line">
+          Касса
+        </Link>
+      </div>
       <div className="stats">
         <Link href="/admin/stock?f=out" className="stat" style={{ color: "inherit", textDecoration: "none" }}>
           <div className="muted small">Закончились</div>
@@ -36,7 +56,18 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           <div className="muted small">Вариантов в продаже</div>
           <div className="stat__value">{num(all.length)}</div>
         </div>
+        <div className="stat">
+          <div className="muted small">Товара на складе по закупке</div>
+          <div className="stat__value">{rub(value)}</div>
+          <div className="muted small">по ценам продажи {rub(retail)}</div>
+        </div>
       </div>
+      {noCost > 0 && (
+        <p className="small" style={{ margin: 0 }}>
+          <span className="pill pill--warn">Без закупочной цены: {num(noCost)}</span> — у этих товаров прибыль не посчитается. Впишите закупку в{" "}
+          <Link href="/admin/catalog/prices">таблице цен</Link> или проведите приход.
+        </p>
+      )}
       <p className="muted small" style={{ margin: 0 }}>
         {limit > 0
           ? `Когда остаток варианта опускается до ${limit} шт, админам с подключённым Telegram приходит предупреждение.`
@@ -69,6 +100,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
               <th>Артикул</th>
               <th style={{ textAlign: "right" }}>Остаток</th>
               <th style={{ textAlign: "right" }}>В резерве</th>
+              <th style={{ textAlign: "right" }}>Закупка</th>
               <th style={{ textAlign: "right" }}>Продано за 30 дн.</th>
               <th style={{ textAlign: "right" }}>Хватит примерно на</th>
             </tr>
@@ -88,6 +120,9 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                   <td className="small">{r.sku ?? "—"}</td>
                   <td style={{ textAlign: "right" }}>{tone ? <span className={`pill ${tone}`}>{r.stock <= 0 ? "нет" : num(r.stock)}</span> : num(r.stock)}</td>
                   <td style={{ textAlign: "right" }}>{r.reserved ? num(r.reserved) : "—"}</td>
+                  <td style={{ textAlign: "right" }} className="small">
+                    {r.costPrice != null ? rub(r.costPrice) : <span className="muted">—</span>}
+                  </td>
                   <td style={{ textAlign: "right" }}>{r.sold30 ? num(r.sold30) : "—"}</td>
                   <td style={{ textAlign: "right" }} className="small">
                     {r.stock <= 0 ? "—" : days == null ? "продаж не было" : days > 365 ? "больше года" : `${num(days)} дн.`}
@@ -97,7 +132,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             })}
             {!rows.length && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   {f ? "Таких товаров нет — всё в наличии" : "Товаров пока нет"}
                 </td>
               </tr>

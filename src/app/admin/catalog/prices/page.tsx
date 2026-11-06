@@ -10,7 +10,7 @@ export default async function PricesPage() {
     db.query.product.findMany({
       columns: { id: true, name: true, sku: true, price: true, oldPrice: true, categoryId: true, visibility: true },
       with: {
-        variants: { columns: { id: true, name: true, sku: true, price: true, stock: true, isActive: true }, orderBy: asc(s.productVariant.sortOrder) },
+        variants: { columns: { id: true, name: true, sku: true, price: true, stock: true, isActive: true, costPrice: true }, orderBy: asc(s.productVariant.sortOrder) },
         images: { columns: { url: true }, orderBy: asc(s.productImage.sortOrder), limit: 1 },
       },
       orderBy: [asc(s.product.sortOrder), asc(s.product.name)],
@@ -26,7 +26,7 @@ export default async function PricesPage() {
     categoryId: p.categoryId,
     hidden: p.visibility !== "PUBLISHED",
     image: p.images[0]?.url ?? null,
-    variants: p.variants.map((v) => ({ id: v.id, name: v.name, sku: v.sku, price: v.price, stock: v.stock, active: v.isActive })),
+    variants: p.variants.map((v) => ({ id: v.id, name: v.name, sku: v.sku, price: v.price, stock: v.stock, active: v.isActive, cost: v.costPrice })),
   }));
   return (
     <>

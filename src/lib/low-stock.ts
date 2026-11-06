@@ -69,6 +69,8 @@ export interface StockRow {
   stock: number;
   reserved: number;
   sold30: number;
+  costPrice: number | null; // закупочная цена, копейки
+  price: number; // цена продажи, копейки
 }
 
 /** Отчёт: остаток, резерв в неоплаченных заказах, продажи за 30 дней. */
@@ -84,15 +86,19 @@ export async function stockReport(): Promise<StockRow[]> {
     stock: number;
     reserved: number;
     sold30: number;
+    cost_price: number | null;
+    price: number;
   }>(sql`
     select v.id as variant_id, p.id as product_id, p.name as product, v.name as variant,
       (select count(*)::int from product_variant v2 where v2.product_id = p.id and v2.is_active) as variants,
-      coalesce(v.sku, p.sku) as sku, p.visibility::text as visibility, v.stock,
+      coalesce(v.sku, p.sku) as sku, p.visibility::text as visibility, v.stock, v.cost_price, coalesce(v.price, p.price) as price,
       coalesce((select sum(i.quantity) from order_item i join "order" o on o.id = i.order_id
                 where i.variant_id = v.id and o.status = 'AWAITING_PAYMENT'), 0)::int as reserved,
       coalesce((select sum(i.quantity) from order_item i join "order" o on o.id = i.order_id
                 where i.variant_id = v.id and o.status in ('PAID','ASSEMBLING','SHIPPED','DELIVERED')
-                  and o.paid_at > now() - interval '30 days'), 0)::int as sold30
+                  and o.paid_at > now() - interval '30 days'), 0)::int
+      + coalesce((select sum(i.quantity) from pos_sale_item i join pos_sale ps on ps.id = i.sale_id
+                where i.variant_id = v.id and ps.status = 'PAID' and ps.paid_at > now() - interval '30 days'), 0)::int as sold30
     from product_variant v join product p on p.id = v.product_id
     where v.is_active
     order by v.stock asc, p.name asc, v.sort_order asc`);
@@ -107,6 +113,8 @@ export async function stockReport(): Promise<StockRow[]> {
     stock: Number(r.stock),
     reserved: Number(r.reserved),
     sold30: Number(r.sold30),
+    costPrice: r.cost_price == null ? null : Number(r.cost_price),
+    price: Number(r.price),
   }));
 }
 

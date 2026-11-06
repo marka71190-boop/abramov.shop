@@ -54,6 +54,10 @@ export const BACKUP_TABLES = [
   "service_event",
   "turnkey_request",
   "article",
+  "stock_move",
+  "pos_sale",
+  "pos_sale_item",
+  "expense",
 ] as const;
 
 export async function createBackup(opts: { withMedia: boolean }) {

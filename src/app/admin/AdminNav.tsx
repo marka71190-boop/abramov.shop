@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/admin", label: "Обзор", exact: true },
   { href: "/admin/orders", label: "Заказы" },
+  { href: "/admin/pos", label: "Касса" },
   { href: "/admin/returns", label: "Возвраты" },
   { href: "/admin/service", label: "Мастерская" },
   { href: "/admin/turnkey", label: "Клуб под ключ" },
   { href: "/admin/coaches", label: "Тренеры" },
   { href: "/club", label: "Выдача в клубах" },
+  { href: "/admin/finance", label: "Финансы", owner: true },
   { href: "/admin/analytics", label: "Аналитика", owner: true },
   { href: "/admin/customers", label: "Клиенты" },
   { href: "/admin/orgs", label: "Организации" },

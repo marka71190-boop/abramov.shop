@@ -13,7 +13,7 @@ export type Row = {
   categoryId: string | null;
   hidden: boolean;
   image: string | null;
-  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; active: boolean }[];
+  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; active: boolean; cost: number | null }[];
 };
 
 const rubStr = (k: number | null) => (k == null ? "" : String(k / 100));
@@ -40,6 +40,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
       for (const v of r.variants) {
         m[`v:${v.id}:price`] = rubStr(v.price);
         m[`v:${v.id}:stock`] = String(v.stock);
+        m[`v:${v.id}:cost`] = rubStr(v.cost);
       }
     }
     return m;
@@ -81,7 +82,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
   function save() {
     setRes({});
     const products: { id: string; price?: number; oldPrice?: number | null }[] = [];
-    const variants: { id: string; price?: number | null; stock?: number; stockWas?: number }[] = [];
+    const variants: { id: string; price?: number | null; stock?: number; stockWas?: number; cost?: number | null }[] = [];
     for (const r of rows) {
       const pr: (typeof products)[number] = { id: r.id };
       if (dirty(`p:${r.id}:price`)) pr.price = toKop(val(`p:${r.id}:price`));
@@ -93,6 +94,11 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
         if (dirty(`v:${v.id}:stock`)) {
           vr.stock = Math.max(0, Math.trunc(Number(val(`v:${v.id}:stock`)) || 0));
           vr.stockWas = v.stock;
+        }
+        if (dirty(`v:${v.id}:cost`)) {
+          const c = val(`v:${v.id}:cost`).trim();
+          vr.cost = c ? toKop(c) : null;
+          if (vr.cost != null && !(vr.cost >= 0)) return setRes({ error: "Закупка — в рублях, например 1250" });
         }
         if (Object.keys(vr).length > 1) variants.push(vr);
       }
@@ -117,7 +123,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
       placeholder={opts.placeholder}
       onChange={(e) => set(k, e.target.value)}
       style={{ width: opts.w ?? 110 }}
-      aria-label={k.endsWith(":stock") ? "Остаток" : k.endsWith(":old") ? "Старая цена" : "Цена"}
+      aria-label={k.endsWith(":stock") ? "Остаток" : k.endsWith(":old") ? "Старая цена" : k.endsWith(":cost") ? "Закупочная цена" : "Цена"}
     />
   );
 
@@ -176,6 +182,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
               <th>Товар</th>
               <th>Цена, ₽</th>
               <th>Старая, ₽</th>
+              <th title="Закупочная цена за 1 шт. — для расчёта прибыли. Покупатели её не видят">Закупка, ₽</th>
               <th>Остаток</th>
             </tr>
           </thead>
@@ -211,6 +218,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
                   </td>
                   <td>{cell(`p:${r.id}:price`)}</td>
                   <td>{cell(`p:${r.id}:old`, { placeholder: "—" })}</td>
+                  <td>{!multi && one ? cell(`v:${one.id}:cost`, { placeholder: "—", w: 100 }) : <span className="muted small">по вариантам</span>}</td>
                   <td>{!multi && one ? cell(`v:${one.id}:stock`, { w: 90 }) : <span className="muted small">по вариантам</span>}</td>
                 </tr>,
                 ...(multi
@@ -224,6 +232,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
                         </td>
                         <td>{cell(`v:${v.id}:price`, { placeholder: val(`p:${r.id}:price`) || "как у товара" })}</td>
                         <td />
+                        <td>{cell(`v:${v.id}:cost`, { placeholder: "—", w: 100 })}</td>
                         <td>{cell(`v:${v.id}:stock`, { w: 90 })}</td>
                       </tr>
                     ))
@@ -232,7 +241,7 @@ export function PriceTable({ rows, categories }: { rows: Row[]; categories: { id
             })}
             {!shown.length && (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={6} className="muted">
                   Ничего не нашли
                 </td>
               </tr>
