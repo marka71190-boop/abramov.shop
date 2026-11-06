@@ -95,6 +95,18 @@ export async function setNameParts(_: { ok?: string; error?: string }, form: For
 }
 
 /** Отчество сразу после регистрации (форма регистрации) */
+/** Страна доставки: после регистрации и в кабинете */
+export async function setMyCountry(code: string, name?: string | null): Promise<{ ok?: string; error?: string }> {
+  const u = await requireActiveUser();
+  const { resolveCountry, setUserCountry } = await import("@/lib/foreign");
+  const c = await resolveCountry(String(code ?? "").slice(0, 2), name ? String(name).slice(0, 80) : null);
+  if (!c) return { error: code === "XX" ? "Впишите название страны" : "Выберите страну из списка" };
+  await setUserCountry(u.id, c.code, c.name);
+  revalidatePath("/account");
+  revalidatePath("/checkout");
+  return { ok: "Страна сохранена" };
+}
+
 export async function setPatronymicAfterSignup(patronymic: string) {
   const u = await requireActiveUser();
   const p = patronymic

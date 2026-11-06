@@ -78,8 +78,8 @@ export interface PlaceInput extends QuoteInput {
   comment?: string | null;
   referralCode?: string | null;
   expectedTotal: number;
-  /** ONLINE — ЮKassa, ROBOKASSA — Робокасса (рассрочка, иностранные карты), INVOICE — счёт для организации */
-  paymentMethod?: "ONLINE" | "ROBOKASSA" | "INVOICE";
+  /** ONLINE — ЮKassa, INVOICE — счёт для организации; из-за рубежа: ROBOKASSA — Робокасса, TRANSFER — перевод на карту */
+  paymentMethod?: "ONLINE" | "ROBOKASSA" | "INVOICE" | "TRANSFER";
 }
 
 export async function placeOrder(user: UserRow, input: PlaceInput, origin: string, who?: GiftWho) {
@@ -93,7 +93,15 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (quote.wholesale.error) throw new OrderError(quote.wholesale.error, quote);
   const invoice = input.paymentMethod === "INVOICE";
   const robokassa = input.paymentMethod === "ROBOKASSA";
-  if (robokassa && !(await import("@/lib/robokassa")).robokassaEnabled()) throw new OrderError("Оплата через Робокассу сейчас недоступна — выберите другой способ", quote);
+  const transfer = input.paymentMethod === "TRANSFER";
+  const foreign = quote.foreign;
+  // Россия — ЮKassa (или счёт для организации). Из-за рубежа — Робокасса или перевод на карту, со сбором
+  if (!foreign && (robokassa || transfer)) throw new OrderError("Для доставки по России оплата картой, СБП или частями через ЮKassa", quote);
+  if (foreign && input.paymentMethod !== foreign.method) {
+    throw new OrderError(foreign.mode === "MANUAL" ? "Для этой страны — только перевод на карту после расчёта доставки" : "Выберите способ оплаты: Робокасса или перевод", quote);
+  }
+  if (robokassa && !(await import("@/lib/robokassa")).robokassaEnabled()) throw new OrderError("Оплата через Робокассу сейчас недоступна — выберите перевод на карту", quote);
+  if (transfer && !settings.foreign.transferDetails.trim()) throw new OrderError("Оплата переводом сейчас недоступна — напишите нам, оформим заказ вручную", quote);
   if (invoice && !quote.wholesale.invoice) throw new OrderError("Оплата по счёту — только для одобренных организаций", quote);
   if (invoice && input.giftCode?.trim()) throw new OrderError("Подарочным сертификатом можно заплатить только картой", quote);
   const org = invoice || quote.wholesale.sum > 0 ? await import("@/lib/wholesale").then((m) => m.approvedOrg(user)) : null;
@@ -104,6 +112,9 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   const club = d.type === "PICKUP" ? await import("@/lib/clubs").then((m) => m.getClub(d.clubId)) : null;
   if (d.type === "PICKUP") {
     if (!club) throw new OrderError("Выберите клуб, где заберёте заказ", quote);
+  } else if (d.type === "MANUAL") {
+    if (foreign?.mode !== "MANUAL") throw new OrderError("Выберите город доставки", quote);
+    if (!d.cityName?.trim() || !d.address?.trim()) throw new OrderError("Укажите город и адрес доставки", quote);
   } else {
     if (cdekEnabled() && !d.cityCode) throw new OrderError("Выберите город доставки", quote);
     if (d.type === "PVZ" && !d.pvzCode && cdekEnabled()) throw new OrderError("Выберите пункт выдачи СДЭК", quote);
@@ -113,7 +124,13 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   // Покупатель подтверждает сумму к оплате (за вычетом сертификата)
   if (quote.payable !== input.expectedTotal) throw new OrderError("Сумма заказа изменилась — проверьте итог и подтвердите ещё раз", quote);
 
-  const expiresAt = new Date(Date.now() + (invoice ? settings.b2b.invoiceDays * 86400_000 : settings.checkout.paymentMinutes * 60_000));
+  // Перевод ждём дольше; если доставку ещё считает менеджер — срок продлится, когда он впишет сумму
+  const waitMs = invoice
+    ? settings.b2b.invoiceDays * 86400_000
+    : transfer
+      ? Math.max(1, settings.foreign.paymentDays) * 86400_000
+      : settings.checkout.paymentMinutes * 60_000;
+  const expiresAt = new Date(Date.now() + waitMs);
   const address = club ? `${club.name}, ${club.address}` : d.type === "PVZ" ? (d.pvzAddress ?? null) : (d.address?.trim() ?? null);
 
   const order = await db.transaction(async (tx) => {
@@ -204,7 +221,12 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         giftCardAmount: quote.gift?.applied ?? 0,
         bonusAccrued: quote.accrue,
         promoCodeId: promoId,
-        paymentMethod: invoice ? "INVOICE" : robokassa ? "ROBOKASSA" : "ONLINE",
+        paymentMethod: invoice ? "INVOICE" : robokassa ? "ROBOKASSA" : transfer ? "TRANSFER" : "ONLINE",
+        country: foreign?.code ?? "RU",
+        countryName: foreign?.mode === "MANUAL" ? foreign.name : null,
+        foreignFee: foreign?.fee ?? 0,
+        foreignPercent: foreign?.percent ?? 0,
+        shippingPending: !!quote.shipping!.pending,
         organizationId: org?.id ?? null,
         deliveryType: d.type,
         city: club ? club.city : d.cityName?.trim() || null,
@@ -215,7 +237,8 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         pickupClubId: club?.id ?? null,
         deliveryTariff: quote.shipping!.tariff,
         deliveryDays: quote.shipping!.days,
-        expiresAt,
+        // Доставку считает менеджер — срок оплаты пойдёт, когда он впишет сумму
+        expiresAt: quote.shipping!.pending ? null : expiresAt,
       })
       .returning();
 
@@ -274,6 +297,11 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
   if (invoice) {
     void import("@/lib/invoice").then((m) => m.invoiceCreated(order.id)).catch((e) => console.error("[invoice]", e));
     return { number: order.number, payUrl: `/order/${order.number}?invoice=1` };
+  }
+  // Перевод на карту или доставку ещё считает менеджер: реквизиты (или «ждите расчёт») — в письме и на странице заказа
+  if (transfer || order.shippingPending) {
+    void import("@/lib/transfer").then((m) => m.transferCreated(order.id)).catch((e) => console.error("[transfer]", e));
+    return { number: order.number, payUrl: `/order/${order.number}?transfer=1` };
   }
   // Робокасса: страница-прокладка отправляет форму оплаты (POST — чек может быть длинным)
   if (robokassa) return { number: order.number, payUrl: `/pay/robokassa/${order.number}` };
@@ -538,6 +566,8 @@ export async function refundOrder(orderId: string, actorId: string, opts: { rest
     });
     if (r.status === "canceled") throw new OrderError("ЮKassa отклонила возврат. Проверьте баланс магазина в ЮKassa");
     refunded = amount;
+  } else if (o.paymentMethod === "TRANSFER" || o.paymentMethod === "INVOICE") {
+    // Перевод на карту и оплата по счёту: деньги возвращают вручную, здесь только отмечаем
   } else if (yookassaEnabled() && o.giftCardAmount < o.total) {
     throw new OrderError("Не найден успешный платёж по заказу");
   }

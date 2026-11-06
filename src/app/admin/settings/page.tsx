@@ -18,6 +18,8 @@ import { PurgeForm } from "./PurgeForm";
 import { SettingsForm } from "./SettingsForm";
 import { ShopSettingsForm } from "./ShopSettingsForm";
 import { B2bSettingsForm } from "./B2bSettingsForm";
+import { ForeignSettingsForm } from "./ForeignSettingsForm";
+import { robokassaEnabled } from "@/lib/robokassa";
 
 const DRIVE_MSG: Record<string, { ok: boolean; text: string }> = {
   ok: { ok: true, text: "Google Диск подключён" },
@@ -200,6 +202,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <ShopSettingsForm s={settings} />
       <B2bSettingsForm s={settings.b2b} />
+      <ForeignSettingsForm s={settings.foreign} robokassa={robokassaEnabled()} />
       <SettingsForm s={settings} />
 
       <div className="panel stack" id="pd-purge">

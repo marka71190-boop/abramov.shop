@@ -24,6 +24,27 @@ const msg = (e: unknown) => (e instanceof OrderError ? e.message : e instanceof 
 // Заказы
 // ============================================================
 
+/** Заказ из-за рубежа: менеджер вписывает стоимость доставки — итог пересчитывается, покупателю уходит сумма */
+export async function foreignShippingAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  const cost = rubToKop(String(form.get("cost") ?? ""));
+  const carrierRaw = String(form.get("carrier") ?? "").trim();
+  const carrier = carrierRaw ? rubToKop(carrierRaw) : null;
+  if (!String(form.get("cost") ?? "").trim() || !Number.isFinite(cost) || cost < 0 || cost > 100_000_000) return { error: "Стоимость доставки — сумма в рублях, например 4500" };
+  if (carrier != null && (!Number.isFinite(carrier) || carrier < 0 || carrier > 100_000_000)) return { error: "Расход на доставку — сумма в рублях" };
+  try {
+    const { setForeignShipping } = await import("@/lib/transfer");
+    const o = await setForeignShipping(id, cost, carrier);
+    await audit(me.id, "order.foreign_shipping", "order", id, { cost, carrier, total: o.total, fee: o.foreignFee });
+  } catch (e) {
+    return { error: msg(e) };
+  }
+  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath("/admin/orders");
+  return { ok: "Доставка вписана — покупателю ушло письмо с итоговой суммой" };
+}
+
 export async function orderAction(_: ActionState, form: FormData): Promise<ActionState> {
   const me = await requireAdmin();
   const id = String(form.get("id") ?? "");
@@ -54,6 +75,11 @@ export async function orderAction(_: ActionState, form: FormData): Promise<Actio
         if (me.role !== "OWNER") return { error: "Вернуть деньги может только владелец" };
         await refundOrder(id, me.id, { restock: form.get("restock") === "on", reason: String(form.get("reason") || "Возврат денег") });
         {
+          const pm = (await db.query.order.findFirst({ where: eq(s.order.id, id), columns: { paymentMethod: true } }))?.paymentMethod;
+          if (pm === "TRANSFER" || pm === "INVOICE") {
+            revalidatePath(`/admin/orders/${id}`);
+            return { ok: pm === "TRANSFER" ? "Заказ отмечен возвращённым. Деньги верните покупателю переводом." : "Заказ отмечен возвращённым. Деньги верните организации платёжкой." };
+          }
           const rk = await db.query.payment.findFirst({ where: and(eq(s.payment.orderId, id), eq(s.payment.provider, "robokassa")) });
           if (rk) {
             revalidatePath(`/admin/orders/${id}`);
@@ -71,6 +97,30 @@ export async function orderAction(_: ActionState, form: FormData): Promise<Actio
       case "cdek-sync":
         await syncCdek(id);
         break;
+      case "transfer-paid":
+      case "transfer-extend":
+      case "transfer-resend": {
+        const o = await db.query.order.findFirst({ where: eq(s.order.id, id), columns: { paymentMethod: true, status: true, expiresAt: true, shippingPending: true } });
+        if (!o || o.paymentMethod !== "TRANSFER") return { error: "Это не заказ с оплатой переводом" };
+        if (op === "transfer-paid") {
+          if (o.status !== "AWAITING_PAYMENT" && o.status !== "CANCELLED") return { error: "Заказ уже оплачен" };
+          if (o.shippingPending) return { error: "Сначала впишите стоимость доставки" };
+          await markPaid(id, `transfer:${me.id}`);
+          await audit(me.id, "order.transfer_paid", "order", id);
+        } else if (op === "transfer-extend") {
+          if (o.status !== "AWAITING_PAYMENT") return { error: "Продлить можно только неоплаченный заказ" };
+          const days = (await getSettings()).foreign.paymentDays || 5;
+          const base = Math.max(Date.now(), o.expiresAt?.getTime() ?? 0);
+          await db.update(s.order).set({ expiresAt: new Date(base + days * 86400_000) }).where(eq(s.order.id, id));
+          await audit(me.id, "order.transfer_extend", "order", id, { days });
+        } else {
+          if (o.status !== "AWAITING_PAYMENT" || o.shippingPending) return { error: "Нечего отправлять: заказ не ждёт оплату" };
+          await (await import("@/lib/transfer")).resendTransferInfo(id);
+          revalidatePath(`/admin/orders/${id}`);
+          return { ok: "Письмо с суммой и реквизитами отправлено покупателю" };
+        }
+        break;
+      }
       case "invoice-paid":
       case "invoice-extend": {
         const o = await db.query.order.findFirst({ where: eq(s.order.id, id), columns: { paymentMethod: true, status: true, expiresAt: true } });
@@ -664,6 +714,36 @@ export async function disconnectDriveAction() {
   await disconnectDrive();
   await audit(me.id, "drive.disconnect", "setting", "google_drive");
   revalidatePath("/admin/settings");
+}
+
+// ============================================================
+// Заказы из-за рубежа
+// ============================================================
+
+const ForeignIn = z.object({
+  cdekCountries: z.string().max(2000).default(""),
+  robokassaPercent: z.coerce.number().int("Сбор — целое число процентов").min(0).max(50),
+  transferPercent: z.coerce.number().int("Сбор — целое число процентов").min(0).max(50),
+  paymentDays: z.coerce.number().int().min(1, "Срок перевода — от 1 дня").max(30),
+  transferDetails: z.string().trim().max(1000).default(""),
+  intro: z.string().trim().max(1000).default(""),
+});
+
+export async function saveForeignSettings(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin("OWNER");
+  const p = ForeignIn.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const { parseCountries } = await import("@/lib/countries");
+  const list = parseCountries(p.data.cdekCountries);
+  const cur = await getSettings();
+  await saveSettings({
+    ...cur,
+    foreign: { ...cur.foreign, ...p.data, cdekCountries: list.map((c) => `${c.code} ${c.name}`).join("\n"), enabled: form.get("enabled") === "on" },
+  });
+  // Реквизиты — не секрет, но в журнал пишем только факт изменения
+  await audit(me.id, "settings.foreign", "setting", "site", { countries: list.map((c) => c.code), robokassaPercent: p.data.robokassaPercent, transferPercent: p.data.transferPercent });
+  revalidatePath("/", "layout");
+  return { ok: `Сохранено. Стран СДЭК: ${list.length}` };
 }
 
 // ============================================================

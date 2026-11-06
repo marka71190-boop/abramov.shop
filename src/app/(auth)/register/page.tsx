@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/auth-errors";
 import { getSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
+import { foreignConfig } from "@/lib/foreign";
 import { RegisterForm } from "./RegisterForm";
 
 export const metadata: Metadata = { title: "Регистрация", robots: { index: false } };
@@ -26,7 +27,8 @@ export default async function RegisterPage({ searchParams }: Props) {
   }
   const n = safeNext(next);
   const welcome = settings.loyalty.welcomeBonus;
-  return <RegisterForm next={n} notice={contextNotice(n, welcome)} />;
+  const foreign = await foreignConfig();
+  return <RegisterForm next={n} notice={contextNotice(n, welcome)} countries={foreign.enabled ? foreign.countries : null} />;
 }
 
 /** Зачем просим войти или зарегистрироваться: пришли из корзины или записи на тренировку */

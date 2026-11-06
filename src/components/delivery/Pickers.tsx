@@ -17,7 +17,7 @@ export interface Point {
   lon?: number | null;
 }
 
-export function CityPicker({ value, onChange }: { value: City | null; onChange: (c: City | null) => void }) {
+export function CityPicker({ value, onChange, country = "RU" }: { value: City | null; onChange: (c: City | null) => void; country?: string }) {
   const [q, setQ] = useState(value?.name ?? "");
   const [list, setList] = useState<City[]>([]);
   const [open, setOpen] = useState(false);
@@ -32,7 +32,7 @@ export function CityPicker({ value, onChange }: { value: City | null; onChange: 
     const ctl = new AbortController();
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/delivery/cities?q=${encodeURIComponent(q.trim())}`, { signal: ctl.signal }).then((x) => x.json());
+        const r = await fetch(`/api/delivery/cities?q=${encodeURIComponent(q.trim())}&country=${encodeURIComponent(country)}`, { signal: ctl.signal }).then((x) => x.json());
         if (r.ok) {
           setList(r.cities);
           setErr(null);
@@ -44,7 +44,7 @@ export function CityPicker({ value, onChange }: { value: City | null; onChange: 
       clearTimeout(t);
       ctl.abort();
     };
-  }, [q, value]);
+  }, [q, value, country]);
 
   return (
     <div className="suggest">
@@ -53,7 +53,7 @@ export function CityPicker({ value, onChange }: { value: City | null; onChange: 
         <input
           className="input"
           value={q}
-          placeholder="Начните вводить: Краснодар"
+          placeholder={country === "RU" ? "Начните вводить: Краснодар" : "Начните вводить название города"}
           autoComplete="off"
           role="combobox"
           aria-expanded={open && list.length > 0}

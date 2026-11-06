@@ -56,14 +56,15 @@ export interface CdekCity {
   name: string; // «Краснодар, Краснодарский край»
 }
 
-export async function findCities(query: string): Promise<CdekCity[]> {
+/** Города СДЭК по началу названия. country — код страны (RU, BY, KZ…) */
+export async function findCities(query: string, country = "RU"): Promise<CdekCity[]> {
   try {
-    const q = new URLSearchParams({ name: query, country_code: "RU" });
+    const q = new URLSearchParams({ name: query, country_code: country });
     const list = await api<Array<{ code: number; full_name: string }>>(`/location/suggest/cities?${q}`);
     return list.slice(0, 10).map((c) => ({ code: c.code, name: c.full_name.replace(/, Россия$/, "") }));
   } catch {
     // Старый способ поиска — на случай, если подсказки недоступны
-    const q = new URLSearchParams({ city: query, country_codes: "RU", size: "10" });
+    const q = new URLSearchParams({ city: query, country_codes: country, size: "10" });
     const list = await api<Array<{ code: number; city: string; region?: string }>>(`/location/cities?${q}`);
     return list.map((c) => ({ code: c.code, name: c.region ? `${c.city}, ${c.region}` : c.city }));
   }
@@ -157,6 +158,25 @@ export async function calculate(p: { fromCityCode: number; toCityCode: number; t
   const quote = { cost: Math.ceil(data.total_sum) * 100, periodMin: data.period_min, periodMax: data.period_max };
   quoteCache.set(key, { at: Date.now(), quote });
   if (quoteCache.size > 2000) quoteCache.clear();
+  return quote;
+}
+
+/**
+ * Самый дешёвый тариф СДЭК для направления — когда основной тариф туда не работает (заказы за рубеж).
+ * mode: 4 — склад-склад (пункт выдачи), 3 — склад-дверь (курьер).
+ */
+export async function calculateBest(p: { fromCityCode: number; toCityCode: number; mode: 3 | 4; parcel: Parcel }): Promise<CdekQuote & { tariff: number }> {
+  const key = "best:" + JSON.stringify(p);
+  const hit = quoteCache.get(key) as { at: number; quote: CdekQuote & { tariff: number } } | undefined;
+  if (hit && Date.now() - hit.at < 600_000) return hit.quote;
+  const data = await api<{ tariff_codes?: Array<{ tariff_code: number; delivery_mode: number; delivery_sum: number; period_min: number; period_max: number }> }>(
+    "/calculator/tarifflist",
+    { method: "POST", body: { from_location: { code: p.fromCityCode }, to_location: { code: p.toCityCode }, packages: [p.parcel] } },
+  );
+  const best = (data.tariff_codes ?? []).filter((x) => x.delivery_mode === p.mode).sort((a, b) => a.delivery_sum - b.delivery_sum)[0];
+  if (!best) throw new Error("СДЭК: нет тарифа для этого направления");
+  const quote = { cost: Math.ceil(best.delivery_sum) * 100, periodMin: best.period_min, periodMax: best.period_max, tariff: best.tariff_code };
+  quoteCache.set(key, { at: Date.now(), quote });
   return quote;
 }
 

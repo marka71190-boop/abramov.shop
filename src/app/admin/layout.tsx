@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 async function badges(): Promise<Partial<Record<BadgeKey, number>>> {
   const safe = (p: Promise<number>) => p.catch(() => 0);
   const [orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches] = await Promise.all([
-    safe(db.$count(s.order, inArray(s.order.status, ["PAID", "ASSEMBLING"]))),
+    // Собрать и отправить + заказы из-за рубежа, где ждут расчёт доставки
+    safe(db.$count(s.order, or(inArray(s.order.status, ["PAID", "ASSEMBLING"]), and(eq(s.order.status, "AWAITING_PAYMENT"), eq(s.order.shippingPending, true))))),
     safe(openReturnsCount()),
     safe(lowStockCount()),
     safe(db.$count(s.productQuestion, eq(s.productQuestion.status, "NEW"))),

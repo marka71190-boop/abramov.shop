@@ -117,8 +117,9 @@ export function giftApplicable(balance: number, total: number) {
 }
 
 /** Как сумма сертификата делится между товарами и доставкой: сертификат сначала покрывает товары. */
-export function splitGift(o: { total: number; shippingCost: number; giftCardAmount: number }) {
-  const goods = o.total - o.shippingCost;
+export function splitGift(o: { total: number; shippingCost: number; giftCardAmount: number; foreignFee?: number }) {
+  // Сбор за заказ из-за рубежа — отдельная строка чека, сертификатом не оплачивается
+  const goods = o.total - o.shippingCost - (o.foreignFee ?? 0);
   const certGoods = Math.min(goods, o.giftCardAmount);
   const certShip = Math.max(0, o.giftCardAmount - certGoods);
   return { cashGoods: goods - certGoods, cashShip: o.shippingCost - certShip, certGoods, certShip };

@@ -5,7 +5,9 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { goal } from "@/lib/track";
-import { setPatronymicAfterSignup } from "@/app/(shop)/account/actions";
+import { setMyCountry, setPatronymicAfterSignup } from "@/app/(shop)/account/actions";
+import { CountryField, type CountryValue } from "@/components/CountryField";
+import type { Country } from "@/lib/countries";
 
 /** Галочку записываем на сервере ДО создания аккаунта — без неё сервер аккаунт не создаст. */
 async function saveConsent(body: Record<string, unknown>) {
@@ -20,8 +22,9 @@ async function saveConsent(body: Record<string, unknown>) {
   }
 }
 
-export function RegisterForm({ next, notice }: { next: string; notice?: string | null }) {
+export function RegisterForm({ next, notice, countries }: { next: string; notice?: string | null; countries: Country[] | null }) {
   const [pd, setPd] = useState(false);
+  const [country, setCountry] = useState<CountryValue>({ code: "RU", name: "" });
   const [marketing, setMarketing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export function RegisterForm({ next, notice }: { next: string; notice?: string |
     const phone = String(f.get("phone") || "").trim();
     const email = String(f.get("email") || "").trim().toLowerCase();
     const password = String(f.get("password") || "");
+    if (country.code === "XX" && country.name.trim().length < 2) return setError("Впишите страну, куда доставлять заказы");
     setBusy(true);
     setError(null);
     try {
@@ -42,6 +46,7 @@ export function RegisterForm({ next, notice }: { next: string; notice?: string |
       const { error: err } = await authClient.signUp.email({ name, email, password, callbackURL: "/account?verified=1" });
       if (err) throw err;
       if (patronymic) await setPatronymicAfterSignup(patronymic).catch(() => {});
+      if (country.code !== "RU") await setMyCountry(country.code, country.name).catch(() => {});
       goal("sign_up");
       // Даём счётчику отправить цель до перехода
       await new Promise((r) => setTimeout(r, 300));
@@ -81,8 +86,22 @@ export function RegisterForm({ next, notice }: { next: string; notice?: string |
       </div>
       <label className="field">
         Телефон
-        <input className="input" name="phone" type="tel" required placeholder="+7 (900) 000-00-00" autoComplete="tel" />
+        <input className="input" name="phone" type="tel" required placeholder={country.code === "RU" ? "+7 (900) 000-00-00" : "С кодом страны: +375 29 000-00-00"} autoComplete="tel" />
       </label>
+      {countries && (
+        <CountryField
+          countries={countries}
+          value={country}
+          onChange={setCountry}
+          hint={
+            country.code === "RU"
+              ? undefined
+              : country.code === "XX"
+                ? "Доставку в вашу страну посчитаем после заказа, оплата — переводом на карту со сбором за международный заказ"
+                : "Доставка СДЭК, оплата через Робокассу или переводом на карту — со сбором за международный заказ"
+          }
+        />
+      )}
       <label className="field">
         Email
         <input className="input" name="email" type="email" required autoComplete="email" />

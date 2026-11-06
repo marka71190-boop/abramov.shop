@@ -29,6 +29,8 @@ import { listReturns } from "@/lib/returns";
 import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
 import { cdekEnabled } from "@/lib/cdek";
 import { AddressBook } from "@/components/delivery/AddressBook";
+import { foreignConfig } from "@/lib/foreign";
+import { CountryForm } from "./CountryForm";
 
 export const metadata: Metadata = { title: "Личный кабинет", robots: { index: false } };
 
@@ -99,6 +101,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const favorites = await getPublicProductsByIds(favRows.map((f) => f.productId));
   const returns = await listReturns({ userId: user.id });
   const addresses = await listAddresses(user.id);
+  const foreign = await foreignConfig();
+  const cdekCountry = foreign.countries.some((c) => c.code === user.country) ? user.country : "RU";
   const { userRequests, SERVICE_STATUS } = await import("@/lib/service");
   const services = await userRequests(user.id);
   const gifts = await db.query.giftCard.findMany({
@@ -284,6 +288,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               deliveryType: a.deliveryType,
               city: a.city,
               cdekCityCode: a.cdekCityCode,
+              country: a.country,
               address: a.address,
               postalCode: a.postalCode,
               cdekPvzCode: a.cdekPvzCode,
@@ -295,6 +300,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             me={{ name: user.name, phone: user.phone ?? "" }}
             delivery={{ pvz: settings.delivery.pvzEnabled, courier: settings.delivery.courierEnabled, cdek: cdekEnabled() }}
             max={MAX_ADDRESSES}
+            country={cdekCountry}
+            countryNames={Object.fromEntries(foreign.countries.map((c) => [c.code, c.name]))}
           />
         </section>
 
@@ -488,6 +495,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               </div>
             </div>
           </div>
+          {foreign.enabled && (
+            <div className="row-line">
+              <div>
+                <div>Страна доставки</div>
+                <div className="muted small">От страны зависят способы доставки и оплаты на оформлении заказа</div>
+              </div>
+              <CountryForm countries={foreign.countries} code={user.country} name={user.countryName ?? ""} />
+            </div>
+          )}
           {telegram && (
             <div className="row-line">
               <div>

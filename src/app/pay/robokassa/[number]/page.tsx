@@ -22,6 +22,7 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
   if (!o || o.userId !== me.id || o.paymentMethod !== "ROBOKASSA") notFound();
   if (o.status !== "AWAITING_PAYMENT" || !robokassaEnabled()) redirect(`/order/${o.number}`);
   if (o.expiresAt && o.expiresAt < new Date()) redirect(`/order/${o.number}`);
+  if (o.shippingPending) redirect(`/order/${o.number}`);
 
   const amount = o.total - o.giftCardAmount;
   // Один счёт на заказ, пока он не оплачен: повторный переход — тот же InvId
@@ -43,6 +44,7 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
       o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
       cash.cashGoods,
       cash.cashShip,
+      { amount: o.foreignFee, percent: o.foreignPercent },
     ),
   });
 

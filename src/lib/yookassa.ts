@@ -175,6 +175,8 @@ export function receiptLines(
   items: { name: string; price: number; quantity: number }[],
   goodsTotal: number,
   shipping: number,
+  /** Сбор за заказ из-за рубежа — отдельной строкой */
+  fee?: { amount: number; percent: number } | null,
 ): ReceiptLine[] {
   const subtotal = items.reduce((a, i) => a + i.price * i.quantity, 0);
   const out: ReceiptLine[] = [];
@@ -192,5 +194,6 @@ export function receiptLines(
     }
   });
   if (shipping > 0) out.push({ name: "Доставка СДЭК", quantity: 1, price: shipping, kind: "service" });
+  if (fee && fee.amount > 0) out.push({ name: `Сбор за международный заказ ${fee.percent} %`, quantity: 1, price: fee.amount, kind: "service" });
   return out.filter((l) => l.price > 0);
 }

@@ -73,6 +73,8 @@ export const user = pgTable(
     clubIds: text("club_ids").array().default(sql`'{}'::text[]`).notNull(), // кассир: в каких клубах работает (пусто — где угодно)
     extraRoles: text("extra_roles").array().default(sql`'{}'::text[]`).notNull(), // дополнительные роли (тренер + кассир…), главная — в role
     organizationId: text("organization_id"), // сотрудник организации-оптовика
+    country: text("country").default("RU").notNull(), // куда доставлять: код страны; XX — страны нет в списке СДЭК, вписал сам
+    countryName: text("country_name"), // название страны, если вписал сам
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.
     bannedAt: ts("banned_at"),
@@ -463,8 +465,13 @@ export const order = pgTable(
 
     promoCodeId: text("promo_code_id").references(() => promoCode.id, { onDelete: "set null" }),
 
-    // Оплата: ONLINE — ЮKassa, INVOICE — по счёту для организации
+    // Оплата: ONLINE — ЮKassa, INVOICE — по счёту для организации, ROBOKASSA — из-за рубежа, TRANSFER — перевод на карту
     paymentMethod: text("payment_method").default("ONLINE").notNull(),
+    country: text("country").default("RU").notNull(), // страна доставки (код; XX — вписал покупатель)
+    countryName: text("country_name"),
+    foreignFee: integer("foreign_fee").default(0).notNull(), // сбор за заказ из-за рубежа, копейки (входит в total)
+    foreignPercent: integer("foreign_percent").default(0).notNull(), // его процент на момент заказа
+    shippingPending: boolean("shipping_pending").default(false).notNull(), // доставку считает менеджер — оплата после расчёта
     organizationId: text("organization_id"),
 
     // Доставка
@@ -628,6 +635,7 @@ export const address = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     label: text("label").default("Дом").notNull(),
     deliveryType: text("delivery_type").default("PVZ").notNull(), // PVZ | COURIER
+    country: text("country").default("RU").notNull(),
     city: text("city").notNull(),
     cdekCityCode: integer("cdek_city_code"),
     address: text("address").notNull(), // адрес пункта СДЭК или адрес для курьера

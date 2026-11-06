@@ -86,6 +86,15 @@ export interface SiteSettings {
     reportHour: number; // во сколько (по Москве) присылать сводку
     cashierMaxDiscount: number; // %, какую скидку на чек может дать кассир
   };
+  foreign: {
+    enabled: boolean; // заказы из-за рубежа
+    cdekCountries: string; // страны, куда возит СДЭК: «BY Беларусь» — по строке
+    robokassaPercent: number; // %, сбор с заказа из-за рубежа при оплате через Робокассу
+    transferPercent: number; // %, сбор при оплате переводом на карту
+    transferDetails: string; // куда переводить: карта, получатель, банк — видят покупатели из-за рубежа
+    paymentDays: number; // сколько дней ждём перевод, потом заказ отменяется
+    intro: string; // пояснение на оформлении для покупателей из-за рубежа
+  };
   giftCards: {
     enabled: boolean; // продажа сертификатов на сайте
     nominals: number[]; // ₽
@@ -178,6 +187,15 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     reportHour: 21,
     cashierMaxDiscount: 10,
   },
+  foreign: {
+    enabled: true,
+    cdekCountries: "BY Беларусь\nKZ Казахстан\nAM Армения\nKG Киргизия\nUZ Узбекистан",
+    robokassaPercent: 10,
+    transferPercent: 10,
+    transferDetails: "",
+    paymentDays: 5,
+    intro: "",
+  },
   giftCards: {
     enabled: true,
     nominals: [3000, 5000, 10000],
@@ -204,6 +222,7 @@ export function mergeSettings(saved: unknown): SiteSettings {
     service: { ...d.service, ...(s.service ?? {}) },
     b2b: { ...d.b2b, ...(s.b2b ?? {}) },
     finance: { ...d.finance, ...(s.finance ?? {}) },
+    foreign: { ...d.foreign, ...(s.foreign ?? {}) },
     loyalty: {
       ...d.loyalty,
       ...l,

@@ -14,6 +14,9 @@ import { authErrorMessage } from "@/lib/auth-errors";
 import type { AddressCard } from "@/components/delivery/AddressBook";
 import { CityPicker, PointPicker, type City, type Point } from "@/components/delivery/Pickers";
 import { prettyPhone } from "@/lib/format";
+import { CountryField, type CountryValue } from "@/components/CountryField";
+import { countryMode, MANUAL_CODE } from "@/lib/countries";
+import type { ForeignConfig } from "@/lib/foreign";
 
 interface Props {
   user: { name: string; phone: string; email: string; bonus: number };
@@ -24,8 +27,11 @@ interface Props {
   maxPerItem: number;
   canPay: boolean;
   testMode: boolean;
-  /** Робокасса подключена: рассрочка, «Сплит», иностранные карты */
+  /** Робокасса подключена — только для заказов из-за рубежа */
   robokassa?: boolean;
+  /** Заказы из-за рубежа: страны СДЭК, сборы; country — страна покупателя из профиля */
+  foreign: ForeignConfig;
+  country: CountryValue;
   docs: { offer: boolean; returns: boolean };
   addresses: AddressCard[];
   maxAddresses: number;
@@ -34,7 +40,7 @@ interface Props {
   pickupDays: number;
 }
 
-type DeliveryType = "PVZ" | "COURIER" | "PICKUP";
+type DeliveryType = "PVZ" | "COURIER" | "PICKUP" | "MANUAL";
 
 /** Значения полей заказа из сохранённой карточки адреса */
 function fromCard(a: AddressCard, cdek: boolean) {
@@ -52,8 +58,31 @@ function fromCard(a: AddressCard, cdek: boolean) {
 }
 
 
-export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay, testMode, robokassa = false, docs, addresses, maxAddresses, clubs, pickupDays }: Props) {
+export function CheckoutForm({
+  user,
+  guest = null,
+  canReferral,
+  delivery,
+  canPay,
+  testMode,
+  robokassa = false,
+  foreign,
+  country: initialCountry,
+  docs,
+  addresses: allAddresses,
+  maxAddresses,
+  clubs: allClubs,
+  pickupDays,
+}: Props) {
   const cart = useCart();
+  // Страна доставки: Россия — как обычно; страны СДЭК — Робокасса или перевод; своя страна — перевод после расчёта доставки
+  const [country, setCountryState] = useState<CountryValue>(foreign.enabled ? initialCountry : { code: "RU", name: "" });
+  const mode = countryMode(country.code, foreign.countries);
+  const abroad = mode !== "RU";
+  const ctry = (a: AddressCard) => a.country ?? "RU";
+  // Сохранённые адреса и самовывоз — только для выбранной страны
+  const addresses = mode === "MANUAL" ? [] : allAddresses.filter((a) => ctry(a) === country.code);
+  const clubs = abroad ? [] : allClubs;
   // Сохранённый адрес: основной (или последний использованный) подставляется сразу
   const first = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
   const init = first ? fromCard(first, delivery.cdek) : null;
@@ -71,6 +100,23 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
   const [point, setPoint] = useState<Point | null>(init?.point ?? null);
   const [pvzText, setPvzText] = useState(init?.pvzText ?? "");
   const [address, setAddress] = useState(init?.address ?? "");
+  const [postal, setPostal] = useState("");
+  const [foreignPay, setForeignPay] = useState<"ROBOKASSA" | "TRANSFER">(robokassa ? "ROBOKASSA" : "TRANSFER");
+
+  function setCountry(v: CountryValue) {
+    setCountryState(v);
+    const m = countryMode(v.code, foreign.countries);
+    // Другая страна — адрес заполняем заново
+    setPicked("new");
+    setCity(null);
+    setCityText("");
+    setPoint(null);
+    setPvzText("");
+    setAddress("");
+    setPostal("");
+    setType(m === "MANUAL" ? "MANUAL" : delivery.pvz ? "PVZ" : delivery.courier ? "COURIER" : m === "RU" && allClubs.length ? "PICKUP" : "PVZ");
+    if (m !== "RU") setGift(null);
+  }
 
   function pick(id: string) {
     setPicked(id);
@@ -95,7 +141,7 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
   const [gift, setGift] = useState<string | null>(null);
   const [giftMsg, setGiftMsg] = useState<string | null>(null);
   const [useBonus, setUseBonus] = useState(false);
-  const [payMethod, setPayMethod] = useState<"ONLINE" | "ROBOKASSA" | "INVOICE">(canPay || !robokassa ? "ONLINE" : "ROBOKASSA");
+  const [payMethod, setPayMethod] = useState<"ONLINE" | "INVOICE">("ONLINE");
   const [referral, setReferral] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Гость: пароль и согласия; registered — аккаунт уже создан (повторно не создаём при ошибке оплаты)
@@ -122,7 +168,11 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
     } catch {}
   }, [canReferral]);
 
-  const deliveryInput = type === "PICKUP"
+  const deliveryInput = type === "MANUAL"
+    ? cityText.trim()
+      ? { type, cityName: cityText.trim(), address: address.trim(), postalCode: postal.trim() || null }
+      : null
+    : type === "PICKUP"
     ? clubId
       ? { type, clubId }
       : null
@@ -135,8 +185,15 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
       : null;
 
   const { quote, error: quoteError, loading, setQuote } = useQuote(
-    { promoCode: promo, giftCode: gift, useBonus, delivery: deliveryInput ? { ...deliveryInput, address: undefined, pvzAddress: undefined } : null },
-    [promo, gift, useBonus, type, city?.code, clubId, delivery.cdek ? "" : cityText.trim()],
+    {
+      promoCode: promo,
+      giftCode: gift,
+      useBonus,
+      delivery: deliveryInput ? { ...deliveryInput, address: undefined, pvzAddress: undefined } : null,
+      country: { code: country.code, name: country.code === MANUAL_CODE ? country.name.trim() : null },
+      foreignPay: abroad ? (mode === "MANUAL" ? "TRANSFER" : foreignPay) : null,
+    },
+    [promo, gift, useBonus, type, city?.code, clubId, delivery.cdek && type !== "MANUAL" ? "" : cityText.trim(), country.code, country.name.trim(), foreignPay],
   );
 
   useEffect(() => {
@@ -170,10 +227,16 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
 
   const needPoint = type === "PVZ" && delivery.cdek && !point;
   const pickupClub = type === "PICKUP" ? (clubs.find((c) => c.id === clubId) ?? null) : null;
-  const needAddress = type === "COURIER" && address.trim().length < 5;
-  const byInvoice = payMethod === "INVOICE" && !!quote?.wholesale.invoice;
-  const byRobokassa = payMethod === "ROBOKASSA" && robokassa && !!quote && quote.payable > 0;
-  const ready = !quote?.wholesale.error && !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !loading;
+  const needAddress = (type === "COURIER" || type === "MANUAL") && address.trim().length < 5;
+  const byInvoice = !abroad && payMethod === "INVOICE" && !!quote?.wholesale.invoice;
+  const abroadMethod = mode === "MANUAL" ? "TRANSFER" : foreignPay;
+  const byRobokassa = abroad && abroadMethod === "ROBOKASSA";
+  const byTransfer = abroad && abroadMethod === "TRANSFER";
+  const pendingShip = !!quote?.shipping?.pending;
+  // Можно ли оформить выбранным способом
+  const payOk = abroad ? (byRobokassa ? robokassa : foreign.transferReady) : canPay || byInvoice;
+  const needCountry = country.code === MANUAL_CODE && country.name.trim().length < 2;
+  const ready = !quote?.wholesale.error && !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !needCountry && !loading;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -225,7 +288,9 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
       savedAddressId: picked !== "new" ? picked : null,
       saveAddress: picked === "new" && saveNew && addresses.length < maxAddresses ? { label: saveLabel.trim() || "Адрес" } : null,
       expectedTotal: quote.payable,
-      paymentMethod: byInvoice ? "INVOICE" : byRobokassa ? "ROBOKASSA" : "ONLINE",
+      country: { code: country.code, name: country.code === MANUAL_CODE ? country.name.trim() : null },
+      foreignPay: abroad ? abroadMethod : null,
+      paymentMethod: abroad ? abroadMethod : byInvoice ? "INVOICE" : "ONLINE",
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
       goal("order_created", { order_price: quote.total / 100 });
@@ -287,7 +352,7 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
             </label>
             <label className="field">
               Телефон
-              <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} required type="tel" autoComplete="tel" placeholder="+7 900 123-45-67" />
+              <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} required type="tel" autoComplete="tel" placeholder={abroad ? "С кодом страны: +375 29 123-45-67" : "+7 900 123-45-67"} />
             </label>
             <label className="field">
               Почта — для чека
@@ -360,6 +425,39 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
           <legend className="step">
             <span>2</span> Доставка
           </legend>
+          {foreign.enabled && <CountryField countries={foreign.countries} value={country} onChange={setCountry} />}
+          {abroad && (
+            <div className="notice notice--muted" style={{ margin: 0 }}>
+              {mode === "MANUAL"
+                ? `В эту страну отправим сами. Впишите адрес — после оформления посчитаем доставку и пришлём итоговую сумму и реквизиты для перевода на карту. К заказу добавится сбор за международный заказ ${foreign.transferPercent} %.`
+                : `Доставка СДЭК. Оплата ${[robokassa && `картой через Робокассу (сбор ${foreign.robokassaPercent} %)`, foreign.transferReady && `переводом на карту (сбор ${foreign.transferPercent} %)`].filter(Boolean).join(" или ") || "— уточните в поддержке"}.`}
+              {foreign.intro && (
+                <>
+                  <br />
+                  {foreign.intro}
+                </>
+              )}
+            </div>
+          )}
+          {mode === "MANUAL" ? (
+            <div className="stack" style={{ gap: 12 }}>
+              <div className="form-grid">
+                <label className="field">
+                  Город
+                  <input className="input" value={cityText} onChange={(e) => setCityText(e.target.value)} maxLength={120} autoComplete="address-level2" />
+                </label>
+                <label className="field">
+                  Индекс
+                  <input className="input" value={postal} onChange={(e) => setPostal(e.target.value)} maxLength={12} autoComplete="postal-code" placeholder="если есть" />
+                </label>
+              </div>
+              <label className="field">
+                Адрес: улица, дом, квартира
+                <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={300} autoComplete="street-address" />
+              </label>
+            </div>
+          ) : (
+          <>
           <div className="seg" role="radiogroup" aria-label="Способ доставки">
             {delivery.pvz && (
               <button type="button" role="radio" aria-checked={type === "PVZ"} onClick={() => setType("PVZ")}>
@@ -404,7 +502,8 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
             </div>
           ) : delivery.cdek ? (
             <CityPicker
-              key={picked}
+              key={`${picked}-${country.code}`}
+              country={country.code}
               value={city}
               onChange={(c) => {
                 setCity(c);
@@ -446,8 +545,15 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
               )}
             </div>
           )}
+          </>
+          )}
           {quote?.shippingError && <div className="form-error">{quote.shippingError}</div>}
-          {quote?.shipping && (
+          {quote?.shipping?.pending ? (
+            <div className="ship-quote">
+              <span>Посчитаем после оформления</span>
+              <span className="muted small">пришлём сумму на почту</span>
+            </div>
+          ) : quote?.shipping && (
             <div className="ship-quote">
               <span>{quote.shipping.free ? "Бесплатно" : rub(quote.shipping.cost)}</span>
               <span className="muted small">
@@ -494,6 +600,7 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
           {promoMsg && <div className="small" style={{ color: "var(--c-danger)" }}>{promoMsg}</div>}
           {promo && quote?.promo && <div className="small" style={{ color: "var(--c-success)" }}>Промокод {quote.promo.code}: {quote.promo.label}</div>}
 
+          {!abroad && (
           <div className="row" style={{ flexWrap: "nowrap", alignItems: "flex-end" }}>
             <label className="field" style={{ flex: 1 }}>
               Подарочный сертификат
@@ -520,6 +627,7 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
               </button>
             )}
           </div>
+          )}
           {giftMsg && <div className="small" style={{ color: "var(--c-danger)" }}>{giftMsg}</div>}
           {gift && quote?.gift && (
             <div className="small" style={{ color: "var(--c-success)" }}>
@@ -599,8 +707,22 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
         )}
         <div className="summary__row">
           <span>Доставка</span>
-          <span>{quote?.shipping ? (quote.shipping.free ? "бесплатно" : rub(quote.shipping.cost)) : <span className="muted">выберите адрес</span>}</span>
+          <span>
+            {quote?.shipping?.pending ? (
+              <span className="muted">посчитаем</span>
+            ) : quote?.shipping ? (
+              quote.shipping.free ? "бесплатно" : rub(quote.shipping.cost)
+            ) : (
+              <span className="muted">выберите адрес</span>
+            )}
+          </span>
         </div>
+        {!!quote?.foreign?.fee && (
+          <div className="summary__row">
+            <span>Сбор за международный заказ {quote.foreign.percent} %</span>
+            <span>{rub(quote.foreign.fee)}</span>
+          </div>
+        )}
         {!!quote?.gift?.applied && (
           <>
             <div className="summary__row">
@@ -617,40 +739,52 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
           <span>К оплате</span>
           <span>{quote ? rub(quote.payable) : "…"}</span>
         </div>
+        {pendingShip && <div className="muted small">+ доставка — посчитаем после оформления</div>}
         {!!quote?.accrue && (
           <div className="summary__bonus">
             +{num(quote.accrue / 100)} бонусов после получения · {quote.tierPercent}%
           </div>
         )}
-        {(quote?.wholesale.invoice || robokassa) && !!quote?.payable && (
+        {abroad && mode === "CDEK" && !!quote?.payable && (
+          <div className="pay-method" role="radiogroup" aria-label="Способ оплаты">
+            {robokassa && (
+              <label className="check">
+                <input type="radio" name="payMethod" checked={foreignPay === "ROBOKASSA"} onChange={() => setForeignPay("ROBOKASSA")} />
+                <span>
+                  Картой любого банка
+                  <span className="muted small"> · Робокасса, сбор {foreign.robokassaPercent} %</span>
+                </span>
+              </label>
+            )}
+            {foreign.transferReady && (
+              <label className="check">
+                <input type="radio" name="payMethod" checked={foreignPay === "TRANSFER"} onChange={() => setForeignPay("TRANSFER")} />
+                <span>
+                  Переводом на карту
+                  <span className="muted small"> · сбор {foreign.transferPercent} %</span>
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+        {!abroad && quote?.wholesale.invoice && !!quote?.payable && (
           <div className="pay-method" role="radiogroup" aria-label="Способ оплаты">
             {canPay && (
               <label className="check">
                 <input type="radio" name="payMethod" checked={payMethod === "ONLINE"} onChange={() => setPayMethod("ONLINE")} />
                 <span>
-                  Картой, СБП или SberPay
+                  Картой, СБП, SberPay или частями
                   <span className="muted small"> · ЮKassa</span>
                 </span>
               </label>
             )}
-            {robokassa && (
-              <label className="check">
-                <input type="radio" name="payMethod" checked={payMethod === "ROBOKASSA"} onChange={() => setPayMethod("ROBOKASSA")} />
-                <span>
-                  Частями, «Сплит» или картой зарубежного банка
-                  <span className="muted small"> · Робокасса</span>
-                </span>
-              </label>
-            )}
-            {quote.wholesale.invoice && (
-              <label className="check">
-                <input type="radio" name="payMethod" checked={payMethod === "INVOICE"} onChange={() => setPayMethod("INVOICE")} />
-                <span>
-                  По счёту для организации
-                  {quote.wholesale.org && <span className="muted small"> · {quote.wholesale.org}</span>}
-                </span>
-              </label>
-            )}
+            <label className="check">
+              <input type="radio" name="payMethod" checked={payMethod === "INVOICE"} onChange={() => setPayMethod("INVOICE")} />
+              <span>
+                По счёту для организации
+                {quote.wholesale.org && <span className="muted small"> · {quote.wholesale.org}</span>}
+              </span>
+            </label>
           </div>
         )}
         {quote?.wholesale.error && <div className="form-error">{quote.wholesale.error}</div>}
@@ -659,25 +793,43 @@ export function CheckoutForm({ user, guest = null, canReferral, delivery, canPay
             {error ?? quoteError}
           </div>
         )}
-        <button className="btn btn--gold btn--block" disabled={!ready || submitting || (!canPay && !byInvoice && !byRobokassa) || (byInvoice && !!gift)}>
-          {submitting ? "Создаём заказ…" : byInvoice ? "Получить счёт на оплату" : byRobokassa ? `Оплатить ${rub(quote!.payable)} через Робокассу` : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
+        <button className="btn btn--gold btn--block" disabled={!ready || submitting || !payOk || (byInvoice && !!gift)}>
+          {submitting
+            ? "Создаём заказ…"
+            : pendingShip
+              ? "Оформить заказ"
+              : byTransfer
+                ? "Оформить и получить реквизиты"
+                : byRobokassa
+                  ? `Оплатить ${quote ? rub(quote.payable) : ""} через Робокассу`
+                  : byInvoice
+                    ? "Получить счёт на оплату"
+                    : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
         </button>
         <p className="muted small" style={{ margin: 0 }}>
-          {!deliveryInput
+          {needCountry
+            ? "Впишите страну доставки"
+            : !deliveryInput
             ? "Укажите город доставки"
             : needPoint
               ? "Выберите пункт выдачи"
               : needAddress
-                ? "Укажите адрес для курьера"
+                ? type === "MANUAL" ? "Укажите адрес доставки" : "Укажите адрес для курьера"
                 : byInvoice
                   ? gift
                     ? "Сертификатом можно заплатить только картой — уберите сертификат или выберите оплату картой."
                     : "Счёт с реквизитами и QR-кодом откроется сразу и придёт на почту. Товар зарезервируем до оплаты."
+                  : abroad && !payOk
+                    ? "Оплата из-за рубежа сейчас настраивается — напишите нам в поддержку, оформим заказ вручную."
+                  : pendingShip
+                    ? "Товар зарезервируем. Посчитаем доставку и пришлём на почту итоговую сумму и способ оплаты — платить сейчас ничего не нужно."
+                  : byTransfer
+                    ? `Реквизиты для перевода откроются после оформления и придут на почту. Товар зарезервируем на ${foreign.paymentDays} дн.`
                   : byRobokassa
-                    ? "На странице Робокассы выберите способ: частями, «Сплит», карта российского или зарубежного банка."
+                    ? "Откроется страница Робокассы — можно платить картой российского или зарубежного банка."
                   : quote?.payable === 0
                   ? "Заказ полностью оплачивается сертификатом — платить картой не нужно."
-                  : "Оплата картой, через СБП или SberPay на защищённой странице ЮKassa."}
+                  : "Оплата картой, через СБП, SberPay или частями на защищённой странице ЮKassa."}
         </p>
         <p className="muted small" style={{ margin: 0, fontSize: 12 }}>
           Нажимая кнопку, вы подтверждаете заказ

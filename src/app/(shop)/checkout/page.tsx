@@ -14,6 +14,8 @@ import { robokassaEnabled } from "@/lib/robokassa";
 import { CheckoutForm } from "./CheckoutForm";
 import { clubMapUrl, listClubs } from "@/lib/clubs";
 import { listAddresses, MAX_ADDRESSES } from "@/lib/addresses";
+import { foreignConfig } from "@/lib/foreign";
+import { MANUAL_CODE } from "@/lib/countries";
 
 export const metadata: Metadata = { title: "Оформление заказа", robots: { index: false } };
 
@@ -46,6 +48,10 @@ export default async function CheckoutPage() {
     );
   }
   const payments = yookassaEnabled();
+  const foreign = await foreignConfig();
+  // Страна из профиля; если её убрали из списка СДЭК — пусть покупатель выберет заново
+  const known = user.country === "RU" || user.country === MANUAL_CODE || foreign.countries.some((c) => c.code === user.country);
+  const country = known ? { code: user.country, name: user.countryName ?? "" } : { code: "RU", name: "" };
 
   return (
     <section className="container page-pad ym-hide-content">
@@ -53,7 +59,7 @@ export default async function CheckoutPage() {
         Оформление
       </h1>
       {settings.checkout.notice && <div className="notice">{settings.checkout.notice}</div>}
-      {!payments && !robokassaEnabled() && (
+      {!payments && (
         <div className="notice notice--muted">
           {isAdmin(user)
             ? "ЮKassa ещё не подключена. Вы админ — заказ создастся, а на его странице будет кнопка тестовой оплаты."
@@ -86,11 +92,14 @@ export default async function CheckoutPage() {
         canPay={payments || isAdmin(user)}
         testMode={!payments}
         robokassa={robokassaEnabled()}
+        foreign={foreign}
+        country={country}
         docs={{ offer: published("offer"), returns: published("returns") }}
         addresses={saved.map((a) => ({
           id: a.id,
           label: a.label,
           deliveryType: a.deliveryType,
+          country: a.country,
           city: a.city,
           cdekCityCode: a.cdekCityCode,
           address: a.address,
@@ -131,7 +140,7 @@ async function GuestCheckout() {
         Уже покупали у нас? <a href="/login?next=/checkout">Войдите</a> — подставим адрес и бонусы.
       </p>
       {settings.checkout.notice && <div className="notice">{settings.checkout.notice}</div>}
-      {!payments && !robokassaEnabled() && <div className="notice notice--muted">Онлайн-оплата подключается. Пока заказ можно оформить через поддержку в Telegram.</div>}
+      {!payments && <div className="notice notice--muted">Онлайн-оплата подключается. Пока заказ можно оформить через поддержку в Telegram.</div>}
       <CheckoutForm
         user={{ name: "", phone: "", email: "", bonus: 0 }}
         guest={{ welcome: settings.loyalty.welcomeBonus }}
@@ -151,6 +160,8 @@ async function GuestCheckout() {
         canPay={payments}
         testMode={!payments}
         robokassa={robokassaEnabled()}
+        foreign={await foreignConfig()}
+        country={{ code: "RU", name: "" }}
         docs={{ offer: published("offer"), returns: published("returns") }}
         addresses={[]}
         maxAddresses={0}

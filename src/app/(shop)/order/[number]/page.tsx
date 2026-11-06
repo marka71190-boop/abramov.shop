@@ -21,6 +21,7 @@ import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { expectedReady, productionEvents, STAGE_LABEL } from "@/lib/production";
 import { clubMapUrl, getClub } from "@/lib/clubs";
 import { fmtDate } from "@/lib/format";
+import { countryText } from "@/lib/foreign";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -34,7 +35,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   if (!o || (o.userId !== user.id && !(o.organizationId && user.organizationId === o.organizationId) && !isAdmin(user))) notFound();
 
   // Вернулись со страницы оплаты — не ждём уведомление, спрашиваем ЮKassa сами
-  if (o.status === "AWAITING_PAYMENT" && o.paymentMethod !== "INVOICE") {
+  if (o.status === "AWAITING_PAYMENT" && o.paymentMethod !== "INVOICE" && o.paymentMethod !== "TRANSFER") {
     await syncPayment(o.id);
     o = (await db.query.order.findFirst({ where: eq(s.order.id, o.id) }))!;
   }
@@ -58,6 +59,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const awaiting = o.status === "AWAITING_PAYMENT";
   const minutesLeft = o.expiresAt ? Math.max(0, Math.round((+o.expiresAt - Date.now()) / 60000)) : null;
   const justPaid = from === "pay" && o.status === "PAID";
+  const countryName = o.country !== "RU" ? await countryText(o.country, o.countryName) : null;
 
   return (
     <section className="container page-pad order-page ym-hide-content">
@@ -111,7 +113,49 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {awaiting && o.paymentMethod !== "INVOICE" && (
+      {awaiting && o.shippingPending && (
+        <div className="panel stack pay-box">
+          <div>
+            <div className="h3">Считаем доставку</div>
+            <p className="muted" style={{ margin: "8px 0 0" }}>
+              Заказ принят, товар зарезервирован. Посчитаем стоимость доставки в вашу страну и пришлём на почту итоговую сумму
+              {o.paymentMethod === "TRANSFER" ? " и реквизиты для перевода" : " и ссылку на оплату"}. Платить пока ничего не нужно.
+            </p>
+          </div>
+          {o.userId === user.id && (
+            <div className="row">
+              <CancelButton number={o.number} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {awaiting && !o.shippingPending && o.paymentMethod === "TRANSFER" && (
+        <div className="panel stack pay-box">
+          <div>
+            <div className="h3">Оплата переводом на карту</div>
+            <p className="muted" style={{ margin: "8px 0 0" }}>
+              Товар зарезервирован{o.expiresAt ? ` до ${fmtDate(o.expiresAt)}` : ""}. Переведите <b style={{ color: "var(--c-text)" }}>{rub(o.total)}</b> по реквизитам ниже и укажите в
+              комментарии номер заказа <b style={{ color: "var(--c-text)" }}>{o.number}</b>. Как только деньги придут, начнём собирать заказ и пришлём письмо.
+            </p>
+          </div>
+          {settings.foreign.transferDetails.trim() ? (
+            <div className="transfer-details">{settings.foreign.transferDetails.trim()}</div>
+          ) : (
+            <div className="notice notice--muted" style={{ margin: 0 }}>
+              Реквизиты пришлём на почту. Если письма нет — напишите в Telegram{" "}
+              <a href={`https://t.me/${settings.supportTelegram}`}>@{settings.supportTelegram}</a>.
+            </div>
+          )}
+          {o.userId === user.id && (
+            <div className="row">
+              <CancelButton number={o.number} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {awaiting && !o.shippingPending && o.paymentMethod !== "INVOICE" && o.paymentMethod !== "TRANSFER" && (
         <div className="panel stack pay-box">
           <div>
             <div className="h3">Ожидаем оплату</div>
@@ -238,8 +282,14 @@ export default async function OrderPage({ params, searchParams }: Props) {
           )}
           <div className="summary__row">
             <span>Доставка</span>
-            <span>{o.shippingCost ? rub(o.shippingCost) : "бесплатно"}</span>
+            <span>{o.shippingPending ? <span className="muted">считаем</span> : o.shippingCost ? rub(o.shippingCost) : "бесплатно"}</span>
           </div>
+          {o.foreignFee > 0 && (
+            <div className="summary__row">
+              <span>Сбор за международный заказ {o.foreignPercent} %</span>
+              <span>{rub(o.foreignFee)}</span>
+            </div>
+          )}
           {o.giftCardAmount > 0 && (
             <>
               <div className="summary__row">
@@ -255,7 +305,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
           {o.giftCardAmount < o.total && (
             <div className="summary__total">
               <span>{o.paidAt ? (o.giftCardAmount > 0 ? "Оплачено картой" : "Оплачено") : "К оплате"}</span>
-              <span>{rub(o.total - o.giftCardAmount)}</span>
+              <span>{o.shippingPending ? `${rub(o.total)} + доставка` : rub(o.total - o.giftCardAmount)}</span>
             </div>
           )}
         </div>
@@ -353,8 +403,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </div>
           ) : (
             <div>
-              <div className="label">{o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
+              <div className="label">{o.deliveryType === "MANUAL" ? "Доставка за рубеж" : o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
               <div style={{ marginTop: 6 }}>
+                {countryName && `${countryName}, `}
+                {o.postalCode && o.deliveryType === "MANUAL" ? `${o.postalCode}, ` : ""}
                 {o.city}
                 {o.address ? `, ${o.address}` : ""}
               </div>

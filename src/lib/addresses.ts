@@ -13,6 +13,7 @@ export const AddressIn = z.object({
   id: z.string().max(64).nullish(),
   label: z.string().trim().min(1, "Назовите адрес, например «Дом»").max(30),
   deliveryType: z.enum(["PVZ", "COURIER"]),
+  country: z.string().trim().regex(/^[A-Za-z]{2}$/).nullish(), // страна СДЭК; пусто — Россия
   city: z.string().trim().min(2, "Выберите город").max(120),
   cdekCityCode: z.number().int().positive().nullish(),
   address: z.string().trim().max(300),
@@ -38,7 +39,7 @@ export async function saveAddress(userId: string, raw: unknown): Promise<{ error
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте поля" };
   const d = p.data;
   const phone = normalizePhone(d.recipientPhone);
-  if (!phone) return { error: "Проверьте телефон получателя: нужен российский номер" };
+  if (!phone) return { error: "Проверьте телефон получателя: российский номер или зарубежный с кодом страны (+375…)" };
   if (cdekEnabled() && !d.cdekCityCode) return { error: "Выберите город из списка" };
   if (d.deliveryType === "PVZ" && cdekEnabled() && !d.cdekPvzCode) return { error: "Выберите пункт выдачи СДЭК" };
   if (d.deliveryType === "COURIER" && d.address.length < 5) return { error: "Укажите улицу, дом и квартиру" };
@@ -46,6 +47,7 @@ export async function saveAddress(userId: string, raw: unknown): Promise<{ error
   const values = {
     label: d.label,
     deliveryType: d.deliveryType,
+    country: (d.country || "RU").toUpperCase(),
     city: d.city,
     cdekCityCode: d.cdekCityCode ?? null,
     address: d.address || d.city,

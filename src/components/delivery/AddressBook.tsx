@@ -8,6 +8,7 @@ export interface AddressCard {
   id: string;
   label: string;
   deliveryType: string;
+  country?: string; // RU или страна СДЭК
   city: string;
   cdekCityCode: number | null;
   address: string;
@@ -24,9 +25,12 @@ interface Props {
   me: { name: string; phone: string };
   delivery: { pvz: boolean; courier: boolean; cdek: boolean };
   max: number;
+  /** Страна для нового адреса: страна покупателя, если СДЭК туда возит */
+  country?: string;
+  countryNames?: Record<string, string>;
 }
 
-export function AddressBook({ addresses, me, delivery, max }: Props) {
+export function AddressBook({ addresses, me, delivery, max, country = "RU", countryNames = {} }: Props) {
   const [editing, setEditing] = useState<AddressCard | "new" | null>(null);
   const [pending, start] = useTransition();
   return (
@@ -40,7 +44,8 @@ export function AddressBook({ addresses, me, delivery, max }: Props) {
                 {a.isDefault ? <span className="pill pill--ok">основной</span> : null}
               </div>
               <div className="small">
-                {a.deliveryType === "PVZ" ? "Пункт СДЭК" : "Курьер"} · {a.city}
+                {a.deliveryType === "PVZ" ? "Пункт СДЭК" : "Курьер"} · {a.country && a.country !== "RU" ? `${countryNames[a.country] ?? a.country}, ` : ""}
+                {a.city}
               </div>
               <div className="small muted">{a.address}</div>
               <div className="small">
@@ -70,7 +75,7 @@ export function AddressBook({ addresses, me, delivery, max }: Props) {
         </div>
       )}
       {editing ? (
-        <AddressForm key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing} me={me} delivery={delivery} onDone={() => setEditing(null)} />
+        <AddressForm key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing} me={me} delivery={delivery} country={country} onDone={() => setEditing(null)} />
       ) : addresses.length < max ? (
         <div>
           <button type="button" className="btn btn--line btn--sm" onClick={() => setEditing("new")}>
@@ -86,7 +91,20 @@ export function AddressBook({ addresses, me, delivery, max }: Props) {
   );
 }
 
-function AddressForm({ initial, me, delivery, onDone }: { initial: AddressCard | null; me: Props["me"]; delivery: Props["delivery"]; onDone: () => void }) {
+function AddressForm({
+  initial,
+  me,
+  delivery,
+  onDone,
+  country: newCountry,
+}: {
+  initial: AddressCard | null;
+  me: Props["me"];
+  delivery: Props["delivery"];
+  onDone: () => void;
+  country: string;
+}) {
+  const country = initial?.country ?? newCountry;
   const [label, setLabel] = useState(initial?.label ?? "Дом");
   const [type, setType] = useState<"PVZ" | "COURIER">((initial?.deliveryType as "PVZ" | "COURIER") ?? (delivery.pvz ? "PVZ" : "COURIER"));
   const [city, setCity] = useState<City | null>(initial?.cdekCityCode ? { code: initial.cdekCityCode, name: initial.city } : null);
@@ -112,6 +130,7 @@ function AddressForm({ initial, me, delivery, onDone }: { initial: AddressCard |
         id: initial?.id ?? null,
         label,
         deliveryType: type,
+        country,
         city: delivery.cdek ? (city?.name.split(",")[0] ?? "") : cityText,
         cdekCityCode: city?.code ?? null,
         address: type === "PVZ" ? (point?.address ?? pvzText) : street,
@@ -154,6 +173,7 @@ function AddressForm({ initial, me, delivery, onDone }: { initial: AddressCard |
       </div>
       {delivery.cdek ? (
         <CityPicker
+          country={country}
           value={city}
           onChange={(c) => {
             setCity(c);

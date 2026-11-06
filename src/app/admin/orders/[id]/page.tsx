@@ -12,6 +12,10 @@ import { expectedReady, productionEvents } from "@/lib/production";
 import { fmtDate } from "@/lib/format";
 import { InspectionPanel } from "./InspectionPanel";
 import { InvoicePanel } from "./InvoicePanel";
+import { ForeignPanel } from "./ForeignPanel";
+import { countryText } from "@/lib/foreign";
+import { getSettings } from "@/lib/settings";
+import { isDirector } from "@/lib/viewer";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
 import { driveStatus } from "@/lib/gdrive";
 import { CHECKLIST, loadInspection } from "@/lib/inspection";
@@ -77,12 +81,33 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         id={o.id}
         status={o.status}
         track={o.trackNumber}
-        cdek={{ enabled: cdekEnabled() && o.deliveryType !== "PICKUP", uuid: o.cdekOrderUuid, canCreate: !!o.cdekCityCode }}
+        cdek={{ enabled: cdekEnabled() && o.deliveryType !== "PICKUP" && o.deliveryType !== "MANUAL", uuid: o.cdekOrderUuid, canCreate: !!o.cdekCityCode }}
         pickup={o.deliveryType === "PICKUP"}
         testPay={!yookassaEnabled()}
         paid={paid}
         owner={me.role === "OWNER"}
       />
+
+      {o.country !== "RU" &&
+        (await (async () => {
+          const settings = await getSettings();
+          return (
+            <ForeignPanel
+              id={o.id}
+              country={await countryText(o.country, o.countryName)}
+              method={o.paymentMethod}
+              percent={o.foreignPercent}
+              fee={rub(o.foreignFee)}
+              pending={o.shippingPending}
+              shipping={o.shippingCost}
+              awaiting={o.status === "AWAITING_PAYMENT"}
+              cancelled={o.status === "CANCELLED"}
+              until={o.expiresAt ? fmtDate(o.expiresAt) : null}
+              transferReady={!!settings.foreign.transferDetails.trim()}
+              readonly={isDirector(me)}
+            />
+          );
+        })())}
 
       {o.paymentMethod === "INVOICE" &&
         (await (async () => {
@@ -141,10 +166,20 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         <div className="panel stack" style={{ gap: 8 }}>
           <h2 style={{ marginBottom: 4 }}>Доставка</h2>
           <div>
-            {o.deliveryType === "PICKUP" ? <b>Самовывоз из клуба</b> : o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}
+            {o.deliveryType === "PICKUP" ? (
+              <b>Самовывоз из клуба</b>
+            ) : o.deliveryType === "MANUAL" ? (
+              <b>За рубеж — отправляем сами</b>
+            ) : o.deliveryType === "COURIER" ? (
+              "Курьер СДЭК"
+            ) : (
+              "Пункт выдачи СДЭК"
+            )}
             {o.deliveryTariff ? <span className="muted"> · тариф {o.deliveryTariff}</span> : null}
           </div>
           <div>
+            {o.country !== "RU" && `${await countryText(o.country, o.countryName)}, `}
+            {o.deliveryType === "MANUAL" && o.postalCode ? `${o.postalCode}, ` : ""}
             {o.city}
             {o.address ? `, ${o.address}` : ""}
           </div>
@@ -211,8 +246,14 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
               )}
               <tr>
                 <td colSpan={3} className="muted">Доставка</td>
-                <td>{rub(o.shippingCost)}</td>
+                <td>{o.shippingPending ? "не посчитана" : rub(o.shippingCost)}</td>
               </tr>
+              {o.foreignFee > 0 && (
+                <tr>
+                  <td colSpan={3} className="muted">Сбор за международный заказ {o.foreignPercent} %</td>
+                  <td>{rub(o.foreignFee)}</td>
+                </tr>
+              )}
               <tr>
                 <td colSpan={3}>
                   <strong>Итого</strong>

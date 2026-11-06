@@ -25,18 +25,25 @@ const dateTimeFmt = new Intl.DateTimeFormat("ru-RU", {
 export const fmtDate = (d: Date | string) => dateFmt.format(new Date(d));
 export const fmtDateTime = (d: Date | string) => dateTimeFmt.format(new Date(d));
 
-/** Приводит российский номер к виду +7XXXXXXXXXX. Возвращает null, если номер неполный. */
+/**
+ * Приводит номер к виду +7XXXXXXXXXX. Зарубежный номер — с «+» или «00» в начале — к виду +КОД…
+ * (8–15 цифр). Возвращает null, если номер неполный.
+ */
 export function normalizePhone(input: string): string | null {
-  let d = input.replace(/\D/g, "");
-  if (d.length === 11 && (d.startsWith("8") || d.startsWith("7"))) d = "7" + d.slice(1);
-  else if (d.length === 10) d = "7" + d;
-  return d.length === 11 && d.startsWith("7") ? "+" + d : null;
+  const raw = input.trim();
+  let d = raw.replace(/\D/g, "");
+  const intl = raw.startsWith("+") || raw.startsWith("00");
+  if (raw.startsWith("00")) d = d.slice(2);
+  if (d.length === 11 && (d.startsWith("7") || (!intl && d.startsWith("8")))) return "+7" + d.slice(1);
+  if (!intl && d.length === 10) return "+7" + d;
+  if (intl && !d.startsWith("7") && d.length >= 8 && d.length <= 15) return "+" + d;
+  return null;
 }
 
 /** +79001234567 → +7 (900) 123-45-67 */
 export function prettyPhone(p: string | null | undefined) {
   if (!p) return "";
   const d = p.replace(/\D/g, "");
-  if (d.length !== 11) return p;
+  if (d.length !== 11 || !d.startsWith("7")) return p;
   return `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}`;
 }

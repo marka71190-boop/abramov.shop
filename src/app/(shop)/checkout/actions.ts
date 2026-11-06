@@ -17,7 +17,7 @@ import { yookassaEnabled } from "@/lib/yookassa";
 
 const Line = z.object({ variantId: z.string().max(400), qty: z.coerce.number().int().min(1).max(9999) });
 const Delivery = z.object({
-  type: z.enum(["PVZ", "COURIER", "PICKUP"]),
+  type: z.enum(["PVZ", "COURIER", "PICKUP", "MANUAL"]),
   clubId: z.string().max(64).nullish(),
   cityCode: z.number().int().positive().nullish(),
   cityName: z.string().trim().max(200).nullish(),
@@ -32,6 +32,8 @@ const QuoteIn = z.object({
   giftCode: z.string().trim().max(40).nullish(),
   useBonus: z.boolean().optional(),
   delivery: Delivery.nullish(),
+  country: z.object({ code: z.string().trim().min(2).max(2), name: z.string().trim().max(80).nullish() }).nullish(),
+  foreignPay: z.enum(["ROBOKASSA", "TRANSFER"]).nullish(),
 });
 
 const quoteLimit = createRateLimiter({ limit: 120, windowMs: 60_000 });
@@ -65,7 +67,7 @@ const PlaceIn = QuoteIn.extend({
   expectedTotal: z.number().int(),
   savedAddressId: z.string().max(64).nullish(),
   saveAddress: z.object({ label: z.string().trim().max(30) }).nullish(),
-  paymentMethod: z.enum(["ONLINE", "ROBOKASSA", "INVOICE"]).optional(),
+  paymentMethod: z.enum(["ONLINE", "ROBOKASSA", "INVOICE", "TRANSFER"]).optional(),
 });
 
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
@@ -79,13 +81,14 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
   if (!(await getActiveConsent(user.id, "PERSONAL_DATA"))) return { error: "Нужно согласие на обработку персональных данных" };
   const byInvoice = (raw as { paymentMethod?: string } | null)?.paymentMethod === "INVOICE";
   const byRobokassa = (raw as { paymentMethod?: string } | null)?.paymentMethod === "ROBOKASSA";
-  if (!yookassaEnabled() && !isAdmin(user) && !byInvoice && !byRobokassa) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
+  const byTransfer = (raw as { paymentMethod?: string } | null)?.paymentMethod === "TRANSFER";
+  if (!yookassaEnabled() && !isAdmin(user) && !byInvoice && !byRobokassa && !byTransfer) return { error: "Онлайн-оплата подключается. Напишите нам в Telegram — оформим заказ вручную" };
   if (!placeLimit(user.id)) return { error: "Слишком много попыток. Подождите несколько минут" };
 
   const p = PlaceIn.safeParse(raw);
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте поля формы" };
   const phone = normalizePhone(p.data.phone);
-  if (!phone) return { error: "Проверьте телефон: нужен российский номер, например +7 900 123-45-67" };
+  if (!phone) return { error: "Проверьте телефон: российский номер, например +7 900 123-45-67, или зарубежный с кодом страны: +375 29 123-45-67" };
   if (isPlaceholderEmail(p.data.email)) return { error: "Укажите настоящую почту — на неё придёт чек" };
 
   try {
@@ -93,9 +96,17 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
     const r = await placeOrder(user, { ...p.data, phone }, origin, { ip: (await getRequestMeta()).ip, userId: user.id });
     // «Мои адреса»: отметить использованный или сохранить новый (ошибки сохранения заказ не ломают)
     const d = p.data.delivery;
+    // Страна, выбранная при оформлении, становится страной покупателя
+    const c = p.data.country;
+    if (c && (c.code.toUpperCase() !== (user.country ?? "RU") || (c.name ?? null) !== (user.countryName ?? null))) {
+      const { resolveCountry, setUserCountry } = await import("@/lib/foreign");
+      const rc = await resolveCountry(c.code, c.name);
+      if (rc) await setUserCountry(user.id, rc.code, rc.name).catch(() => {});
+    }
     if (p.data.savedAddressId) await touchAddress(user.id, p.data.savedAddressId).catch(() => {});
-    else if (p.data.saveAddress && d && d.type !== "PICKUP") {
+    else if (p.data.saveAddress && d && d.type !== "PICKUP" && d.type !== "MANUAL") {
       await saveAddress(user.id, {
+        country: (c?.code ?? "RU").toUpperCase(),
         label: p.data.saveAddress.label || "Адрес",
         deliveryType: d.type,
         city: d.cityName ?? "",

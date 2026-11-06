@@ -7,9 +7,10 @@
 import "server-only";
 import { and, asc, count, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { calculate, cdekEnabled, parcelFor } from "@/lib/cdek";
+import { calculate, calculateBest, cdekEnabled, parcelFor } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
 import { checkGiftCode, giftApplicable, type GiftWho } from "@/lib/giftcards";
+import { countryLabel, foreignFeeOf, parseCountries } from "@/lib/countries";
 import { getSettings } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/settings-defaults";
 import type { UserRow } from "@/lib/viewer";
@@ -24,7 +25,8 @@ export interface CartLineInput {
 }
 
 export interface DeliveryInput {
-  type: "PVZ" | "COURIER" | "PICKUP";
+  /** MANUAL — страна не из списка СДЭК: адрес вписан текстом, доставку считает менеджер */
+  type: "PVZ" | "COURIER" | "PICKUP" | "MANUAL";
   /** Самовывоз: из какого клуба */
   clubId?: string | null;
   cityCode?: number | null;
@@ -42,6 +44,10 @@ export interface QuoteInput {
   delivery?: DeliveryInput | null;
   /** Код подарочного сертификата */
   giftCode?: string | null;
+  /** Страна доставки: код (RU, BY…; XX — вписал сам) и название для XX */
+  country?: { code: string; name?: string | null } | null;
+  /** Из-за рубежа: Робокасса или перевод на карту — от этого зависит сбор */
+  foreignPay?: "ROBOKASSA" | "TRANSFER" | null;
 }
 
 export interface QuoteLine {
@@ -93,9 +99,12 @@ export interface Quote {
   bundleHints: { id: string; name: string; percent: number; missing: { name: string; slug: string }[] }[];
   bonus: { balance: number; available: number; spent: number; blockedByPromo: boolean };
   /** carrierCost — сколько доставка стоит магазину (тариф СДЭК без наценки), для учёта прибыли */
-  shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean; carrierCost?: number } | null;
+  /** pending — доставку за рубеж посчитает менеджер после оформления (cost пока 0) */
+  shipping: { cost: number; days: string | null; tariff: number | null; free: boolean; estimate: boolean; carrierCost?: number; pending?: boolean } | null;
   shippingError: string | null;
-  /** Итог заказа (товары после скидок + доставка) */
+  /** Заказ из-за рубежа: страна, способ оплаты и сбор (входит в total) */
+  foreign: { code: string; name: string; mode: "CDEK" | "MANUAL"; method: "ROBOKASSA" | "TRANSFER"; percent: number; fee: number } | null;
+  /** Итог заказа (товары после скидок + доставка + сбор из-за рубежа) */
   total: number;
   /** Подарочный сертификат: сколько спишется с него */
   gift: { code: string; balance: number; applied: number; expiresAt: string | null } | null;
@@ -328,7 +337,42 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
   let shipping: Quote["shipping"] = null;
   let shippingError: string | null = null;
   const d = input.delivery;
-  if (d && lines.length && d.type === "PICKUP") {
+  // ---- Страна: Россия — как обычно; из-за рубежа — без самовывоза, сертификатов и счёта
+  const { resolveCountry } = await import("@/lib/foreign");
+  const country = input.country ? await resolveCountry(input.country.code, input.country.name) : { code: "RU", name: null, mode: "RU" as const };
+  const abroad = country && country.mode !== "RU" ? country : null;
+  if (!country) shippingError = "Выберите страну доставки";
+  else if (abroad && d && lines.length) {
+    const st = settings.delivery;
+    if (abroad.mode === "MANUAL") {
+      // Страны нет в списке СДЭК: стоимость доставки менеджер впишет в заказ
+      if (d.type !== "MANUAL") shippingError = "Впишите адрес доставки";
+      else if (!d.cityName?.trim()) shippingError = "Укажите город доставки";
+      else shipping = { cost: 0, days: null, tariff: null, free: false, estimate: true, carrierCost: 0, pending: true };
+    } else if (d.type !== "PVZ" && d.type !== "COURIER") shippingError = "За рубеж — только СДЭК: пункт выдачи или курьер";
+    else if (d.type === "PVZ" && !st.pvzEnabled) shippingError = "Доставка в пункт выдачи сейчас недоступна";
+    else if (d.type === "COURIER" && !st.courierEnabled) shippingError = "Доставка курьером сейчас недоступна";
+    else if (!cdekEnabled()) shipping = { cost: 0, days: null, tariff: null, free: false, estimate: true, carrierCost: 0, pending: true };
+    else if (!d.cityCode) shippingError = "Выберите город";
+    else {
+      // Бесплатная доставка по порогу и промокоду — только по России.
+      // Основной тариф за рубеж может не работать — тогда берём самый дешёвый подходящий тариф СДЭК
+      const parcel = parcelFor(lines.map((l) => ({ ...l, quantity: l.qty })));
+      const main = d.type === "PVZ" ? st.tariffPvz : st.tariffCourier;
+      try {
+        const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff: main, parcel })
+          .then((r) => ({ ...r, tariff: main }))
+          .catch(() => calculateBest({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode!, mode: d.type === "PVZ" ? 4 : 3, parcel }));
+        const days = q.periodMin === q.periodMax ? `${q.periodMax}` : `${q.periodMin}–${q.periodMax}`;
+        shipping = { cost: q.cost + st.markup * 100, days, tariff: q.tariff, free: false, estimate: false, carrierCost: q.cost };
+      } catch (e) {
+        console.error("[cdek] calculate:", e);
+        shippingError = "СДЭК не смог рассчитать доставку в этот город. Попробуйте другой способ или напишите в поддержку";
+      }
+    }
+  } else if (d && lines.length && d.type === "MANUAL") {
+    shippingError = "Выберите город доставки";
+  } else if (d && lines.length && d.type === "PICKUP") {
     // Самовывоз из клуба — бесплатно
     const { getClub } = await import("@/lib/clubs");
     const club = await getClub(d.clubId);
@@ -363,12 +407,31 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
   const tierPercent = settings.loyalty.tiers[tier].percent;
   const accrue = user ? Math.floor((Math.max(0, goods - wholesaleSum) * tierPercent) / 100 / 100) * 100 : 0;
 
-  const total = goods + (shipping?.cost ?? 0);
+  // ---- Сбор за заказ из-за рубежа: процент от товаров и доставки, отдельной строкой в чеке
+  let foreign: Quote["foreign"] = null;
+  if (abroad) {
+    const { foreignPercent } = await import("@/lib/foreign");
+    // Страна не из списка СДЭК — только перевод на карту
+    const method = abroad.mode === "MANUAL" ? "TRANSFER" : input.foreignPay === "TRANSFER" ? "TRANSFER" : "ROBOKASSA";
+    const percent = await foreignPercent(method);
+    foreign = {
+      code: abroad.code,
+      name: countryLabel(abroad.code, abroad.name, parseCountries(settings.foreign.cdekCountries)),
+      mode: abroad.mode as "CDEK" | "MANUAL",
+      method,
+      percent,
+      fee: foreignFeeOf(goods + (shipping?.cost ?? 0), percent),
+    };
+  }
+
+  const total = goods + (shipping?.cost ?? 0) + (foreign?.fee ?? 0);
 
   // ---- Подарочный сертификат — как деньги: покрывает итог вместе с доставкой
   let gift: Quote["gift"] = null;
   let giftError: string | null = null;
-  if (input.giftCode?.trim() && lines.length) {
+  if (input.giftCode?.trim() && lines.length && abroad) {
+    giftError = "Сертификатом можно оплатить только заказ с доставкой по России";
+  } else if (input.giftCode?.trim() && lines.length) {
     const r = await checkGiftCode(input.giftCode, who);
     if ("error" in r) giftError = r.error;
     else {
@@ -391,12 +454,13 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
     bonus: { balance, available: Math.floor(available / 100), spent: bonusSpent, blockedByPromo },
     shipping,
     shippingError,
+    foreign,
     total,
     gift,
     giftError,
     payable: total - (gift?.applied ?? 0),
     accrue,
     tierPercent,
-    wholesale: { sum: wholesaleSum, invoice: !!org && !!settings.b2b.enabled && !!settings.b2b.account && !!settings.b2b.bik, error: wholesaleError, org: org?.name ?? null },
+    wholesale: { sum: wholesaleSum, invoice: !abroad && !!org && !!settings.b2b.enabled && !!settings.b2b.account && !!settings.b2b.bik, error: wholesaleError, org: org?.name ?? null },
   };
 }

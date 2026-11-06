@@ -105,9 +105,10 @@ export default async function OrdersPage({ searchParams }: Props) {
                     <div className="muted small">{prettyPhone(o.phone)}</div>
                   </td>
                   <td>
+                    {o.country !== "RU" && <span title="Заказ из-за рубежа">🌍 {o.country === "XX" ? (o.countryName ?? "") : o.country}, </span>}
                     {o.city}
                     <div className="muted small">
-                      {o.deliveryType === "COURIER" ? "Курьер" : o.deliveryType === "PICKUP" ? "Самовывоз" : "ПВЗ"}
+                      {o.deliveryType === "COURIER" ? "Курьер" : o.deliveryType === "PICKUP" ? "Самовывоз" : o.deliveryType === "MANUAL" ? "Отправим сами" : "ПВЗ"}
                       {o.trackNumber ? ` · ${o.trackNumber}` : ""}
                     </div>
                   </td>
@@ -115,6 +116,9 @@ export default async function OrdersPage({ searchParams }: Props) {
                   <td>
                     <span className={`pill ${TONE_PILL[st.tone]}`}>{st.text}</span>
                     {o.paymentMethod === "INVOICE" && <div className="muted small">по счёту</div>}
+                    {o.paymentMethod === "TRANSFER" && <div className="muted small">переводом</div>}
+                    {o.paymentMethod === "ROBOKASSA" && <div className="muted small">Робокасса</div>}
+                    {o.shippingPending && o.status === "AWAITING_PAYMENT" && <div className="small" style={{ color: "var(--c-gold)" }}>посчитать доставку</div>}
                   </td>
                 </tr>
               );
