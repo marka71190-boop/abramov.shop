@@ -698,6 +698,7 @@ export async function shipWithCdek(orderId: string, actorId: string) {
   // Объявленная ценность — товары без доставки и сбора за международный заказ
   const goodsTotal = o.total - o.shippingCost - o.foreignFee;
   const { tinRule } = await import("@/lib/countries");
+  const { guessCustoms } = await import("@/lib/customs");
   if (tinRule(o.country) && !o.recipientTin) throw new OrderError(`Нет ${tinRule(o.country)!.label} получателя — без него СДЭК не примет посылку. Впишите его в карточке заказа`);
   const shares = receiptLines(
     o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
@@ -730,7 +731,7 @@ export async function shipWithCdek(orderId: string, actorId: string) {
       price: Math.round(shares.filter((l) => l.name === i.name).reduce((a, l) => a + l.price * l.quantity, 0) / i.quantity) || i.price,
       weight: i.product?.weightGrams ?? 300,
       quantity: i.quantity,
-      nameEn: i.product?.nameEn ?? null,
+      nameEn: i.product?.nameEn || guessCustoms(i.name).nameEn,
       country: i.product?.originCountry ?? null,
     })),
   });

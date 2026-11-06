@@ -7,6 +7,7 @@ import { getSettings } from "@/lib/settings";
 import { SELLER } from "@/lib/site";
 import { requireAdmin } from "@/lib/viewer";
 import { receiptLines } from "@/lib/yookassa";
+import { guessCustoms } from "@/lib/customs";
 import { PrintBar } from "../orders/PrintButton";
 
 export const metadata: Metadata = { title: "Инвойс для таможни" };
@@ -73,11 +74,13 @@ export default async function CustomsInvoice({ searchParams }: Props) {
       const rows = o.items.map((i) => {
         const amount = shares.filter((l) => l.name === i.name).reduce((a, l) => a + l.price * l.quantity, 0) || i.price * i.quantity;
         const weight = (i.product?.weightGrams ?? 300) * i.quantity;
+        // Пустые таможенные поля товара — подставляем по названию (кий, мел, наклейки…)
+        const guess = guessCustoms(i.name);
         return {
           id: i.id,
           ru: i.name,
-          en: i.product?.nameEn ?? "",
-          hs: i.product?.hsCode ?? "",
+          en: i.product?.nameEn || guess.nameEn || "",
+          hs: i.product?.hsCode || guess.hsCode || "",
           origin: i.product?.originCountry ?? "",
           qty: i.quantity,
           weight,

@@ -50,8 +50,15 @@ import {
   OFFER_PD_OLD,
   OFFER_PD_NEW,
   NO_COACH_AGREEMENT_FIXES,
+  PRIVACY_FOREIGN_FIXES,
+  OFFER_FOREIGN_ANCHOR,
+  OFFER_FOREIGN_SECTION,
+  OFFER_FOREIGN_PAY_OLD,
+  OFFER_FOREIGN_PAY_NEW,
+  OFFER_FOREIGN_EDITION,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
+import { countryCodeByRuName, guessCustoms } from "../src/lib/customs";
 import { DEFAULT_ATTRIBUTES } from "../src/lib/attributes-defaults";
 import { installProAttributes } from "../src/lib/attributes-pro";
 import { SHAFT_FIXES, STARTER_ARTICLES } from "../src/content/articles";
@@ -183,6 +190,25 @@ async function main() {
     .set({ body: sql`replace(${s.page.body}, ${PRIVACY_COACH_ANCHOR}, ${PRIVACY_COACH_LINE + PRIVACY_COACH_ANCHOR})` })
     .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${PRIVACY_COACH_ANCHOR}%`), sql`${s.page.body} not like '%тренеру, к которому клиент записался%'`));
 
+  // Заказы за рубеж: политика (страна, ИИН/ПИН, Почта России, Робокасса) и раздел 8.3 оферты
+  for (const [from, to, done] of PRIVACY_FOREIGN_FIXES) {
+    await db
+      .update(s.page)
+      .set({ body: sql`replace(${s.page.body}, ${from}, ${to})` })
+      .where(and(eq(s.page.slug, "privacy"), like(s.page.body, `%${from}%`), sql`${s.page.body} not like ${"%" + done + "%"}`));
+  }
+  const offerAdded = await db
+    .update(s.page)
+    .set({ body: sql`replace(${s.page.body}, ${OFFER_FOREIGN_ANCHOR}, ${OFFER_FOREIGN_SECTION + OFFER_FOREIGN_ANCHOR})` })
+    .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_FOREIGN_ANCHOR}%`), sql`${s.page.body} not like '%## 8.3. Заказы с доставкой за рубеж%'`))
+    .returning({ id: s.page.id });
+  if (offerAdded.length) {
+    await db
+      .update(s.page)
+      .set({ body: sql`replace(replace(${s.page.body}, ${OFFER_FOREIGN_PAY_OLD}, ${OFFER_FOREIGN_PAY_NEW}), ${OFFER_FOREIGN_EDITION[0]}, ${OFFER_FOREIGN_EDITION[1]})` })
+      .where(eq(s.page.slug, "offer"));
+  }
+
   const categories = [
     { slug: "chalk", name: "Мел", visibility: "PUBLISHED" as const, sortOrder: 1, image: "/images/kamui-2.jpg" },
     { slug: "cues", name: "Кии", visibility: "HIDDEN" as const, sortOrder: 2 },
@@ -283,6 +309,26 @@ async function main() {
         : `Владелец ${ownerEmail} ещё не зарегистрирован — права выдадутся сами при регистрации с этой почтой.`,
     );
   }
+
+  // Таможенные поля товаров (заказы за рубеж): заполняем только пустые — правки из карточки товара не трогаем
+  const goods = await db.execute<{ id: string; name: string; cat: string | null; name_en: string | null; hs_code: string | null; origin_country: string | null; country: string | null }>(sql`
+    select p.id, p.name, c.slug as cat, p.name_en, p.hs_code, p.origin_country,
+      (select pa.value from product_attribute pa join attribute a on a.id = pa.attribute_id where pa.product_id = p.id and a.key = 'country' limit 1) as country
+    from product p left join category c on c.id = p.category_id
+    where p.name_en is null or p.hs_code is null or p.origin_country is null`);
+  let customsFilled = 0;
+  for (const g of goods.rows) {
+    const guess = guessCustoms(g.name, g.cat);
+    const set = {
+      ...(!g.name_en && guess.nameEn ? { nameEn: guess.nameEn } : {}),
+      ...(!g.hs_code && guess.hsCode ? { hsCode: guess.hsCode } : {}),
+      ...(!g.origin_country && countryCodeByRuName(g.country) ? { originCountry: countryCodeByRuName(g.country)! } : {}),
+    };
+    if (!Object.keys(set).length) continue;
+    await db.update(s.product).set(set).where(eq(s.product.id, g.id));
+    customsFilled++;
+  }
+  if (customsFilled) console.log(`Таможенные поля заполнены у товаров: ${customsFilled}`);
 
   console.log("Начальные данные готовы");
   await pool.end();
