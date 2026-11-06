@@ -80,6 +80,8 @@ export interface PlaceInput extends QuoteInput {
   expectedTotal: number;
   /** ONLINE — ЮKassa, INVOICE — счёт для организации; из-за рубежа: ROBOKASSA — Робокасса, TRANSFER — перевод на карту */
   paymentMethod?: "ONLINE" | "ROBOKASSA" | "INVOICE" | "TRANSFER";
+  /** ИИН / ПИН получателя — Казахстан, Киргизия */
+  recipientTin?: string | null;
 }
 
 export async function placeOrder(user: UserRow, input: PlaceInput, origin: string, who?: GiftWho) {
@@ -101,6 +103,16 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
     throw new OrderError(foreign.mode === "MANUAL" ? "Для этой страны — только перевод на карту после расчёта доставки" : "Выберите способ оплаты: Робокасса или перевод", quote);
   }
   if (robokassa && !(await import("@/lib/robokassa")).robokassaEnabled()) throw new OrderError("Оплата через Робокассу сейчас недоступна — выберите перевод на карту", quote);
+  // Казахстан и Киргизия: ИИН / ПИН получателя для таможни
+  let recipientTin: string | null = null;
+  if (foreign) {
+    const { checkTin, tinRule } = await import("@/lib/countries");
+    if (tinRule(foreign.code)) {
+      const r = checkTin(foreign.code, input.recipientTin ?? "");
+      if ("error" in r) throw new OrderError(r.error, quote);
+      recipientTin = r.tin;
+    }
+  }
   if (transfer && !settings.foreign.transferDetails.trim()) throw new OrderError("Оплата переводом сейчас недоступна — напишите нам, оформим заказ вручную", quote);
   if (invoice && !quote.wholesale.invoice) throw new OrderError("Оплата по счёту — только для одобренных организаций", quote);
   if (invoice && input.giftCode?.trim()) throw new OrderError("Подарочным сертификатом можно заплатить только картой", quote);
@@ -225,6 +237,7 @@ export async function placeOrder(user: UserRow, input: PlaceInput, origin: strin
         country: foreign?.code ?? "RU",
         countryName: foreign?.mode === "MANUAL" ? foreign.name : null,
         foreignFee: foreign?.fee ?? 0,
+        recipientTin,
         foreignPercent: foreign?.percent ?? 0,
         shippingPending: !!quote.shipping!.pending,
         organizationId: org?.id ?? null,
@@ -682,7 +695,10 @@ export async function shipWithCdek(orderId: string, actorId: string) {
   if (o.cdekOrderUuid) throw new OrderError("Отправление уже создано");
   if (!o.cdekCityCode) throw new OrderError("В заказе нет кода города СДЭК — создайте отправление в личном кабинете СДЭК вручную");
 
-  const goodsTotal = o.total - o.shippingCost;
+  // Объявленная ценность — товары без доставки и сбора за международный заказ
+  const goodsTotal = o.total - o.shippingCost - o.foreignFee;
+  const { tinRule } = await import("@/lib/countries");
+  if (tinRule(o.country) && !o.recipientTin) throw new OrderError(`Нет ${tinRule(o.country)!.label} получателя — без него СДЭК не примет посылку. Впишите его в карточке заказа`);
   const shares = receiptLines(
     o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
     goodsTotal,
@@ -695,8 +711,9 @@ export async function shipWithCdek(orderId: string, actorId: string) {
     pvzCode: o.cdekPvzCode,
     toCityCode: o.cdekCityCode,
     address: o.address,
-    recipient: { name: o.customerName, email: o.email, phone: o.phone },
+    recipient: { name: o.customerName, email: o.email, phone: o.phone, tin: o.recipientTin },
     comment: o.comment,
+    international: o.country !== "RU",
     parcel: parcelFor(
       o.items.map((i) => ({
         weightGrams: i.product?.weightGrams ?? 300,
@@ -713,6 +730,8 @@ export async function shipWithCdek(orderId: string, actorId: string) {
       price: Math.round(shares.filter((l) => l.name === i.name).reduce((a, l) => a + l.price * l.quantity, 0) / i.quantity) || i.price,
       weight: i.product?.weightGrams ?? 300,
       quantity: i.quantity,
+      nameEn: i.product?.nameEn ?? null,
+      country: i.product?.originCountry ?? null,
     })),
   });
   await db

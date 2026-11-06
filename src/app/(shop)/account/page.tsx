@@ -501,7 +501,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <div>Страна доставки</div>
                 <div className="muted small">От страны зависят способы доставки и оплаты на оформлении заказа</div>
               </div>
-              <CountryForm countries={foreign.countries} code={user.country} name={user.countryName ?? ""} />
+              <CountryForm countries={foreign.countries} code={user.country} name={user.countryName ?? ""} tin={user.tin ?? ""} />
             </div>
           )}
           {telegram && (

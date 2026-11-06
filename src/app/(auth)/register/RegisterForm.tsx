@@ -7,7 +7,7 @@ import { authErrorMessage } from "@/lib/auth-errors";
 import { goal } from "@/lib/track";
 import { setMyCountry, setPatronymicAfterSignup } from "@/app/(shop)/account/actions";
 import { CountryField, type CountryValue } from "@/components/CountryField";
-import type { Country } from "@/lib/countries";
+import { checkTin, tinRule, type Country } from "@/lib/countries";
 
 /** Галочку записываем на сервере ДО создания аккаунта — без неё сервер аккаунт не создаст. */
 async function saveConsent(body: Record<string, unknown>) {
@@ -25,6 +25,7 @@ async function saveConsent(body: Record<string, unknown>) {
 export function RegisterForm({ next, notice, countries }: { next: string; notice?: string | null; countries: Country[] | null }) {
   const [pd, setPd] = useState(false);
   const [country, setCountry] = useState<CountryValue>({ code: "RU", name: "" });
+  const [tin, setTin] = useState("");
   const [marketing, setMarketing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,10 @@ export function RegisterForm({ next, notice, countries }: { next: string; notice
     const email = String(f.get("email") || "").trim().toLowerCase();
     const password = String(f.get("password") || "");
     if (country.code === "XX" && country.name.trim().length < 2) return setError("Впишите страну, куда доставлять заказы");
+    if (tinRule(country.code)) {
+      const r = checkTin(country.code, tin);
+      if ("error" in r) return setError(r.error);
+    }
     setBusy(true);
     setError(null);
     try {
@@ -46,7 +51,7 @@ export function RegisterForm({ next, notice, countries }: { next: string; notice
       const { error: err } = await authClient.signUp.email({ name, email, password, callbackURL: "/account?verified=1" });
       if (err) throw err;
       if (patronymic) await setPatronymicAfterSignup(patronymic).catch(() => {});
-      if (country.code !== "RU") await setMyCountry(country.code, country.name).catch(() => {});
+      if (country.code !== "RU") await setMyCountry(country.code, country.name, tin).catch(() => {});
       goal("sign_up");
       // Даём счётчику отправить цель до перехода
       await new Promise((r) => setTimeout(r, 300));
@@ -93,6 +98,8 @@ export function RegisterForm({ next, notice, countries }: { next: string; notice
           countries={countries}
           value={country}
           onChange={setCountry}
+          tin={tin}
+          onTin={setTin}
           hint={
             country.code === "RU"
               ? undefined

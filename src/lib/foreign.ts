@@ -48,8 +48,13 @@ export async function resolveCountry(code: string | null | undefined, name?: str
   return { code: c, name: null, mode: countryMode(c, list) };
 }
 
-export async function setUserCountry(userId: string, code: string, name: string | null) {
-  await db.update(s.user).set({ country: code, countryName: code === MANUAL_CODE ? name : null }).where(eq(s.user.id, userId));
+/** tin: undefined — не трогать; строка — сохранить (только для страны, где он нужен) */
+export async function setUserCountry(userId: string, code: string, name: string | null, tin?: string | null) {
+  const { tinRule } = await import("@/lib/countries");
+  await db
+    .update(s.user)
+    .set({ country: code, countryName: code === MANUAL_CODE ? name : null, ...(tin !== undefined ? { tin: tinRule(code) ? tin || null : null } : {}) })
+    .where(eq(s.user.id, userId));
 }
 
 export async function countryText(code: string | null | undefined, name: string | null | undefined) {

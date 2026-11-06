@@ -68,6 +68,7 @@ const PlaceIn = QuoteIn.extend({
   savedAddressId: z.string().max(64).nullish(),
   saveAddress: z.object({ label: z.string().trim().max(30) }).nullish(),
   paymentMethod: z.enum(["ONLINE", "ROBOKASSA", "INVOICE", "TRANSFER"]).optional(),
+  recipientTin: z.string().trim().max(40).nullish(),
 });
 
 export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string; number?: string; error?: string; quote?: Quote }> {
@@ -98,10 +99,14 @@ export async function placeOrderAction(raw: unknown): Promise<{ payUrl?: string;
     const d = p.data.delivery;
     // Страна, выбранная при оформлении, становится страной покупателя
     const c = p.data.country;
-    if (c && (c.code.toUpperCase() !== (user.country ?? "RU") || (c.name ?? null) !== (user.countryName ?? null))) {
+    if (c) {
       const { resolveCountry, setUserCountry } = await import("@/lib/foreign");
+      const { checkTin, tinRule } = await import("@/lib/countries");
       const rc = await resolveCountry(c.code, c.name);
-      if (rc) await setUserCountry(user.id, rc.code, rc.name).catch(() => {});
+      // ИИН / ПИН запоминаем, если в профиле его ещё нет (получателем может быть другой человек)
+      const t = rc && tinRule(rc.code) && !user.tin ? checkTin(rc.code, p.data.recipientTin ?? "") : null;
+      const tin = t && "tin" in t ? t.tin : undefined;
+      if (rc && (rc.code !== (user.country ?? "RU") || rc.name !== (user.countryName ?? null) || tin)) await setUserCountry(user.id, rc.code, rc.name, tin).catch(() => {});
     }
     if (p.data.savedAddressId) await touchAddress(user.id, p.data.savedAddressId).catch(() => {});
     else if (p.data.saveAddress && d && d.type !== "PICKUP" && d.type !== "MANUAL") {

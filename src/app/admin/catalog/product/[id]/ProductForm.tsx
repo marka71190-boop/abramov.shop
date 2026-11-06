@@ -45,6 +45,9 @@ export interface ProductData {
   lengthCm: number;
   widthCm: number;
   heightCm: number;
+  nameEn?: string | null;
+  hsCode?: string | null;
+  originCountry?: string | null;
   sortOrder: number;
   previewToken: string;
   variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean }[];
@@ -576,6 +579,28 @@ export function ProductForm({
           <label className="field">
             Порядок в каталоге
             <input className="input" name="sortOrder" type="number" defaultValue={product?.sortOrder ?? 0} />
+          </label>
+        </div>
+      </div>
+
+      <div className="panel stack">
+        <h2 style={{ marginBottom: 0 }}>Для таможни — заказы за рубеж</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Попадает в инвойс для Почты России и в международные отправления СДЭК. Можно заполнить позже — в инвойсе пустые поля подсветятся.
+        </p>
+        <div className="form-grid">
+          <label className="field">
+            Название по-английски
+            <input className="input" name="nameEn" maxLength={120} defaultValue={product?.nameEn ?? ""} placeholder="Billiard cue" />
+          </label>
+          <label className="field">
+            Код ТН ВЭД
+            <input className="input" name="hsCode" maxLength={14} inputMode="numeric" defaultValue={product?.hsCode ?? ""} placeholder="9504200000" />
+          </label>
+          <label className="field">
+            Страна производства
+            <input className="input" name="originCountry" maxLength={2} defaultValue={product?.originCountry ?? ""} placeholder="RU, CN, TW…" style={{ textTransform: "uppercase" }} />
+            <span className="muted small">Код из двух латинских букв</span>
           </label>
         </div>
       </div>

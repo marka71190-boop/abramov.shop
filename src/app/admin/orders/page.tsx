@@ -108,7 +108,7 @@ export default async function OrdersPage({ searchParams }: Props) {
                     {o.country !== "RU" && <span title="Заказ из-за рубежа">🌍 {o.country === "XX" ? (o.countryName ?? "") : o.country}, </span>}
                     {o.city}
                     <div className="muted small">
-                      {o.deliveryType === "COURIER" ? "Курьер" : o.deliveryType === "PICKUP" ? "Самовывоз" : o.deliveryType === "MANUAL" ? "Отправим сами" : "ПВЗ"}
+                      {o.deliveryType === "COURIER" ? "Курьер" : o.deliveryType === "PICKUP" ? "Самовывоз" : o.deliveryType === "MANUAL" ? "Почта России" : "ПВЗ"}
                       {o.trackNumber ? ` · ${o.trackNumber}` : ""}
                     </div>
                   </td>

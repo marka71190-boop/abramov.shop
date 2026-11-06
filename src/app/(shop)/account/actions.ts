@@ -96,12 +96,20 @@ export async function setNameParts(_: { ok?: string; error?: string }, form: For
 
 /** Отчество сразу после регистрации (форма регистрации) */
 /** Страна доставки: после регистрации и в кабинете */
-export async function setMyCountry(code: string, name?: string | null): Promise<{ ok?: string; error?: string }> {
+export async function setMyCountry(code: string, name?: string | null, tin?: string | null): Promise<{ ok?: string; error?: string }> {
   const u = await requireActiveUser();
   const { resolveCountry, setUserCountry } = await import("@/lib/foreign");
+  const { checkTin, tinRule } = await import("@/lib/countries");
   const c = await resolveCountry(String(code ?? "").slice(0, 2), name ? String(name).slice(0, 80) : null);
   if (!c) return { error: code === "XX" ? "Впишите название страны" : "Выберите страну из списка" };
-  await setUserCountry(u.id, c.code, c.name);
+  // ИИН / ПИН — для Казахстана и Киргизии
+  let digits: string | null = null;
+  if (tinRule(c.code)) {
+    const r = checkTin(c.code, String(tin ?? "").slice(0, 40));
+    if ("error" in r) return { error: r.error };
+    digits = r.tin;
+  }
+  await setUserCountry(u.id, c.code, c.name, digits);
   revalidatePath("/account");
   revalidatePath("/checkout");
   return { ok: "Страна сохранена" };

@@ -309,14 +309,15 @@ async function sendOrderNotice(orderId: string, event: OrderEvent, extra?: { not
     const site = SITE.url;
     const link = { text: "Открыть заказ", url: `${site}/order/${o.number}` };
     const u = o.user;
+    const carrier = o.deliveryType === "MANUAL" ? "Почту России" : "СДЭК"; // за рубеж вне списка СДЭК — почтой
 
     if (u?.telegramChatId && u.notifyTelegram) {
       const reviewBonus = event === "delivered" ? (await (await import("@/lib/settings")).getSettings()).loyalty.reviewBonus : 0;
       const msg: Record<OrderEvent, string> = {
-        paid: `✅ Заказ <b>${o.number}</b> оплачен — ${rub(o.total)}.\n${o.deliveryType === "PICKUP" ? "Соберём и напишем, когда можно забирать в клубе." : "Соберём и пришлём трек-номер СДЭК."}`,
+        paid: `✅ Заказ <b>${o.number}</b> оплачен — ${rub(o.total)}.\n${o.deliveryType === "PICKUP" ? "Соберём и напишем, когда можно забирать в клубе." : "Соберём и пришлём трек-номер."}`,
         shipped: o.deliveryType === "PICKUP"
           ? `🏁 Заказ <b>${o.number}</b> ждёт вас в клубе. Назовите номер заказа администратору.`
-          : `📦 Заказ <b>${o.number}</b> передан в СДЭК.` +
+          : `📦 Заказ <b>${o.number}</b> передан в ${carrier}.` +
           (o.trackNumber ? `\nТрек: <a href="${trackUrl(o.trackNumber)}">${o.trackNumber}</a>` : "") +
           (o.deliveryDays ? `\nСрок в пути: ${o.deliveryDays} дн.` : ""),
         delivered:
@@ -378,7 +379,7 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
         o.email,
         `Заказ ${o.number} оплачен`,
         `Спасибо! Заказ ${o.number} оплачен`,
-        `${items}<br><br>Итого: <b>${rub(o.total)}</b>${o.giftCardAmount > 0 ? `, из них сертификатом ${rub(o.giftCardAmount)}` : ""}<br>${o.deliveryType === "PICKUP" ? "Самовывоз" : "Доставка СДЭК"}: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>${o.items.some((i) => i.spec) ? `Кий изготовим за ${(await import("@/lib/cue").then((m) => m.getCueConfig())).leadDays} дн., затем ${o.deliveryType === "PICKUP" ? "привезём в клуб и напишем" : "отправим СДЭК и пришлём трек-номер"}.` : o.deliveryType === "PICKUP" ? "Соберём заказ и пришлём письмо, когда можно забирать." : "Мы соберём заказ и пришлём трек-номер."}` +
+        `${items}<br><br>Итого: <b>${rub(o.total)}</b>${o.giftCardAmount > 0 ? `, из них сертификатом ${rub(o.giftCardAmount)}` : ""}<br>${o.deliveryType === "PICKUP" ? "Самовывоз" : o.deliveryType === "MANUAL" ? "Почта России" : "Доставка СДЭК"}: ${esc([o.city, o.address].filter(Boolean).join(", "))}<br><br>${o.items.some((i) => i.spec) ? `Кий изготовим за ${(await import("@/lib/cue").then((m) => m.getCueConfig())).leadDays} дн., затем ${o.deliveryType === "PICKUP" ? "привезём в клуб и напишем" : "отправим СДЭК и пришлём трек-номер"}.` : o.deliveryType === "PICKUP" ? "Соберём заказ и пришлём письмо, когда можно забирать." : "Мы соберём заказ и пришлём трек-номер."}` +
           (o.bonusAccrued ? `<br>После получения начислим ${num(o.bonusAccrued / 100)} бонусов.` : ""),
         { text: "Открыть заказ", url },
       );
@@ -403,7 +404,7 @@ async function emailOrderNotice(orderId: string, event: OrderEvent) {
       await sendMail(
         o.email,
         `Заказ ${o.number} отправлен`,
-        `Заказ ${o.number} передан в СДЭК`,
+        `Заказ ${o.number} передан в ${o.deliveryType === "MANUAL" ? "Почту России" : "СДЭК"}`,
         (o.trackNumber ? `Трек-номер: <b>${o.trackNumber}</b>` : "Трек-номер появится на странице заказа.") + (o.deliveryDays ? `<br>Срок в пути: ${o.deliveryDays} дн.` : ""),
         o.trackNumber ? { text: "Отследить посылку", url: trackUrl(o.trackNumber) } : { text: "Открыть заказ", url },
       );

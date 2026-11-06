@@ -20,6 +20,9 @@ export const SELLER = {
   legalAddress: "350011, г. Краснодар, ул. Обрывная, 132/1",
   actualAddress: "350051, г. Краснодар, ул. Шоссе Нефтяников, 40",
   email: "shop@abramov.shop",
+  // Латиницей — для международных отправлений (инвойс для таможни)
+  nameEn: "IP Abramova Alina Gurgenovna",
+  actualAddressEn: "40 Shosse Neftyanikov St., Krasnodar, 350051, Russia",
 } as const;
 
 /** Банк ИП — для счетов на оплату (не секрет: печатается в каждом счёте). Сид подставляет их в настройки, если там пусто */

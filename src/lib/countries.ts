@@ -57,3 +57,35 @@ export function foreignFeeOf(base: number, percent: number) {
 }
 
 export type ForeignPay = "ROBOKASSA" | "TRANSFER";
+
+/**
+ * Номер для таможни СДЭК: Казахстан — ИИН (12 цифр), Киргизия — ПИН (14 цифр).
+ * Без него посылку в эти страны не оформить.
+ */
+export const TIN_RULES: Record<string, { label: string; full: string; len: number; example: string }> = {
+  KZ: { label: "ИИН", full: "ИИН — индивидуальный идентификационный номер", len: 12, example: "900101300126" },
+  KG: { label: "ПИН", full: "ПИН — персональный идентификационный номер", len: 14, example: "21001199000123" },
+};
+
+export const tinRule = (code: string | null | undefined) => TIN_RULES[(code || "").toUpperCase()] ?? null;
+
+/** ИИН Казахстана: 12 цифр, контрольная цифра по алгоритму РК */
+function kzIinOk(d: string) {
+  const n = d.split("").map(Number);
+  const sum = (w: number[]) => w.reduce((a, x, i) => a + x * n[i], 0) % 11;
+  let c = sum([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  if (c === 10) c = sum([3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2]);
+  return c !== 10 && c === n[11];
+}
+
+/** Проверяет ИИН/ПИН для страны. Возвращает цифры или текст ошибки */
+export function checkTin(country: string, raw: string): { tin: string } | { error: string } {
+  const r = tinRule(country);
+  if (!r) return { tin: "" };
+  const d = raw.replace(/\D/g, "");
+  if (!d) return { error: `Укажите ${r.label} получателя — без него таможня не пропустит посылку` };
+  if (d.length !== r.len) return { error: `${r.label} — ${r.len} цифр` };
+  if (country === "KZ" && !kzIinOk(d)) return { error: "Проверьте ИИН: похоже, в нём опечатка" };
+  if (country === "KG" && !/^[12]/.test(d)) return { error: "ПИН начинается с 1 или 2 — проверьте номер" };
+  return { tin: d };
+}

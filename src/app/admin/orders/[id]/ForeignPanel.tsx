@@ -1,6 +1,6 @@
 "use client";
 import { useActionState } from "react";
-import { foreignShippingAction, orderAction } from "../../shop-actions";
+import { foreignShippingAction, orderAction, orderTinAction } from "../../shop-actions";
 
 /**
  * Заказ из-за рубежа: страна, сбор, расчёт доставки (если страна не из списка СДЭК),
@@ -19,6 +19,7 @@ export function ForeignPanel({
   until,
   transferReady,
   readonly,
+  tin,
 }: {
   id: string;
   country: string;
@@ -32,7 +33,10 @@ export function ForeignPanel({
   until: string | null;
   transferReady: boolean;
   readonly: boolean;
+  /** ИИН / ПИН получателя: label — «ИИН», value — номер; null — для страны не нужен */
+  tin: { label: string; value: string } | null;
 }) {
+  const [tinState, tinAction, tinPending] = useActionState(orderTinAction, {});
   const [ship, shipAction, shipPending] = useActionState(foreignShippingAction, {});
   const [state, action, pendingOp] = useActionState(orderAction, {});
   const transfer = method === "TRANSFER";
@@ -52,6 +56,23 @@ export function ForeignPanel({
               ? "Заказ отменён. Если перевод всё же пришёл — отметьте оплату, товар снова зарезервируется."
               : "Оплачен."}
       </div>
+      {tin && (
+        <form action={tinAction} className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <input type="hidden" name="id" value={id} />
+          <label className="field" style={{ flex: "0 1 260px" }}>
+            {tin.label} получателя — для таможни
+            <input className="input" name="tin" defaultValue={tin.value} inputMode="numeric" readOnly={readonly} />
+          </label>
+          {!readonly && (
+            <button className="btn btn--line btn--sm" disabled={tinPending} style={{ minHeight: 48 }}>
+              Сохранить
+            </button>
+          )}
+          {!tin.value && <span className="form-error small">Не указан — СДЭК не примет посылку</span>}
+        </form>
+      )}
+      {tinState.error && <div className="form-error">{tinState.error}</div>}
+      {tinState.ok && <div className="form-ok">{tinState.ok}</div>}
       {transfer && !transferReady && (awaiting || pending) && (
         <div className="form-error">Не заполнены реквизиты для перевода: Настройки → Заказы из-за рубежа.</div>
       )}

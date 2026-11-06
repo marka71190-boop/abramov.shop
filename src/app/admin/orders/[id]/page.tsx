@@ -14,6 +14,7 @@ import { InspectionPanel } from "./InspectionPanel";
 import { InvoicePanel } from "./InvoicePanel";
 import { ForeignPanel } from "./ForeignPanel";
 import { countryText } from "@/lib/foreign";
+import { tinRule } from "@/lib/countries";
 import { getSettings } from "@/lib/settings";
 import { isDirector } from "@/lib/viewer";
 import { MediaGallery } from "@/components/inspection/MediaGallery";
@@ -75,6 +76,16 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         <a className="btn btn--line btn--sm" href={`/print/orders?ids=${o.id}&doc=insert&auto=1`} target="_blank" rel="noreferrer">
           Листовка в посылку
         </a>
+        {o.deliveryType === "MANUAL" && (
+          <a className="btn btn--line btn--sm" href={`/print/customs?ids=${o.id}`} target="_blank" rel="noreferrer">
+            Инвойс для таможни
+          </a>
+        )}
+        {o.cdekOrderUuid && (
+          <a className="btn btn--line btn--sm" href={`/admin/waybills/pdf?kind=waybill&id=${o.id}`} target="_blank" rel="noreferrer">
+            Накладная СДЭК
+          </a>
+        )}
       </div>
 
       <OrderControls
@@ -105,6 +116,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
               until={o.expiresAt ? fmtDate(o.expiresAt) : null}
               transferReady={!!settings.foreign.transferDetails.trim()}
               readonly={isDirector(me)}
+              tin={tinRule(o.country) ? { label: tinRule(o.country)!.label, value: o.recipientTin ?? "" } : null}
             />
           );
         })())}
@@ -169,7 +181,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
             {o.deliveryType === "PICKUP" ? (
               <b>Самовывоз из клуба</b>
             ) : o.deliveryType === "MANUAL" ? (
-              <b>За рубеж — отправляем сами</b>
+              <b>Почта России, за рубеж</b>
             ) : o.deliveryType === "COURIER" ? (
               "Курьер СДЭК"
             ) : (

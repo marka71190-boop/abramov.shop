@@ -94,6 +94,7 @@ export default async function CheckoutPage() {
         robokassa={robokassaEnabled()}
         foreign={foreign}
         country={country}
+        tin={user.tin ?? ""}
         docs={{ offer: published("offer"), returns: published("returns") }}
         addresses={saved.map((a) => ({
           id: a.id,

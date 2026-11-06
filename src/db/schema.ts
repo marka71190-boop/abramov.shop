@@ -75,6 +75,7 @@ export const user = pgTable(
     organizationId: text("organization_id"), // сотрудник организации-оптовика
     country: text("country").default("RU").notNull(), // куда доставлять: код страны; XX — страны нет в списке СДЭК, вписал сам
     countryName: text("country_name"), // название страны, если вписал сам
+    tin: text("tin"), // ИИН (Казахстан) или ПИН (Киргизия) — для таможни СДЭК
 
     // Блокировка: bannedAt заполнен, bannedUntil пуст — бан навсегда.
     bannedAt: ts("banned_at"),
@@ -292,6 +293,10 @@ export const product = pgTable("product", {
   lengthCm: integer("length_cm").default(10).notNull(),
   widthCm: integer("width_cm").default(10).notNull(),
   heightCm: integer("height_cm").default(10).notNull(),
+  // Для таможни (инвойс Почты России, международные отправления СДЭК)
+  nameEn: text("name_en"), // описание по-английски: «Billiard cue»
+  hsCode: text("hs_code"), // код ТН ВЭД, 6–10 цифр
+  originCountry: text("origin_country"), // страна производства, код: RU, CN…
   // Где продаётся: RETAIL — розница, WHOLESALE — только оптовый каталог, BOTH — и там и там
   channel: text("channel").default("RETAIL").notNull(),
   wholesalePrice: integer("wholesale_price"), // оптовая цена, копейки; пусто — как в рознице
@@ -469,6 +474,7 @@ export const order = pgTable(
     paymentMethod: text("payment_method").default("ONLINE").notNull(),
     country: text("country").default("RU").notNull(), // страна доставки (код; XX — вписал покупатель)
     countryName: text("country_name"),
+    recipientTin: text("recipient_tin"), // ИИН / ПИН получателя — для таможни (Казахстан, Киргизия)
     foreignFee: integer("foreign_fee").default(0).notNull(), // сбор за заказ из-за рубежа, копейки (входит в total)
     foreignPercent: integer("foreign_percent").default(0).notNull(), // его процент на момент заказа
     shippingPending: boolean("shipping_pending").default(false).notNull(), // доставку считает менеджер — оплата после расчёта

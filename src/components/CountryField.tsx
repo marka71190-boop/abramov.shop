@@ -1,6 +1,6 @@
 "use client";
 /** Страна доставки: Россия, страны СДЭК из списка или «моей страны нет» — вписать самому. */
-import { MANUAL_CODE, type Country } from "@/lib/countries";
+import { MANUAL_CODE, tinRule, type Country } from "@/lib/countries";
 
 export interface CountryValue {
   code: string;
@@ -13,14 +13,22 @@ export function CountryField({
   onChange,
   label = "Страна доставки",
   hint,
+  tin,
+  onTin,
+  tinLabel,
 }: {
   countries: Country[];
   value: CountryValue;
   onChange: (v: CountryValue) => void;
   label?: string;
   hint?: string;
+  /** ИИН / ПИН — поле появляется для Казахстана и Киргизии */
+  tin?: string;
+  onTin?: (v: string) => void;
+  tinLabel?: string;
 }) {
   const manual = value.code === MANUAL_CODE;
+  const rule = tinRule(value.code);
   return (
     <div className="stack" style={{ gap: 8 }}>
       {!manual && (
@@ -63,6 +71,22 @@ export function CountryField({
         </button>
         <span>Моей страны нет в списке</span>
       </div>
+      {rule && onTin && (
+        <label className="field">
+          {tinLabel ?? rule.label}
+          <input
+            className="input"
+            name="tin"
+            value={tin ?? ""}
+            onChange={(e) => onTin(e.target.value.replace(/[^\d\s]/g, "").slice(0, rule.len + 4))}
+            inputMode="numeric"
+            autoComplete="off"
+            required
+            placeholder={`${rule.len} цифр, например ${rule.example}`}
+          />
+          <span className="muted small">{rule.full}. Нужен для таможни — без него СДЭК не примет посылку</span>
+        </label>
+      )}
       {hint && <div className="muted small">{hint}</div>}
     </div>
   );

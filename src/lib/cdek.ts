@@ -189,11 +189,14 @@ export async function createShipment(p: {
   pvzCode?: string | null;
   toCityCode?: number | null;
   address?: string | null;
-  recipient: { name: string; email: string; phone: string };
+  /** tin — ИИН / ПИН получателя (Казахстан, Киргизия) */
+  recipient: { name: string; email: string; phone: string; tin?: string | null };
   /** Комментарий для курьера/ПВЗ (заметка покупателя к адресу) */
   comment?: string | null;
   parcel: Parcel;
-  items: { name: string; sku: string; price: number; weight: number; quantity: number }[];
+  items: { name: string; sku: string; price: number; weight: number; quantity: number; nameEn?: string | null; country?: string | null }[];
+  /** Международное отправление: данные для таможни */
+  international?: boolean;
 }): Promise<string> {
   const body: Record<string, unknown> = {
     type: 1, // интернет-магазин
@@ -201,7 +204,12 @@ export async function createShipment(p: {
     tariff_code: p.tariff,
     shipment_point: p.shipmentPoint,
     sender: { company: SELLER.name },
-    recipient: { name: p.recipient.name, email: p.recipient.email, phones: [{ number: p.recipient.phone.replace(/[^\d+]/g, "") }] },
+    recipient: {
+      name: p.recipient.name,
+      email: p.recipient.email,
+      phones: [{ number: p.recipient.phone.replace(/[^\d+]/g, "") }],
+      ...(p.recipient.tin ? { tin: p.recipient.tin } : {}),
+    },
     packages: [
       {
         number: "1",
@@ -213,16 +221,57 @@ export async function createShipment(p: {
           cost: i.price / 100,
           weight: i.weight,
           amount: i.quantity,
+          ...(i.nameEn ? { name_i18n: i.nameEn.slice(0, 255) } : {}),
+          ...(i.country ? { country_code: i.country } : {}),
         })),
       },
     ],
   };
   if (p.comment) body.comment = p.comment.slice(0, 255);
+  if (p.international) {
+    // Для международного заказа СДЭК просит дату инвойса и грузоотправителя
+    body.date_invoice = new Date().toISOString().slice(0, 10);
+    body.shipper_name = SELLER.name;
+    body.shipper_address = SELLER.actualAddress;
+    body.seller = { name: SELLER.name, inn: SELLER.inn, address: SELLER.actualAddress };
+  }
   if (p.pvzCode) body.delivery_point = p.pvzCode;
   else body.to_location = { code: p.toCityCode, address: p.address };
   const data = await api<{ entity?: { uuid: string } }>("/orders", { method: "POST", body });
   if (!data.entity?.uuid) throw new Error("СДЭК не вернул номер отправления");
   return data.entity.uuid;
+}
+
+// ---------------- Печать: накладные и штрихкоды ----------------
+
+export type PrintKind = "waybill" | "barcode";
+export type BarcodeFormat = "A4" | "A5" | "A6" | "A7";
+
+/**
+ * PDF из СДЭК: накладные (orders) или штрихкоды-наклейки (barcodes) сразу для нескольких отправлений.
+ * СДЭК готовит файл несколько секунд — ждём до ~25 секунд.
+ */
+export async function printPdf(kind: PrintKind, orderUuids: string[], opts: { copies?: number; format?: BarcodeFormat } = {}): Promise<ArrayBuffer> {
+  const path = kind === "waybill" ? "/print/orders" : "/print/barcodes";
+  const body: Record<string, unknown> = { orders: orderUuids.slice(0, 100).map((order_uuid) => ({ order_uuid })), copy_count: Math.min(4, Math.max(1, opts.copies ?? (kind === "waybill" ? 2 : 1))) };
+  if (kind === "barcode") body.format = opts.format ?? "A6";
+  const created = await api<{ entity?: { uuid: string } }>(path, { method: "POST", body });
+  const uuid = created.entity?.uuid;
+  if (!uuid) throw new Error("СДЭК не принял запрос на печать");
+  for (let i = 0; i < 25; i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 700 : 1000));
+    const st = await api<{ entity?: { url?: string; statuses?: { code: string }[] }; requests?: { state: string; errors?: { message: string }[] }[] }>(`${path}/${uuid}`);
+    const failed = st.requests?.find((r) => r.state === "INVALID");
+    if (failed) throw new Error(`СДЭК: ${failed.errors?.map((e) => e.message).join("; ") || "не удалось подготовить файл"}`);
+    const codes = st.entity?.statuses?.map((s) => s.code) ?? [];
+    if (codes.includes("INVALID") || codes.includes("REMOVED")) throw new Error("СДЭК не смог подготовить файл — проверьте, что отправления созданы");
+    if (codes.includes("READY") || st.entity?.url) {
+      const res = await fetch(`${BASE()}${path}/${uuid}.pdf`, { headers: { Authorization: `Bearer ${await getToken()}` }, cache: "no-store", signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) throw new Error(`СДЭК: файл не скачался (HTTP ${res.status})`);
+      return res.arrayBuffer();
+    }
+  }
+  throw new Error("СДЭК долго готовит файл — попробуйте ещё раз через минуту");
 }
 
 export interface CdekOrderInfo {
@@ -261,4 +310,11 @@ export const CDEK_IN_TRANSIT = new Set([
   "TAKEN_BY_COURIER",
 ]);
 
-export const trackUrl = (track: string) => `https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(track)}`;
+/** Трек Почты России: международный RA123456789RU или внутренний из 14 цифр */
+export const isPochtaTrack = (track: string) => /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(track.trim()) || /^\d{14}$/.test(track.trim());
+
+/** Ссылка на отслеживание: СДЭК или Почта России (заказы за рубеж, которые отправляем почтой) */
+export const trackUrl = (track: string) =>
+  isPochtaTrack(track)
+    ? `https://www.pochta.ru/tracking?barcode=${encodeURIComponent(track.trim().toUpperCase())}`
+    : `https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(track)}`;

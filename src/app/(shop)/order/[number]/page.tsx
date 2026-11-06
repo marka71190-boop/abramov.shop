@@ -403,7 +403,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </div>
           ) : (
             <div>
-              <div className="label">{o.deliveryType === "MANUAL" ? "Доставка за рубеж" : o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
+              <div className="label">{o.deliveryType === "MANUAL" ? "Почта России" : o.deliveryType === "COURIER" ? "Курьер СДЭК" : "Пункт выдачи СДЭК"}</div>
               <div style={{ marginTop: 6 }}>
                 {countryName && `${countryName}, `}
                 {o.postalCode && o.deliveryType === "MANUAL" ? `${o.postalCode}, ` : ""}

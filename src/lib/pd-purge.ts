@@ -6,7 +6,7 @@
  *    подписки на рассылку и на «появится в наличии» (каскадом в базе);
  *  - журнал согласий, ожидающие подтверждения почты и сброса пароля — удаляются;
  *  - заказы остаются для учёта (товары, суммы, статусы, трек), но имя, телефон, почта, адрес,
- *    индекс и комментарий стираются; ответ ЮKassa в оплате — тоже;
+ *    индекс, ИИН/ПИН и комментарий стираются; ответ ЮKassa в оплате — тоже;
  *  - в заявках на возврат стираются комментарий и фото покупателя;
  *  - в журнале действий админов — IP и подробности по удалённым пользователям;
  *  - в подарочных сертификатах — почта покупателя, имена, почта получателя и пожелание
@@ -79,7 +79,7 @@ export async function purgePersonalData(keepId: string): Promise<PurgeStats> {
     if (orderIds.length) {
       const r = await tx
         .update(s.order)
-        .set({ customerName: ANON, phone: "", email: "", comment: null, address: null, postalCode: null, updatedAt: new Date() })
+        .set({ customerName: ANON, phone: "", email: "", comment: null, address: null, postalCode: null, recipientTin: null, updatedAt: new Date() })
         .where(inArray(s.order.id, orderIds))
         .returning({ id: s.order.id });
       orders = r.length;

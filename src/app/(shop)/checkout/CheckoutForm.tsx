@@ -15,7 +15,7 @@ import type { AddressCard } from "@/components/delivery/AddressBook";
 import { CityPicker, PointPicker, type City, type Point } from "@/components/delivery/Pickers";
 import { prettyPhone } from "@/lib/format";
 import { CountryField, type CountryValue } from "@/components/CountryField";
-import { countryMode, MANUAL_CODE } from "@/lib/countries";
+import { checkTin, countryMode, MANUAL_CODE, tinRule } from "@/lib/countries";
 import type { ForeignConfig } from "@/lib/foreign";
 
 interface Props {
@@ -32,6 +32,8 @@ interface Props {
   /** Заказы из-за рубежа: страны СДЭК, сборы; country — страна покупателя из профиля */
   foreign: ForeignConfig;
   country: CountryValue;
+  /** ИИН / ПИН покупателя из профиля (Казахстан, Киргизия) */
+  tin?: string;
   docs: { offer: boolean; returns: boolean };
   addresses: AddressCard[];
   maxAddresses: number;
@@ -68,6 +70,7 @@ export function CheckoutForm({
   robokassa = false,
   foreign,
   country: initialCountry,
+  tin: initialTin = "",
   docs,
   addresses: allAddresses,
   maxAddresses,
@@ -101,6 +104,7 @@ export function CheckoutForm({
   const [pvzText, setPvzText] = useState(init?.pvzText ?? "");
   const [address, setAddress] = useState(init?.address ?? "");
   const [postal, setPostal] = useState("");
+  const [tin, setTin] = useState(initialTin);
   const [foreignPay, setForeignPay] = useState<"ROBOKASSA" | "TRANSFER">(robokassa ? "ROBOKASSA" : "TRANSFER");
 
   function setCountry(v: CountryValue) {
@@ -236,7 +240,10 @@ export function CheckoutForm({
   // Можно ли оформить выбранным способом
   const payOk = abroad ? (byRobokassa ? robokassa : foreign.transferReady) : canPay || byInvoice;
   const needCountry = country.code === MANUAL_CODE && country.name.trim().length < 2;
-  const ready = !quote?.wholesale.error && !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !needCountry && !loading;
+  const tinNeed = tinRule(country.code);
+  const tinCheck = tinNeed ? checkTin(country.code, tin) : null;
+  const tinError = tinCheck && "error" in tinCheck ? tinCheck.error : null;
+  const ready = !quote?.wholesale.error && !!quote && !!quote.shipping && !quote.shippingError && !!deliveryInput && !needPoint && !needAddress && !needCountry && !tinError && !loading;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -290,6 +297,7 @@ export function CheckoutForm({
       expectedTotal: quote.payable,
       country: { code: country.code, name: country.code === MANUAL_CODE ? country.name.trim() : null },
       foreignPay: abroad ? abroadMethod : null,
+      recipientTin: tinNeed ? tin : null,
       paymentMethod: abroad ? abroadMethod : byInvoice ? "INVOICE" : "ONLINE",
     }).catch(() => ({ error: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз" }) as const);
     if ("payUrl" in r && r.payUrl) {
@@ -425,11 +433,20 @@ export function CheckoutForm({
           <legend className="step">
             <span>2</span> Доставка
           </legend>
-          {foreign.enabled && <CountryField countries={foreign.countries} value={country} onChange={setCountry} />}
+          {foreign.enabled && (
+            <CountryField
+              countries={foreign.countries}
+              value={country}
+              onChange={setCountry}
+              tin={tin}
+              onTin={setTin}
+              tinLabel={tinNeed ? `${tinNeed.label} получателя` : undefined}
+            />
+          )}
           {abroad && (
             <div className="notice notice--muted" style={{ margin: 0 }}>
               {mode === "MANUAL"
-                ? `В эту страну отправим сами. Впишите адрес — после оформления посчитаем доставку и пришлём итоговую сумму и реквизиты для перевода на карту. К заказу добавится сбор за международный заказ ${foreign.transferPercent} %.`
+                ? `В эту страну отправим Почтой России. Впишите адрес — после оформления посчитаем доставку и пришлём итоговую сумму и реквизиты для перевода на карту. К заказу добавится сбор за международный заказ ${foreign.transferPercent} %.`
                 : `Доставка СДЭК. Оплата ${[robokassa && `картой через Робокассу (сбор ${foreign.robokassaPercent} %)`, foreign.transferReady && `переводом на карту (сбор ${foreign.transferPercent} %)`].filter(Boolean).join(" или ") || "— уточните в поддержке"}.`}
               {foreign.intro && (
                 <>
@@ -809,6 +826,8 @@ export function CheckoutForm({
         <p className="muted small" style={{ margin: 0 }}>
           {needCountry
             ? "Впишите страну доставки"
+            : tinError
+            ? tinError
             : !deliveryInput
             ? "Укажите город доставки"
             : needPoint

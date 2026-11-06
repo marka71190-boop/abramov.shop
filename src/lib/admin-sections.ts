@@ -29,6 +29,7 @@ export const ADMIN_GROUPS: AdminGroup[] = [
     items: [
       { key: "home", href: "/admin", label: "Обзор", exact: true, always: true },
       { key: "orders", href: "/admin/orders", label: "Заказы", badge: "orders" },
+      { key: "waybills", href: "/admin/waybills", label: "Накладные" },
       { key: "pos", href: "/admin/pos", label: "Касса" },
       { key: "returns", href: "/admin/returns", label: "Возвраты", badge: "returns" },
       { key: "club", href: "/club", label: "Выдача в клубах" },

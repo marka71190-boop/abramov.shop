@@ -4375,6 +4375,39 @@ button.addr-card[aria-checked="true"] strong {
   }
 }
 
+/* ---- Инвойс для таможни (Почта России, заказы за рубеж) */
+.customs__sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: #444;
+  margin-top: 2px;
+}
+.customs__parties td {
+  width: 50%;
+  vertical-align: top;
+  padding: 6px 10px 6px 0;
+}
+.customs__items small {
+  font-weight: 400;
+  color: #555;
+  font-size: 10px;
+}
+.customs__ru {
+  font-size: 11px;
+  color: #555;
+}
+.customs__empty {
+  color: #c0392b;
+}
+@media print {
+  .customs__empty {
+    color: inherit;
+  }
+}
+.sheet.customs {
+  break-before: page;
+}
+
 /* ---- Счёт на оплату */
 .invoice {
   gap: 14px;

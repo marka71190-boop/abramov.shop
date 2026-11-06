@@ -189,7 +189,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   foreign: {
     enabled: true,
-    cdekCountries: "BY Беларусь\nKZ Казахстан\nAM Армения\nKG Киргизия\nUZ Узбекистан",
+    cdekCountries: "BY Беларусь\nKZ Казахстан\nAM Армения\nKG Киргизия",
     robokassaPercent: 10,
     transferPercent: 10,
     transferDetails: "",

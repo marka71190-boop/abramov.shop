@@ -24,6 +24,50 @@ const msg = (e: unknown) => (e instanceof OrderError ? e.message : e instanceof 
 // Заказы
 // ============================================================
 
+/** «Накладные»: создать отправления СДЭК сразу для нескольких оплаченных заказов */
+export async function createShipmentsAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const ids = form.getAll("id").map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 30);
+  if (!ids.length) return { error: "Отметьте заказы" };
+  const rows = await db.query.order.findMany({ where: inArray(s.order.id, ids), columns: { id: true, number: true } });
+  const ok: string[] = [];
+  const failed: string[] = [];
+  for (const o of rows) {
+    try {
+      await shipWithCdek(o.id, me.id);
+      ok.push(o.number);
+    } catch (e) {
+      failed.push(`${o.number}: ${msg(e)}`);
+    }
+  }
+  // Трек-номер СДЭК присваивает через пару секунд
+  if (ok.length) {
+    await new Promise((r) => setTimeout(r, 2500));
+    for (const o of rows) await syncCdek(o.id).catch(() => {});
+  }
+  revalidatePath("/admin/waybills");
+  revalidatePath("/admin/orders");
+  if (!ok.length) return { error: `Не создано. ${failed.join(" · ")}` };
+  return { ok: `Создано отправлений: ${ok.length}${failed.length ? `. Не получилось — ${failed.join(" · ")}` : ""}` };
+}
+
+/** ИИН / ПИН получателя в заказе (Казахстан, Киргизия) — если покупатель ошибся или его не было */
+export async function orderTinAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  const o = await db.query.order.findFirst({ where: eq(s.order.id, id), columns: { country: true, cdekOrderUuid: true } });
+  if (!o) return { error: "Заказ не найден" };
+  const { checkTin, tinRule } = await import("@/lib/countries");
+  if (!tinRule(o.country)) return { error: "Для этой страны номер не нужен" };
+  const r = checkTin(o.country, String(form.get("tin") ?? "").slice(0, 40));
+  if ("error" in r) return { error: r.error };
+  await db.update(s.order).set({ recipientTin: r.tin }).where(eq(s.order.id, id));
+  // Сам номер в журнал не пишем — это персональные данные
+  await audit(me.id, "order.tin", "order", id);
+  revalidatePath(`/admin/orders/${id}`);
+  return { ok: o.cdekOrderUuid ? "Сохранено. Отправление СДЭК уже создано — поправьте номер и в кабинете СДЭК" : "Сохранено" };
+}
+
 /** Заказ из-за рубежа: менеджер вписывает стоимость доставки — итог пересчитывается, покупателю уходит сумма */
 export async function foreignShippingAction(_: ActionState, form: FormData): Promise<ActionState> {
   const me = await requireAdmin();
@@ -267,6 +311,13 @@ const ProductIn = z.object({
   lengthCm: z.coerce.number().int().min(1).max(300),
   widthCm: z.coerce.number().int().min(1).max(300),
   heightCm: z.coerce.number().int().min(1).max(300),
+  nameEn: z.string().trim().max(120).optional(),
+  hsCode: z
+    .string()
+    .trim()
+    .refine((v) => !v || /^\d{4,10}$/.test(v.replace(/[\s.]/g, "")), "Код ТН ВЭД — от 4 до 10 цифр")
+    .optional(),
+  originCountry: z.string().trim().regex(/^([A-Za-z]{2})?$/, "Страна производства — две латинские буквы: RU, CN…").optional(),
   sortOrder: z.coerce.number().int().default(0),
   variants: z.string(),
   images: z.string(),
@@ -368,6 +419,9 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     lengthCm: d.lengthCm,
     widthCm: d.widthCm,
     heightCm: d.heightCm,
+    nameEn: d.nameEn?.trim() || null,
+    hsCode: d.hsCode?.replace(/\D/g, "") || null,
+    originCountry: d.originCountry?.trim().toUpperCase() || null,
     sortOrder: d.sortOrder,
     ...(videos ? { videos } : {}),
     channel: d.channel,
