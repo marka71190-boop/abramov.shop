@@ -351,6 +351,8 @@ export const bundle = pgTable("bundle", {
   note: text("note").default("").notNull(),
   productIds: text("product_ids").array().default([]).notNull(), // 2–6 товаров, по одному каждого
   percent: integer("percent").notNull(), // скидка на товары комплекта, %
+  level: text("level").default("").notNull(), // для кого: BEGINNER — новичку, PLAYER — игроку, PRO — профи; пусто — всем
+  showcase: boolean("showcase").default(true).notNull(), // показывать на странице «Наборы»
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: createdAt(),

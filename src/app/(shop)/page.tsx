@@ -1,3 +1,5 @@
+import { activeBundles, bundleCards, LEVELS } from "@/lib/bundles";
+import { SetCard } from "./nabory/SetCard";
 import Link from "next/link";
 import { KeepBeta } from "@/components/RichText";
 import { IconArrow, IconArrowUpRight, IconCard, IconStar, IconTelegram, IconTruck } from "@/components/Icons";
@@ -64,7 +66,7 @@ function Rail({
 }
 
 export default async function HomePage() {
-  const [categories, drop, settings, hits, fresh, reviews, viewer, home, slides] = await Promise.all([
+  const [categories, drop, settings, hits, fresh, reviews, viewer, home, slides, sets] = await Promise.all([
     getPublicCategories(),
     getFeaturedLimited(),
     getSettings(),
@@ -74,6 +76,7 @@ export default async function HomePage() {
     getViewer(),
     getHomeContent(),
     activeBanners("HOME"),
+    activeBundles().then((b) => bundleCards(b.filter((x) => x.showcase))),
   ]);
   // Новинки не повторяют хиты
   const hitIds = new Set(hits.map((p) => p.id));
@@ -164,6 +167,24 @@ export default async function HomePage() {
 
       {hits.length > 0 && <Rail id="hits" title={home.hitsTitle} items={hits} ratings={ratings} favs={favs} />}
       {newOnes.length >= 2 && <Rail id="new" title={home.newTitle} items={newOnes} ratings={ratings} favs={favs} />}
+
+      {sets.length > 0 && (
+        <section id="sets" className="container section section--tight">
+          <div className="section-head">
+            <h2 className="h2" style={{ margin: 0 }}>
+              Наборы <span className="gold">со скидкой</span>
+            </h2>
+            <Link href="/nabory" className="btn btn--line btn--sm">
+              Все наборы и подарки →
+            </Link>
+          </div>
+          <div className="set-grid">
+            {sets.slice(0, 3).map((b) => (
+              <SetCard key={b.id} set={b} level={b.level ? LEVELS[b.level] : null} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {drop && (
         <section id="drop" className="container section">

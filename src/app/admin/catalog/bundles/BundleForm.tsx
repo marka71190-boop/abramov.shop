@@ -11,6 +11,8 @@ interface B {
   productIds: string[];
   isActive: boolean;
   sortOrder: number;
+  level: string;
+  showcase: boolean;
 }
 type P = { id: string; name: string; sku: string | null; price: number; visibility: string };
 
@@ -47,7 +49,20 @@ export function BundleForm({ bundle, products, live }: { bundle: B | null; produ
           Порядок
           <input className="input" name="sortOrder" type="number" defaultValue={bundle?.sortOrder ?? 0} />
         </label>
+        <label className="field">
+          Для кого
+          <select className="select" name="level" defaultValue={bundle?.level ?? ""}>
+            <option value="">Всем</option>
+            <option value="BEGINNER">Новичку</option>
+            <option value="PLAYER">Игроку</option>
+            <option value="PRO">Профи</option>
+          </select>
+        </label>
       </div>
+      <label className="check" style={{ margin: 0 }}>
+        <input type="checkbox" name="showcase" defaultChecked={bundle?.showcase ?? true} />
+        <span>Показывать на странице «Наборы и подарки»</span>
+      </label>
       <label className="field">
         Подпись (необязательно)
         <input className="input" name="note" defaultValue={bundle?.note ?? ""} maxLength={300} placeholder="Всё, что нужно, чтобы начать играть" />

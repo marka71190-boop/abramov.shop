@@ -82,11 +82,14 @@ export function applyBundles(lines: BundleLine[], bundles: Bundle[]): BundleResu
   return { discount, applied, cut, hints: hints.filter((h) => h.missing.length <= 2) };
 }
 
+export const LEVELS: Record<string, string> = { BEGINNER: "Новичку", PLAYER: "Игроку", PRO: "Профи" };
+
 export interface BundleCard {
   id: string;
   name: string;
   note: string;
   percent: number;
+  level: string;
   /** variantId — что положить в корзину; variantIds — все варианты товара (если какой-то уже в корзине, второй не кладём) */
   items: { productId: string; variantId: string; variantIds: string[]; slug: string; name: string; image: string | null; price: number }[];
   full: number;
@@ -117,7 +120,7 @@ export async function bundleCards(bundles: Bundle[]): Promise<BundleCard[]> {
     }
     if (items.length < BUNDLE_MIN || items.length !== new Set(b.productIds).size) continue;
     const full = items.reduce((a, x) => a + x.price, 0);
-    out.push({ id: b.id, name: b.name, note: b.note, percent: b.percent, items, full, price: full - floorRub((full * b.percent) / 100) });
+    out.push({ id: b.id, name: b.name, note: b.note, percent: b.percent, level: b.level, items, full, price: full - floorRub((full * b.percent) / 100) });
   }
   return out;
 }

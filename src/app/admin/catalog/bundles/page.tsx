@@ -23,13 +23,13 @@ export default async function BundlesAdmin() {
       </p>
       <h1>Комплекты со скидкой</h1>
       <p className="muted" style={{ margin: 0 }}>
-        Комплект показывается в карточке каждого своего товара: «Вместе дешевле», одна кнопка кладёт всё в корзину. Скидка считается сама, когда в
+        Комплект показывается в карточке каждого своего товара («Вместе дешевле») и на странице <Link href="/nabory">«Наборы и подарки»</Link>, одна кнопка кладёт всё в корзину. Скидка считается сама, когда в
         корзине есть все товары комплекта (любой вариант). Промокод после этого считается от цены со скидкой комплекта.
       </p>
       {bundles.map((b) => (
         <BundleForm
           key={b.id}
-          bundle={{ id: b.id, name: b.name, note: b.note, percent: b.percent, productIds: b.productIds, isActive: b.isActive, sortOrder: b.sortOrder }}
+          bundle={{ id: b.id, name: b.name, note: b.note, percent: b.percent, productIds: b.productIds, isActive: b.isActive, sortOrder: b.sortOrder, level: b.level, showcase: b.showcase }}
           products={products}
           live={live.has(b.id)}
         />

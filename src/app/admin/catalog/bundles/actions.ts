@@ -15,6 +15,7 @@ const In = z.object({
   percent: z.coerce.number().int("Скидка — целым числом").min(1, "Скидка от 1%").max(50, "Скидка до 50%"),
   sortOrder: z.coerce.number().int().min(-1000).max(1000).default(0),
   productIds: z.string().max(2000),
+  level: z.enum(["", "BEGINNER", "PLAYER", "PRO"]).default(""),
 });
 
 export async function saveBundle(_: ActionState, form: FormData): Promise<ActionState> {
@@ -28,7 +29,7 @@ export async function saveBundle(_: ActionState, form: FormData): Promise<Action
   if (uniq.length < BUNDLE_MIN || uniq.length > BUNDLE_MAX) return { error: `В комплекте от ${BUNDLE_MIN} до ${BUNDLE_MAX} разных товаров` };
   const exist = await db.select({ id: s.product.id }).from(s.product).where(inArray(s.product.id, uniq));
   if (exist.length !== uniq.length) return { error: "Какого-то товара уже нет — обновите страницу" };
-  const values = { name: d.name, note: d.note, percent: d.percent, sortOrder: d.sortOrder, productIds: uniq, isActive: form.get("isActive") === "on" };
+  const values = { name: d.name, note: d.note, percent: d.percent, sortOrder: d.sortOrder, productIds: uniq, level: d.level, showcase: form.get("showcase") === "on", isActive: form.get("isActive") === "on" };
   let id = d.id;
   if (id) await db.update(s.bundle).set(values).where(eq(s.bundle.id, id));
   else id = (await db.insert(s.bundle).values(values).returning({ id: s.bundle.id }))[0].id;
