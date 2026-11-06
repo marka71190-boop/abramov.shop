@@ -1,4 +1,5 @@
 "use client";
+import { clubTitle } from "@/lib/club-label";
 import { useActionState, useState, useTransition } from "react";
 import { ROLE_HINTS, ROLE_LABELS, STAFF_ROLES } from "@/lib/roles";
 import { adjustBonus, banUser, setAdminSections, setRoles, type ActionState } from "../../actions";
@@ -76,13 +77,55 @@ export function BonusForm({ userId }: { userId: string }) {
 }
 
 /** Роли сотрудника: можно отметить несколько */
-export function RoleForm({ userId, roles, clubId, clubs, self }: { userId: string; roles: string[]; clubId: string | null; clubs: { id: string; name: string; city: string }[]; self: boolean }) {
+export function RoleForm({
+  userId,
+  roles,
+  clubId,
+  clubs,
+  self,
+  cashierClubs,
+  coachClubs,
+}: {
+  userId: string;
+  roles: string[];
+  clubId: string | null;
+  clubs: { id: string; name: string; city: string; address: string }[];
+  self: boolean;
+  cashierClubs: string[];
+  coachClubs: string[];
+}) {
   const [pending, start] = useTransition();
   const [picked, setPicked] = useState<Set<string>>(new Set(roles));
   const [club, setClub] = useState(clubId ?? "");
+  const [cashier, setCashier] = useState<Set<string>>(new Set(cashierClubs));
+  const [coach, setCoach] = useState<Set<string>>(new Set(coachClubs));
+  const clubsDirty = [...cashier].sort().join() !== [...cashierClubs].sort().join() || [...coach].sort().join() !== [...coachClubs].sort().join();
+  const clubChecks = (set: Set<string>, setter: (s: Set<string>) => void) => (
+    <div className="roles-grid">
+      {clubs.map((c) => (
+        <label key={c.id} className="check" style={{ margin: 0 }}>
+          <input
+            type="checkbox"
+            checked={set.has(c.id)}
+            disabled={pending}
+            onChange={() => {
+              const n = new Set(set);
+              if (n.has(c.id)) n.delete(c.id);
+              else n.add(c.id);
+              setter(n);
+              setMsg({});
+            }}
+          />
+          <span>
+            {clubTitle(c)} <span className="muted small">{c.city}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
   const owner = picked.has("OWNER");
-  const dirty = [...picked].sort().join() !== [...roles].sort().join() || (picked.has("CLUB") && club !== (clubId ?? ""));
+  const dirty = [...picked].sort().join() !== [...roles].sort().join() || (picked.has("CLUB") && club !== (clubId ?? "")) || clubsDirty;
   const flip = (r: string) => {
     const n = new Set(picked);
     if (n.has(r)) n.delete(r);
@@ -119,7 +162,7 @@ export function RoleForm({ userId, roles, clubId, clubs, self }: { userId: strin
             <option value="">— выберите клуб —</option>
             {clubs.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}, {c.city}
+                {clubTitle(c)}, {c.city}
               </option>
             ))}
           </select>
@@ -127,7 +170,19 @@ export function RoleForm({ userId, roles, clubId, clubs, self }: { userId: strin
         </label>
       )}
       {picked.has("CASHIER") && !owner && !picked.has("MANAGER") && (
-        <span className="muted small">Кассир: касса на /kassa — цены не меняет, скидка в пределах лимита из «Финансов», оплаченные продажи не отменяет.</span>
+        <div className="stack" style={{ gap: 6 }}>
+          <span className="muted small">Кассир: касса на /kassa — цены не меняет, скидка в пределах лимита из «Финансов», оплаченные продажи не отменяет.</span>
+          <strong className="small">В каких клубах работает кассир</strong>
+          {clubChecks(cashier, setCashier)}
+          <span className="muted small">{cashier.size ? "Смену откроет только в отмеченных клубах." : "Ничего не отмечено — может открыть смену в любом клубе или на турнире."}</span>
+        </div>
+      )}
+      {picked.has("COACH") && (
+        <div className="stack" style={{ gap: 6 }}>
+          <strong className="small">Где тренирует</strong>
+          {clubChecks(coach, setCoach)}
+          <span className="muted small">Можно несколько. Тренер видит эти клубы в расписании, ученики — на его странице. Тренер может поменять их и сам в своём кабинете.</span>
+        </div>
       )}
       {picked.has("DIRECTOR") && !owner && !picked.has("MANAGER") && (
         <span className="muted small">Руководитель: финансы, аналитика, заказы, касса, склад — только просмотр. В Telegram — отчёты с прибылью и вечерняя сводка.</span>
@@ -142,7 +197,7 @@ export function RoleForm({ userId, roles, clubId, clubs, self }: { userId: strin
           disabled={pending || !dirty}
           onClick={() =>
             start(async () => {
-              setMsg(await setRoles(userId, [...picked], picked.has("CLUB") ? club : null));
+              setMsg(await setRoles(userId, [...picked], picked.has("CLUB") ? club : null, { cashier: [...cashier], coach: picked.has("COACH") ? [...coach] : undefined }));
             })
           }
         >

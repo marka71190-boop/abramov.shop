@@ -67,7 +67,9 @@ export default async function CustomerPage({ params }: Props) {
               roles={rolesOf(u)}
               clubId={u.clubId}
               self={u.id === me.id}
-              clubs={(await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city }))}
+              cashierClubs={u.clubIds}
+              coachClubs={(await db.query.coachProfile.findFirst({ where: eq(s.coachProfile.userId, u.id), columns: { clubIds: true } }))?.clubIds ?? []}
+              clubs={(await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city, address: c.address }))}
             />
           )}
           {me.role !== "OWNER" && rolesOf(u).length > 0 && (

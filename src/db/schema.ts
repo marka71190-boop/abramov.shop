@@ -70,6 +70,7 @@ export const user = pgTable(
     role: roleEnum("role").default("CUSTOMER").notNull(),
     clubId: text("club_id"), // для роли CLUB: в каком клубе работает
     adminSections: text("admin_sections").array(), // менеджер: какие разделы админки видит; пусто — все
+    clubIds: text("club_ids").array().default(sql`'{}'::text[]`).notNull(), // кассир: в каких клубах работает (пусто — где угодно)
     extraRoles: text("extra_roles").array().default(sql`'{}'::text[]`).notNull(), // дополнительные роли (тренер + кассир…), главная — в role
     organizationId: text("organization_id"), // сотрудник организации-оптовика
 
@@ -1541,6 +1542,7 @@ export const posSale = pgTable(
     place: text("place"), // где продали: клуб, турнир
     sellerId: text("seller_id").references(() => user.id, { onDelete: "set null" }),
     shiftId: text("shift_id"), // смена кассира
+    clubId: text("club_id"), // в каком клубе продали
     paidAt: ts("paid_at"),
     cancelledAt: ts("cancelled_at"),
     createdAt: createdAt(),
@@ -1560,6 +1562,7 @@ export const posShift = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     place: text("place"),
+    clubId: text("club_id"), // клуб смены (пусто — турнир или другое место)
     status: text("status").default("OPEN").notNull(), // OPEN | CLOSED
     openingCash: integer("opening_cash").default(0).notNull(), // размен на начало, копейки
     cashSales: integer("cash_sales"), // наличные продажи смены — на момент закрытия

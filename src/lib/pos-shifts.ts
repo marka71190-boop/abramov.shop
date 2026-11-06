@@ -16,10 +16,10 @@ export async function currentShift(sellerId: string) {
   return (await db.query.posShift.findFirst({ where: and(eq(s.posShift.sellerId, sellerId), eq(s.posShift.status, "OPEN")) })) ?? null;
 }
 
-export async function openShift(sellerId: string, p: { openingCash: number; place: string | null }) {
+export async function openShift(sellerId: string, p: { openingCash: number; place: string | null; clubId: string | null }) {
   if (await currentShift(sellerId)) throw new ShiftError("Смена уже открыта");
   try {
-    const [row] = await db.insert(s.posShift).values({ sellerId, openingCash: p.openingCash, place: p.place }).returning();
+    const [row] = await db.insert(s.posShift).values({ sellerId, openingCash: p.openingCash, place: p.place, clubId: p.clubId }).returning();
     return row;
   } catch {
     // Две вкладки открыли смену одновременно — уникальный индекс пропустит только одну

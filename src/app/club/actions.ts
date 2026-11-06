@@ -1,4 +1,5 @@
 "use server";
+import { clubTitle } from "@/lib/club-label";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema as s } from "@/db";
@@ -38,7 +39,7 @@ export async function clubAction(op: ClubOp, id: string): Promise<ClubResult> {
     if (op === "svc-received") {
       if (r.status !== "NEW" || r.handover !== "CLUB") return { error: "Кий по этой заявке уже принят — обновите страницу" };
       const club = await getClub(r.clubId);
-      await setServiceStatus(r.id, "RECEIVED", { note: `Кий принят в клубе${club ? ` «${club.name}»` : ""}. Передаём мастеру.`, actorId: me.id });
+      await setServiceStatus(r.id, "RECEIVED", { note: `Кий принят в клубе${club ? ` «${clubTitle(club)}»` : ""}. Передаём мастеру.`, actorId: me.id });
       revalidatePath("/club");
       return { ok: `${r.number}: кий принят` };
     }

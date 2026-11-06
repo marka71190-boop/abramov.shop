@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import Link from "next/link";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { pushPublicKey } from "@/lib/push";
@@ -57,7 +58,7 @@ export default async function ClubPage({ searchParams }: Props) {
           <nav className="cchips" aria-label="Клубы">
             {clubs.map((x) => (
               <Link key={x.id} href={`/club?c=${x.id}`} className="vchip" aria-current={x.id === club.id ? "true" : undefined}>
-                {x.name} <span className="muted">{x.city}</span>
+                {clubTitle(x)} <span className="muted">{x.city}</span>
               </Link>
             ))}
           </nav>

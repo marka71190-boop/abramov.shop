@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
@@ -12,7 +13,7 @@ export default async function ServiceAdmin({ searchParams }: { searchParams: Pro
   const st = status && status in SERVICE_STATUS ? (status as ServiceStatus) : null;
   const [rows, clubs] = await Promise.all([
     db.query.serviceRequest.findMany({ where: st ? eq(s.serviceRequest.status, st) : undefined, orderBy: desc(s.serviceRequest.createdAt), limit: 200 }),
-    db.select({ id: s.club.id, name: s.club.name, city: s.club.city }).from(s.club),
+    db.select({ id: s.club.id, name: s.club.name, city: s.club.city, address: s.club.address }).from(s.club),
   ]);
   return (
     <>
@@ -57,7 +58,7 @@ export default async function ServiceAdmin({ searchParams }: { searchParams: Pro
                     </td>
                     <td className="small">{r.items.map((i) => i.name).join(", ")}</td>
                     <td className="small">
-                      {r.handover === "CLUB" ? `Принесут: ${club ? `${club.name}, ${club.city}` : "клуб"}` : "Пришлют СДЭК"}
+                      {r.handover === "CLUB" ? `Принесут: ${club ? clubTitle(club) : "клуб"}` : "Пришлют СДЭК"}
                       <div className="muted">{r.returnMethod === "CLUB" ? "Заберут в клубе" : "Вернуть СДЭК"}</div>
                     </td>
                     <td className="small">

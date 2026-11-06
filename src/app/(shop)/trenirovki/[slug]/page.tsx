@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import { hasRole } from "@/lib/roles";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -56,7 +57,7 @@ export default async function CoachPublicPage({ params, searchParams }: Props) {
           {p.title && <div className="gold">{p.title}</div>}
           <div className="small muted">
             {p.games}
-            {where.length ? ` · ${where.map((c) => `${c.name}, ${c.city}`).join(" · ")}` : ""}
+            {where.length ? ` · ${where.map((c) => clubTitle(c)).join(" · ")}` : ""}
           </div>
           {p.about && (
             <p style={{ margin: 0, whiteSpace: "pre-line", maxWidth: 680 }} className="muted">

@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import { hasRole } from "@/lib/roles";
 import { userHasRole } from "@/lib/roles-sql";
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
@@ -53,7 +54,9 @@ export default async function CoachPage({ searchParams }: Props) {
   };
 
   const profile = await ensureCoachProfile(coachId);
-  const clubs = (await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city }));
+  const allClubs = (await listClubs()).map((c) => ({ id: c.id, name: c.name, city: c.city, address: c.address }));
+  // В расписании и записи — только клубы, где тренер работает (если он их отметил)
+  const clubs = profile.clubIds.length ? allClubs.filter((c) => profile.clubIds.includes(c.id)) : allClubs;
   const defaultClub = profile.clubIds[0] ?? clubs[0]?.id ?? "";
   const filled = !!(profile.photo && profile.about.length > 30);
 
@@ -112,7 +115,7 @@ export default async function CoachPage({ searchParams }: Props) {
             </p>
           </div>
           {clubs.length ? (
-            <HoursEditor coachId={coachId} clubs={clubs} defaultClub={defaultClub} initial={hours.map((h) => ({ weekday: h.weekday, clubId: h.clubId, start: hhmm(h.startMin), end: hhmm(h.endMin) }))} />
+            <HoursEditor coachId={coachId} clubs={allClubs.filter((c) => clubs.includes(c) || hours.some((h) => h.clubId === c.id))} defaultClub={defaultClub} initial={hours.map((h) => ({ weekday: h.weekday, clubId: h.clubId, start: hhmm(h.startMin), end: hhmm(h.endMin) }))} />
           ) : (
             <p className="muted">Клубы ещё не добавлены — попросите владельца добавить их в админке.</p>
           )}
@@ -185,7 +188,7 @@ export default async function CoachPage({ searchParams }: Props) {
                     <div>
                       <b>{fmtWhen(sl.startsAt)}</b> · {sl.durationMin} мин · {sl.title}
                       <div className="small muted">
-                        {sl.club.name}, {sl.club.city} · {sl.price ? `${rub(sl.price)} с человека` : "бесплатно"}
+                        {clubTitle(sl.club)} · {sl.price ? `${rub(sl.price)} с человека` : "бесплатно"}
                       </div>
                     </div>
                     <span className={`pill ${active.length >= sl.capacity ? "pill--ok" : ""}`}>
@@ -227,7 +230,7 @@ export default async function CoachPage({ searchParams }: Props) {
           </h2>
           <ProfileForm
             coachId={coachId}
-            clubs={clubs}
+            clubs={allClubs}
             p={{ displayName: profile.displayName, title: profile.title, about: profile.about, games: profile.games, photo: profile.photo, clubIds: profile.clubIds }}
           />
         </section>
@@ -297,7 +300,7 @@ export default async function CoachPage({ searchParams }: Props) {
                 <b>{fmtWhen(b.slot.startsAt)}</b> · {b.slot.durationMin} мин · {b.slot.price ? rub(b.slot.price) : "бесплатно"}
                 {b.slot.isTrial && <span className="pill pill--wait" style={{ marginLeft: 8 }}>Пробное</span>}
                 <div className="small muted">
-                  {b.slot.club.name}, {b.slot.club.city}
+                  {clubTitle(b.slot.club)}
                 </div>
               </div>
               <Person b={b} />
@@ -349,7 +352,7 @@ export default async function CoachPage({ searchParams }: Props) {
                       · {sl.kind === "GROUP" ? sl.title : `${sl.durationMin} мин`}
                       {sl.isTrial && <span className="pill pill--wait" style={{ marginLeft: 8 }}>Пробное</span>}
                       <div className="small muted">
-                        {sl.club.name} · {sl.price ? rub(sl.price) : "бесплатно"} · {SOURCE_LABEL[sl.source] ?? ""}
+                        {clubTitle(sl.club)} · {sl.price ? rub(sl.price) : "бесплатно"} · {SOURCE_LABEL[sl.source] ?? ""}
                       </div>
                     </div>
                     {sl.kind === "GROUP" && (

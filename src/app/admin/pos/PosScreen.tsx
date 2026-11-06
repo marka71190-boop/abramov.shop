@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
+import { clubTitle } from "@/lib/club-label";
 import { listClubs } from "@/lib/clubs";
 import { fmtDateTime, rub } from "@/lib/format";
 import { POS_METHODS, type PosMethod } from "@/lib/pos";
@@ -44,7 +45,11 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
       .limit(30),
     getSettings(),
   ]);
-  const places = [...new Set([...clubs.map((c) => c.name), ...usedPlaces.map((p) => p.place!).filter(Boolean)])];
+  // Клубы продавца: кассир, закреплённый за клубами, — только они; остальные — любой клуб или турнир
+  const fixed = !admin && me.clubIds.length > 0;
+  const sellerClubs = (fixed ? clubs.filter((c) => me.clubIds.includes(c.id)) : clubs).map((c) => ({ id: c.id, title: clubTitle(c) }));
+  const clubTitles = new Set(clubs.map((c) => clubTitle(c)));
+  const places = [...new Set(usedPlaces.map((p) => p.place!).filter((p) => p && !clubTitles.has(p)))];
   const paid = sales.filter((x) => x.status === "PAID");
   const by = (m: PosMethod) => paid.filter((x) => x.method === m).reduce((a, x) => a + x.total, 0);
   const total = paid.reduce((a, x) => a + x.total, 0);
@@ -82,6 +87,8 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
           <section className="panel pos-panel stack" style={{ gap: 16 }}>
             <ShiftPanel
               places={places}
+              clubs={sellerClubs}
+              allowOther={!fixed}
               shift={
                 shift && shiftT
                   ? {

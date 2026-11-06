@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -38,7 +39,7 @@ export default async function ServiceRequestAdmin({ params }: { params: Promise<
             <b>Передаст:</b> {r.handover === "CLUB" ? `в клуб ${club ? `${club.name}, ${club.city}, ${club.address}` : ""}` : "СДЭК"}
           </div>
           <div className="small">
-            <b>Забрать:</b> {r.returnMethod === "CLUB" ? `в клубе ${club ? `${club.name}, ${club.city}` : ""}` : `СДЭК — ${r.returnAddress ?? ""}`}
+            <b>Забрать:</b> {r.returnMethod === "CLUB" ? `в клубе ${club ? clubTitle(club) : ""}` : `СДЭК — ${r.returnAddress ?? ""}`}
           </div>
         </div>
         <div className="panel stack" style={{ gap: 8 }}>

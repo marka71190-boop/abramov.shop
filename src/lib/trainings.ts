@@ -8,6 +8,7 @@
  *
  * Оплата — в клубе. Время — московское (клубы в Краснодаре, Ростове и Аксае, UTC+3).
  */
+import { clubTitle } from "@/lib/club-label";
 import { hasRole } from "@/lib/roles";
 import { userHasRole } from "@/lib/roles-sql";
 import "server-only";
@@ -434,7 +435,7 @@ export async function cancelSlot(slotId: string, reason: string) {
   const { sendMail } = await import("@/lib/mail");
   for (const b of active) {
     if (!b.user) continue;
-    const text = `Тренировка ${fmtWhen(slot.startsAt)} в клубе «${slot.club.name}» отменена${reason ? `: ${reason}` : ""}.`;
+    const text = `Тренировка ${fmtWhen(slot.startsAt)} в клубе «${clubTitle(slot.club)}» отменена${reason ? `: ${reason}` : ""}.`;
     void notifyUser(b.user.id, `❌ ${escHtml(text)}`, { text: "Выбрать другое время", url: `${SITE.url}/trenirovki` });
     void sendMail(b.user.email, "Тренировка отменена", "Тренировка отменена", `${escHtml(text)}<br><br>Извините за неудобство — выберите другое время.`, {
       text: "Тренировки",
@@ -453,7 +454,7 @@ async function notifyRequest(bookingId: string) {
     if (!b) return;
     const { notifyUser } = await import("@/lib/telegram");
     const what = (b.status === "REQUESTED" ? "❓ Новая заявка на тренировку — подтвердите" : "🎱 Новая запись") + (b.slot.isTrial ? " (пробное)" : "");
-    void notifyUser(b.slot.coachId, `${what}: ${fmtWhen(b.slot.startsAt)}, ${b.slot.durationMin} мин — ${escHtml(b.slot.club.name)}`, {
+    void notifyUser(b.slot.coachId, `${what}: ${fmtWhen(b.slot.startsAt)}, ${b.slot.durationMin} мин — ${escHtml(clubTitle(b.slot.club))}`, {
       text: "Открыть дневник",
       url: `${SITE.url}/coach?d=${dayKey(b.slot.startsAt)}`,
     });
@@ -549,7 +550,7 @@ export async function remindTrainings() {
     await db.update(s.trainingBooking).set({ remindedAt: new Date() }).where(eq(s.trainingBooking.id, b.id));
     if (!b.user) continue;
     const when = `${fmtDay(b.slot.startsAt)}, ${fmtTime(b.slot.startsAt)}`;
-    void notifyUser(b.user.id, `⏰ Скоро тренировка: ${when} — ${escHtml(b.slot.club.name)}`, { text: "Подробнее", url: `${SITE.url}/account#trainings` });
+    void notifyUser(b.user.id, `⏰ Скоро тренировка: ${when} — ${escHtml(clubTitle(b.slot.club))}`, { text: "Подробнее", url: `${SITE.url}/account#trainings` });
     void sendMail(
       b.user.email,
       `Напоминание: тренировка ${when}`,

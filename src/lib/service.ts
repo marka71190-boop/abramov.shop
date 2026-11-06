@@ -8,6 +8,7 @@
  *   • вернуть — в клубе или СДЭК.
  * В Telegram — только номер заявки и этап, без имени, телефона и адреса.
  */
+import { clubTitle } from "@/lib/club-label";
 import "server-only";
 import { and, asc, desc, eq, gte, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -354,7 +355,7 @@ async function notifyAdminsNew(r: ServiceRow) {
   const { notifyAdmins } = await import("@/lib/telegram");
   const club = await clubInfo(r.clubId);
   await notifyAdmins(
-    `🛠 <b>Новая заявка в мастерскую ${r.number}</b>\n${r.items.map((i) => `• ${i.name}`).join("\n")}\n${r.handover === "CLUB" ? `Принесут в клуб${club ? `: ${club.name}, ${club.city}` : ""}` : "Пришлют СДЭК"}`,
+    `🛠 <b>Новая заявка в мастерскую ${r.number}</b>\n${r.items.map((i) => `• ${i.name}`).join("\n")}\n${r.handover === "CLUB" ? `Принесут в клуб${club ? `: ${clubTitle(club)}` : ""}` : "Пришлют СДЭК"}`,
     { text: "Открыть в админке", url: `${SITE.url}/admin/service/${r.id}` },
   );
 }

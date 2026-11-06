@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listClubs } from "@/lib/clubs";
@@ -41,7 +42,7 @@ export default async function TrainingsPage({ searchParams }: Props) {
           </Link>
           {clubs.map((c) => (
             <Link key={c.id} href={`/trenirovki?club=${c.id}`} className={`btn btn--sm ${club?.id === c.id ? "btn--gold" : "btn--line"}`}>
-              {c.name} · {c.city}
+              {clubTitle(c)}
             </Link>
           ))}
         </nav>
@@ -71,7 +72,7 @@ export default async function TrainingsPage({ searchParams }: Props) {
 
       <div className="stack" style={{ gap: 16 }} id="schedule">
         <h2 className="h3" style={{ margin: 0 }}>
-          Групповые тренировки{club ? ` · ${club.name}` : ""}
+          Групповые тренировки{club ? ` · ${clubTitle(club)}` : ""}
         </h2>
         {slots.length ? (
           <Schedule slots={slots} signedIn={!!viewer} next={club ? `/trenirovki?club=${club.id}` : "/trenirovki"} mine={mineMap} />

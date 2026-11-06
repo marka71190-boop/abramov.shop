@@ -1,3 +1,4 @@
+import { clubTitle } from "@/lib/club-label";
 import Link from "next/link";
 import { rub } from "@/lib/format";
 import { dayKey, fmtDay, fmtTime, KIND_LABEL, type SlotView } from "@/lib/trainings";
@@ -26,7 +27,7 @@ export function Schedule({ slots, signedIn, next, mine, showCoach = true }: { sl
                       <Link href={`/trenirovki/${coach.slug}`}>{coach.displayName}</Link> ·{" "}
                     </>
                   )}
-                  {club.name}, {club.city} · {KIND_LABEL[slot.kind]}
+                  {clubTitle(club)} · {KIND_LABEL[slot.kind]}
                   {slot.kind === "GROUP" ? ` · свободно ${left} из ${slot.capacity}` : ""}
                 </div>
                 {slot.note && <div className="small">{slot.note}</div>}

@@ -7,6 +7,8 @@ import { audit } from "@/lib/audit";
 import { cancelSale, createSale, PosError, refreshSale, type SaleRow } from "@/lib/pos";
 import { closeShift, currentShift, openShift, ShiftError } from "@/lib/pos-shifts";
 import { qrSvg } from "@/lib/qr";
+import { clubTitle } from "@/lib/club-label";
+import { getClub } from "@/lib/clubs";
 import { getSettings } from "@/lib/settings";
 import { withStockNotices } from "@/lib/stock-moves";
 import { requireCashier } from "@/lib/viewer";
@@ -64,7 +66,7 @@ export async function posCreate(raw: unknown): Promise<{ sale?: SaleView; error?
     const limits = admin ? { lockPrices: false, maxDiscountPct: null } : { lockPrices: true, maxDiscountPct: (await getSettings()).finance.cashierMaxDiscount };
     const sale = await withStockNotices(
       p.data.items.map((i) => i.variantId),
-      () => createSale(me.id, { ...p.data, place: p.data.place || shift.place, shiftId: shift.id }, limits),
+      () => createSale(me.id, { ...p.data, place: shift.place, shiftId: shift.id, clubId: shift.clubId }, limits),
     );
     await audit(me.id, "pos.sale", "pos_sale", sale.id, { number: sale.number, method: sale.method, total: sale.total, discount: sale.discount });
     revalidatePath("/", "layout");
@@ -124,12 +126,25 @@ const money = (v: FormDataEntryValue | null) => {
 export type ShiftState = { ok?: string; error?: string };
 
 export async function shiftOpen(_: ShiftState, fd: FormData): Promise<ShiftState> {
-  const { me } = await requireCashier();
+  const { me, admin } = await requireCashier();
   const opening = String(fd.get("opening") ?? "").trim() ? money(fd.get("opening")) : 0;
   if (opening == null) return { error: "Размен — сумма в рублях, например 2000" };
-  const place = String(fd.get("place") ?? "").trim().slice(0, 120) || null;
+  // Клуб: кассир, закреплённый за клубами, — только в своих; иначе можно и турнир
+  const clubId = String(fd.get("clubId") ?? "").trim() || null;
+  const fixed = !admin && me.clubIds.length > 0;
+  let place: string | null = null;
+  if (clubId) {
+    if (fixed && !me.clubIds.includes(clubId)) return { error: "Это не ваш клуб — выберите из списка" };
+    const club = await getClub(clubId);
+    if (!club || !club.isActive) return { error: "Клуб не найден" };
+    place = clubTitle(club);
+  } else {
+    if (fixed) return { error: "Выберите клуб" };
+    place = String(fd.get("place") ?? "").trim().slice(0, 120) || null;
+    if (!place) return { error: "Выберите клуб или впишите, где продаёте" };
+  }
   try {
-    const shift = await openShift(me.id, { openingCash: opening, place });
+    const shift = await openShift(me.id, { openingCash: opening, place, clubId });
     await audit(me.id, "pos.shift_open", "pos_shift", shift.id, { opening, place });
     refresh();
     return { ok: "Смена открыта" };

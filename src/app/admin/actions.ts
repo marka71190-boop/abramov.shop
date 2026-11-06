@@ -111,7 +111,12 @@ export async function adjustBonus(_: ActionState, form: FormData): Promise<Actio
  * Роли сотрудника — можно несколько (тренер и кассир, менеджер и тренер…).
  * Главной становится самая старшая из выбранных, остальные — дополнительные.
  */
-export async function setRoles(userId: string, roles: string[], clubId?: string | null): Promise<{ ok?: string; error?: string }> {
+export async function setRoles(
+  userId: string,
+  roles: string[],
+  clubId?: string | null,
+  clubs: { cashier?: string[]; coach?: string[] } = {},
+): Promise<{ ok?: string; error?: string }> {
   const me = await requireAdmin("OWNER");
   const { splitRoles, STAFF_ROLES, ROLE_LABELS, rolesOf } = await import("@/lib/roles");
   const list = (Array.isArray(roles) ? roles : []).map(String).filter((r) => (STAFF_ROLES as string[]).includes(r));
@@ -137,7 +142,16 @@ export async function setRoles(userId: string, roles: string[], clubId?: string 
     sections = [...new Set([...before.adminSections, ...(added0.includes("DIRECTOR") ? DIRECTOR_KEYS : [])])].filter((k) => can.has(k));
     if (!sections.length || sections.length >= can.size) sections = null;
   }
-  await db.update(s.user).set({ role, extraRoles, clubId: club, adminSections: sections }).where(eq(s.user.id, userId));
+  // Клубы кассира и тренера — только существующие
+  const known = new Set((await db.select({ id: s.club.id }).from(s.club)).map((c) => c.id));
+  const clean = (ids?: string[]) => [...new Set((Array.isArray(ids) ? ids : []).map(String))].filter((id) => known.has(id));
+  const cashierClubs = all.includes("CASHIER") ? clean(clubs.cashier) : [];
+  await db.update(s.user).set({ role, extraRoles, clubId: club, clubIds: cashierClubs, adminSections: sections }).where(eq(s.user.id, userId));
+  if (all.includes("COACH") && clubs.coach) {
+    const { ensureCoachProfile } = await import("@/lib/trainings");
+    await ensureCoachProfile(userId);
+    await db.update(s.coachProfile).set({ clubIds: clean(clubs.coach) }).where(eq(s.coachProfile.userId, userId));
+  }
   await audit(me.id, "user.role", "user", userId, { role, extraRoles, clubId: club });
 
   const added = all.filter((r) => !had.includes(r as never));

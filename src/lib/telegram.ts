@@ -7,6 +7,7 @@
  * Клиент привязывает Telegram из личного кабинета: кнопка ведёт на t.me/<бот>?start=<одноразовый код>.
  * Админы и менеджеры привязывают так же — и дополнительно получают уведомления о новых заказах.
  */
+import { clubTitle } from "@/lib/club-label";
 import { hasRole } from "@/lib/roles";
 import { userHasAnyRole } from "@/lib/roles-sql";
 import { callNameOf } from "@/lib/names";
@@ -344,7 +345,7 @@ ${rub(o.giftCardAmount)} вернулись на подарочный серти
       // покупателей туда не передаём (152-ФЗ). Всё это — в админке по кнопке.
       const text =
         `🛒 <b>Новый заказ ${o.number}</b> — ${rub(o.total)}\n` +
-        `${o.deliveryType === "PICKUP" ? `Самовывоз: ${club ? `<b>${esc(club.name)}</b>` : "клуб"}` : o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}${o.city ? `, ${esc(o.city)}` : ""}\n\n${items}` +
+        `${o.deliveryType === "PICKUP" ? `Самовывоз: ${club ? `<b>${esc(clubTitle(club))}</b>` : "клуб"}` : o.deliveryType === "COURIER" ? "Курьер" : "ПВЗ"}${o.city ? `, ${esc(o.city)}` : ""}\n\n${items}` +
         (o.comment ? `\n\n💬 Есть комментарий покупателя — в админке` : "") +
         (extra?.note || o.cancelReason ? `\n\n⚠️ ${esc(extra?.note ?? o.cancelReason ?? "")}` : "");
       for (const a of admins) {

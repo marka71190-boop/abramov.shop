@@ -1,8 +1,9 @@
 "use client";
+import { clubTitle } from "@/lib/club-label";
 import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { addDayOff, addManual, cancelSlotAction, confirmAction, createSlots, declineAction, markBooking, removeDayOff, saveBookingSettings, saveDiary, saveHours, saveProfile } from "./actions";
 
-type Club = { id: string; name: string; city: string };
+type Club = { id: string; name: string; city: string; address: string };
 
 /** Отправка без сброса формы: при ошибке введённое не пропадает (React 19 очищает форму после action) */
 function keep(action: (fd: FormData) => void) {
@@ -95,7 +96,7 @@ export function ProfileForm({
               <label key={c.id} className="check">
                 <input type="checkbox" name="clubIds" value={c.id} defaultChecked={p.clubIds.includes(c.id)} />
                 <span>
-                  {c.name} <span className="muted">{c.city}</span>
+                  {clubTitle(c)} <span className="muted">{c.city}</span>
                 </span>
               </label>
             ))}
@@ -125,7 +126,7 @@ export function SlotForm({ coachId, clubs, defaultClub }: { coachId: string; clu
           <select className="select" name="clubId" defaultValue={defaultClub} required>
             {clubs.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}, {c.city}
+                {clubTitle(c)}
               </option>
             ))}
           </select>
@@ -331,7 +332,7 @@ export function ManualForm({ coachId, day, clubs, defaultClub, durations, priceP
           <select className="select" name="clubId" defaultValue={defaultClub}>
             {clubs.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}, {c.city}
+                {clubTitle(c)}
               </option>
             ))}
           </select>
@@ -402,7 +403,7 @@ export function HoursEditor({ coachId, clubs, initial, defaultClub }: { coachId:
                   <select className="select hours-club" value={r.clubId} onChange={(e) => upd(i, { clubId: e.target.value })} aria-label="Клуб">
                     {clubs.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {clubTitle(c)}
                       </option>
                     ))}
                   </select>

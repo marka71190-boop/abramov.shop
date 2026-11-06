@@ -1,4 +1,5 @@
 "use client";
+import { clubTitle } from "@/lib/club-label";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { goal } from "@/lib/track";
@@ -175,7 +176,7 @@ export function BookingPicker({
                   aria-pressed={id === clubId}
                   onClick={() => setClubId(id)}
                 >
-                  {c.name} · {c.city}
+                  {clubTitle(c)}
                 </button>
               );
             })}
@@ -306,7 +307,7 @@ export function BookingPicker({
               {dayLabel(dd).full}, {tt}–{plusMin(tt, d)}
             </b>
             <div className="small muted">
-              {club?.name} · {isTrial ? "пробное, " : ""}
+              {club ? clubTitle(club) : ""} · {isTrial ? "пробное, " : ""}
               {d} мин · {price ? `${priceText}, оплата в клубе` : priceText}
             </div>
           </div>

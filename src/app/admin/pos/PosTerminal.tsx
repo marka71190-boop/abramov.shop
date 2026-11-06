@@ -28,7 +28,6 @@ export function PosTerminal({
   const [lines, setLines] = useState<Line[]>([]);
   const [discount, setDiscount] = useState("");
   const [method, setMethod] = useState<Method>("CASH");
-  const [place, setPlace] = useState("");
   const [contact, setContact] = useState("");
   const [given, setGiven] = useState("");
   const [error, setError] = useState("");
@@ -37,18 +36,6 @@ export function PosTerminal({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [note, setNote] = useState("");
 
-  // Место продажи запоминаем на этом телефоне
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(PLACE_KEY);
-      if (v) setPlace(v);
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      if (place) localStorage.setItem(PLACE_KEY, place);
-    } catch {}
-  }, [place]);
 
   const picked = useMemo(() => new Set(lines.map((l) => l.o.id)), [lines]);
   const subtotal = lines.reduce((a, l) => a + (toKop(l.price) || 0) * l.qty, 0);
@@ -90,7 +77,7 @@ export function PosTerminal({
         items: lines.map((l) => ({ variantId: l.o.id, qty: l.qty, price: toKop(l.price) })),
         discount: disc,
         method,
-        place: place.trim() || null,
+        place: null, // место — из смены
         contact: method === "CASH" ? null : contact.trim() || null,
       });
       if (r.error) return setError(r.error);
@@ -220,15 +207,6 @@ export function PosTerminal({
             {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — только менеджер</span>}
           </label>
         )}
-        <label className="field" style={{ margin: 0 }}>
-          Где продаём
-          <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} list="pos-places" placeholder="Клуб или турнир" maxLength={120} />
-          <datalist id="pos-places">
-            {places.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </label>
       </div>
 
       <div className="pos-methods" role="radiogroup" aria-label="Оплата">
@@ -307,9 +285,13 @@ export function CancelSale({ id, paid, cash }: { id: string; paid: boolean; cash
 export function ShiftPanel({
   shift,
   places,
+  clubs,
+  allowOther,
 }: {
   shift: { openedAt: string; place: string | null; opening: number; cash: number; other: number; count: number; pending: number } | null;
-  places: string[];
+  places: string[]; // турниры и другие места, где уже продавали
+  clubs: { id: string; title: string }[]; // клубы, где может работать продавец
+  allowOther: boolean; // можно ли продавать не в клубе (турнир)
 }) {
   const router = useRouter();
   const [openState, openAction, opening] = useActionState<ShiftState, FormData>(async (s, fd) => {
@@ -325,12 +307,23 @@ export function ShiftPanel({
   const [ask, setAsk] = useState(false);
   const [counted, setCounted] = useState("");
   const [place, setPlace] = useState("");
+  const [clubId, setClubId] = useState(clubs.length === 1 ? clubs[0].id : "");
+  // Клуб запоминаем на этом телефоне
   useEffect(() => {
     try {
       const v = localStorage.getItem(PLACE_KEY);
-      if (v) setPlace(v);
+      if (v && clubs.some((c) => c.id === v)) setClubId(v);
+      else if (v?.startsWith("other:") && allowOther) {
+        setClubId("other");
+        setPlace(v.slice(6));
+      }
     } catch {}
-  }, []);
+  }, [clubs, allowOther]);
+  const remember = (v: string) => {
+    try {
+      localStorage.setItem(PLACE_KEY, v);
+    } catch {}
+  };
 
   if (!shift) {
     return (
@@ -345,31 +338,57 @@ export function ShiftPanel({
             Размен в кассе, ₽
             <input className="input" name="opening" inputMode="decimal" placeholder="0" />
           </label>
-          <label className="field" style={{ margin: 0 }}>
-            Где продаём
-            <input
-              className="input"
-              name="place"
-              list="pos-places-shift"
-              value={place}
-              onChange={(e) => {
-                setPlace(e.target.value);
-                try {
-                  localStorage.setItem(PLACE_KEY, e.target.value);
-                } catch {}
-              }}
-              placeholder="Клуб или турнир"
-              maxLength={120}
-            />
-            <datalist id="pos-places-shift">
-              {places.map((p) => (
-                <option key={p} value={p} />
-              ))}
-            </datalist>
-          </label>
         </div>
+        <fieldset className="stack" style={{ gap: 6, margin: 0, padding: 0, border: 0 }}>
+          <legend className="small muted" style={{ marginBottom: 6 }}>
+            Где продаём
+          </legend>
+          <input type="hidden" name="clubId" value={clubId === "other" ? "" : clubId} />
+          {clubs.map((c) => (
+            <label key={c.id} className="check" style={{ margin: 0 }}>
+              <input
+                type="radio"
+                name="pickClub"
+                checked={clubId === c.id}
+                onChange={() => {
+                  setClubId(c.id);
+                  remember(c.id);
+                }}
+              />
+              <span>{c.title}</span>
+            </label>
+          ))}
+          {allowOther && (
+            <label className="check" style={{ margin: 0 }}>
+              <input type="radio" name="pickClub" checked={clubId === "other"} onChange={() => setClubId("other")} />
+              <span>Другое место — турнир, выезд</span>
+            </label>
+          )}
+          {clubId === "other" && (
+            <>
+              <input
+                className="input"
+                name="place"
+                list="pos-places-shift"
+                value={place}
+                onChange={(e) => {
+                  setPlace(e.target.value);
+                  remember(`other:${e.target.value}`);
+                }}
+                placeholder="Например: Кубок Кремля"
+                maxLength={120}
+                required
+              />
+              <datalist id="pos-places-shift">
+                {places.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+            </>
+          )}
+        </fieldset>
         {openState.error && <div className="form-error">{openState.error}</div>}
-        <button className="btn btn--gold" disabled={opening}>
+        <button className="btn btn--gold" disabled={opening || !clubId}>
           {opening ? "Открываем…" : "Открыть смену"}
         </button>
       </form>
