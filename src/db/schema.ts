@@ -73,6 +73,11 @@ export const user = pgTable(
     clubIds: text("club_ids").array().default(sql`'{}'::text[]`).notNull(), // кассир: в каких клубах работает (пусто — где угодно)
     extraRoles: text("extra_roles").array().default(sql`'{}'::text[]`).notNull(), // дополнительные роли (тренер + кассир…), главная — в role
     isDevice: boolean("is_device").default(false).notNull(), // рабочий телефон кассы: только касса своего клуба, без заказов и кабинета
+    // PIN менеджера (6 цифр) — подтверждает в кассе скидку сверх лимита и возврат. Хранится только хеш
+    pinHash: text("pin_hash"),
+    pinSetAt: ts("pin_set_at"),
+    pinFailed: integer("pin_failed").default(0).notNull(), // неверных вводов подряд
+    pinLockedAt: ts("pin_locked_at"), // заблокирован: 5 ошибок или «это был не я» из письма
     organizationId: text("organization_id"), // сотрудник организации-оптовика
     country: text("country").default("RU").notNull(), // куда доставлять: код страны; XX — страны нет в списке СДЭК, вписал сам
     countryName: text("country_name"), // название страны, если вписал сам
@@ -620,6 +625,7 @@ export const bonusTransaction = pgTable(
     amount: integer("amount").notNull(), // + начисление, − списание
     reason: bonusReasonEnum("reason").notNull(),
     orderId: text("order_id").references(() => order.id, { onDelete: "set null" }),
+    posSaleId: text("pos_sale_id"), // покупка в клубе (касса)
     comment: text("comment"),
     expiresAt: ts("expires_at"),
     createdById: text("created_by_id"),
@@ -1044,6 +1050,7 @@ export const club = pgTable("club", {
   lat: doublePrecision("lat"),
   lon: doublePrecision("lon"),
   pickup: boolean("pickup").default(true).notNull(), // выдаёт заказы
+  ownStock: boolean("own_stock").default(false).notNull(), // свой остаток: касса клуба продаёт из него, а не со склада
   service: boolean("service").default(true).notNull(), // принимает кии в мастерскую
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
@@ -1535,10 +1542,27 @@ export const stockMove = pgTable(
     stockAfter: integer("stock_after"),
     note: text("note"),
     posSaleId: text("pos_sale_id"),
+    clubId: text("club_id"), // где: клуб; пусто — центральный склад
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [index("stock_move_variant_idx").on(t.variantId), index("stock_move_created_idx").on(t.createdAt)],
+);
+
+/** Остаток товара в клубе (если у клуба включён свой учёт). Центральный склад — product_variant.stock */
+export const clubStock = pgTable(
+  "club_stock",
+  {
+    clubId: text("club_id")
+      .notNull()
+      .references(() => club.id, { onDelete: "cascade" }),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariant.id, { onDelete: "cascade" }),
+    qty: integer("qty").default(0).notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.clubId, t.variantId] }), index("club_stock_variant_idx").on(t.variantId)],
 );
 
 /** Продажа в кассе (в клубе, на турнире). Покупатель не записывается — только товары и деньги. */
@@ -1560,6 +1584,13 @@ export const posSale = pgTable(
     sellerId: text("seller_id").references(() => user.id, { onDelete: "set null" }),
     shiftId: text("shift_id"), // смена кассира
     clubId: text("club_id"), // в каком клубе продали
+    stockClubId: text("stock_club_id"), // откуда списан товар: клуб со своим остатком; пусто — склад
+    customerId: text("customer_id").references(() => user.id, { onDelete: "set null" }), // покупатель с бонусной картой (по телефону)
+    bonusSpent: integer("bonus_spent").default(0).notNull(), // оплачено бонусами, копейки (не входит в total)
+    bonusAccrued: integer("bonus_accrued").default(0).notNull(), // начислено бонусов, копейки
+    bonusCredited: boolean("bonus_credited").default(false).notNull(),
+    refunded: integer("refunded").default(0).notNull(), // возвращено деньгами по возвратам, копейки
+    discountById: text("discount_by_id"), // скидку сверх лимита кассира разрешил менеджер (по PIN)
     paidAt: ts("paid_at"),
     cancelledAt: ts("cancelled_at"),
     createdAt: createdAt(),
@@ -1587,6 +1618,9 @@ export const posShift = pgTable(
     otherSales: integer("other_sales"), // СБП и карта — на момент закрытия
     expectedCash: integer("expected_cash"), // должно быть в кассе
     countedCash: integer("counted_cash"), // пересчитали
+    cashMoves: integer("cash_moves"), // выемки (−) и внесения (+) за смену — на момент закрытия
+    cashRefunds: integer("cash_refunds"), // возвраты наличными из кассы смены — на момент закрытия
+    remindedAt: ts("reminded_at"), // напомнили, что смена не закрыта
     note: text("note"),
     openedAt: createdAt(),
     closedAt: ts("closed_at"),
@@ -1606,9 +1640,67 @@ export const posSaleItem = pgTable("pos_sale_item", {
   price: integer("price").notNull(), // копейки за 1 шт. (после скидки строки)
   quantity: integer("quantity").notNull(),
   unitCost: integer("unit_cost"),
+  returnedQty: integer("returned_qty").default(0).notNull(), // сколько вернули
 });
 
-export const posSaleRelations = relations(posSale, ({ many }) => ({ items: many(posSaleItem) }));
+/** Возврат в кассе: товар — на остаток, деньги — наличными из смены или через ЮKassa */
+export const posReturn = pgTable(
+  "pos_return",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // V-261107-7QX4
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => posSale.id, { onDelete: "cascade" }),
+    shiftId: text("shift_id"), // смена, из кассы которой отдали наличные
+    sellerId: text("seller_id").references(() => user.id, { onDelete: "set null" }),
+    approverId: text("approver_id").references(() => user.id, { onDelete: "set null" }), // менеджер, подтвердивший PIN
+    method: text("method").notNull(), // CASH — наличными из кассы, YOOKASSA — на карту/счёт, NONE — оплачено бонусами
+    amount: integer("amount").notNull(), // вернули деньгами, копейки
+    cost: integer("cost").default(0).notNull(), // себестоимость вернувшегося товара
+    bonusBack: integer("bonus_back").default(0).notNull(), // вернули на бонусный счёт (копейки)
+    accruedBack: integer("accrued_back").default(0).notNull(), // списали начисленных за покупку (копейки)
+    refundId: text("refund_id"), // ЮKassa
+    reason: text("reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("pos_return_sale_idx").on(t.saleId), index("pos_return_created_idx").on(t.createdAt)],
+);
+
+export const posReturnItem = pgTable("pos_return_item", {
+  id: id(),
+  returnId: text("return_id")
+    .notNull()
+    .references(() => posReturn.id, { onDelete: "cascade" }),
+  saleItemId: text("sale_item_id").references(() => posSaleItem.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  quantity: integer("quantity").notNull(),
+  amount: integer("amount").notNull(), // вернули за позицию деньгами, копейки
+});
+
+/** Выемка (−) и внесение (+) наличных в кассе во время смены */
+export const posCashMove = pgTable(
+  "pos_cash_move",
+  {
+    id: id(),
+    shiftId: text("shift_id")
+      .notNull()
+      .references(() => posShift.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    reason: text("reason"),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    staffName: text("staff_name"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("pos_cash_move_shift_idx").on(t.shiftId)],
+);
+
+export const posSaleRelations = relations(posSale, ({ many }) => ({ items: many(posSaleItem), returns: many(posReturn) }));
+export const posReturnRelations = relations(posReturn, ({ one, many }) => ({
+  sale: one(posSale, { fields: [posReturn.saleId], references: [posSale.id] }),
+  items: many(posReturnItem),
+}));
+export const posReturnItemRelations = relations(posReturnItem, ({ one }) => ({ ret: one(posReturn, { fields: [posReturnItem.returnId], references: [posReturn.id] }) }));
 export const posSaleItemRelations = relations(posSaleItem, ({ one }) => ({ sale: one(posSale, { fields: [posSaleItem.saleId], references: [posSale.id] }) }));
 
 /** Расходы для чистой прибыли: реклама, аренда, зарплата, налоги… */

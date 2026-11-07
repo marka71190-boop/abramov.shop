@@ -15,6 +15,8 @@ export const MOVE_TYPES: Record<string, string> = {
   INVENTORY: "Инвентаризация",
   POS: "Продажа в кассе",
   POS_CANCEL: "Отмена продажи",
+  POS_RETURN: "Возврат в кассе",
+  TRANSFER: "Перемещение",
   COST: "Новая закупочная цена",
 };
 
@@ -41,27 +43,48 @@ export function averageCost(oldStock: number, oldCost: number | null, qty: numbe
   return Math.round((oldStock * oldCost + qty * cost) / (oldStock + qty));
 }
 
-export async function applyMoves(userId: string, type: "RECEIPT" | "WRITE_OFF" | "INVENTORY", lines: MoveLine[], note: string | null) {
+/**
+ * Приход, списание, инвентаризация. clubId — в клубе со своим учётом; пусто — на центральном складе.
+ * Средняя закупочная цена считается по всему товару: склад + клубы.
+ */
+export async function applyMoves(userId: string, type: "RECEIPT" | "WRITE_OFF" | "INVENTORY", lines: MoveLine[], note: string | null, clubId: string | null = null) {
   return db.transaction(async (tx) => {
     const done: { name: string; qty: number; stockAfter: number }[] = [];
+    if (clubId) {
+      const c = await tx.query.club.findFirst({ where: eq(s.club.id, clubId), columns: { ownStock: true } });
+      if (!c?.ownStock) throw new Error("У клуба не включён свой учёт остатков");
+    }
     for (const l of lines) {
       const v = await lockVariant(tx, l.variantId);
       if (!v) throw new Error("Товар не найден — обновите страницу");
+      const [{ inClubs }] = await tx.select({ inClubs: sql<number>`coalesce(sum(${s.clubStock.qty}), 0)::int` }).from(s.clubStock).where(eq(s.clubStock.variantId, v.id));
+      const here = clubId
+        ? ((await tx.query.clubStock.findFirst({ where: (cs, { and: a, eq: e }) => a(e(cs.clubId, clubId), e(cs.variantId, v.id)), columns: { qty: true } }))?.qty ?? 0)
+        : v.stock;
       let delta = 0;
       let cost = v.costPrice;
       if (type === "RECEIPT") {
         delta = l.qty;
-        cost = averageCost(v.stock, v.costPrice, l.qty, l.unitCost ?? null);
+        cost = averageCost(v.stock + Number(inClubs), v.costPrice, l.qty, l.unitCost ?? null);
       } else if (type === "WRITE_OFF") {
-        if (l.qty > v.stock) throw new Error(`«${v.name}»: свободно только ${v.stock} шт — больше списать нельзя`);
+        if (l.qty > here) throw new Error(`«${v.name}»: ${clubId ? "в клубе" : "свободно"} только ${here} шт — больше списать нельзя`);
         delta = -l.qty;
       } else {
-        delta = l.qty - v.stock;
+        delta = l.qty - here;
         if (!delta) continue;
       }
-      const stockAfter = v.stock + delta;
-      await tx.update(s.productVariant).set({ stock: stockAfter, costPrice: cost }).where(eq(s.productVariant.id, v.id));
+      const stockAfter = here + delta;
+      if (clubId) {
+        await tx
+          .insert(s.clubStock)
+          .values({ clubId, variantId: v.id, qty: stockAfter })
+          .onConflictDoUpdate({ target: [s.clubStock.clubId, s.clubStock.variantId], set: { qty: stockAfter, updatedAt: new Date() } });
+        if (cost !== v.costPrice) await tx.update(s.productVariant).set({ costPrice: cost }).where(eq(s.productVariant.id, v.id));
+      } else {
+        await tx.update(s.productVariant).set({ stock: stockAfter, costPrice: cost }).where(eq(s.productVariant.id, v.id));
+      }
       await tx.insert(s.stockMove).values({
+        clubId,
         variantId: v.id,
         productId: v.productId,
         name: v.name,
@@ -86,14 +109,14 @@ export async function setCost(tx: Tx, userId: string, variantId: string, cost: n
   await tx.insert(s.stockMove).values({ variantId, productId: v.productId, name: v.name, type: "COST", qty: 0, unitCost: cost, stockAfter: v.stock, userId });
 }
 
-/** Варианты для выбора в формах прихода и кассы */
-export async function variantOptions() {
+/** Варианты для выбора в формах прихода и кассы. clubId — остаток этого клуба вместо склада */
+export async function variantOptions(clubId: string | null = null) {
   const rows = await db.execute<{ id: string; name: string; sku: string | null; stock: number; cost: number | null; price: number; visibility: string; image: string | null }>(sql`
     select v.id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
       -- у товара с вариантами артикул товара общий — сканер по нему не поймёт, какой вариант; берём только свой
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then v.sku else coalesce(v.sku, p.sku) end as sku,
-      v.stock, v.cost_price as cost, coalesce(v.price, p.price) as price, p.visibility::text as visibility,
+      ${clubId ? sql`coalesce((select cs.qty from club_stock cs where cs.club_id = ${clubId} and cs.variant_id = v.id), 0)` : sql`v.stock`} as stock, v.cost_price as cost, coalesce(v.price, p.price) as price, p.visibility::text as visibility,
       (select i.url from product_image i where i.product_id = p.id order by i.sort_order asc limit 1) as image
     from product_variant v join product p on p.id = v.product_id
     where v.is_active

@@ -13,3 +13,6 @@ npm-debug.log*
 .DS_Store
 /data/
 /uploads/
+
+# Копируется перед сборкой из zxing-wasm (scripts/copy-zxing.mjs)
+/public/zxing/

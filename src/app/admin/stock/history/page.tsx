@@ -24,6 +24,8 @@ export default async function StockHistoryPage({ searchParams }: { searchParams:
     .where(gte(s.stockMove.createdAt, since))
     .groupBy(s.stockMove.type);
   const sum = (k: string) => sums.find((x) => x.type === k);
+  const { stockClubs } = await import("@/lib/club-stock");
+  const clubNames = new Map((await stockClubs()).map((c) => [c.id, c.title]));
 
   return (
     <>
@@ -108,7 +110,10 @@ export default async function StockHistoryPage({ searchParams }: { searchParams:
                   {fmtDateTime(m.createdAt)}
                   {who && <div className="muted">{who}</div>}
                 </td>
-                <td className="small">{MOVE_TYPES[m.type] ?? m.type}</td>
+                <td className="small">
+                  {MOVE_TYPES[m.type] ?? m.type}
+                  {m.clubId && <div className="muted">{clubNames.get(m.clubId) ?? "клуб"}</div>}
+                </td>
                 <td>{m.productId ? <Link href={`/admin/catalog/product/${m.productId}`}>{m.name}</Link> : m.name}</td>
                 <td style={{ textAlign: "right" }} className={m.qty > 0 ? "form-ok" : m.qty < 0 ? "form-error" : "muted"}>
                   {m.type === "COST" ? "—" : m.qty > 0 ? `+${m.qty}` : m.qty}

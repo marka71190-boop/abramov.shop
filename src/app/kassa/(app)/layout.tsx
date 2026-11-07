@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { SignOutButton } from "@/components/SignOutButton";
+import { KassaInstall } from "@/components/pos/KassaInstall";
 import { requireCashier } from "@/lib/viewer";
 
-export const metadata: Metadata = { title: "Касса", robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: "Касса",
+  robots: { index: false, follow: false },
+  manifest: "/kassa/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Касса", statusBarStyle: "black-translucent" },
+};
 export const dynamic = "force-dynamic";
 
 /** Раздел кассира: только касса, без админки */
@@ -29,6 +35,7 @@ export default async function KassaLayout({ children }: { children: React.ReactN
         </div>
       </header>
       <main className="container club-app__main stack" style={{ gap: 16 }}>
+        <KassaInstall />
         {children}
       </main>
     </div>

@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/viewer";
 
 const In = z.object({
   type: z.enum(["RECEIPT", "WRITE_OFF", "INVENTORY"]),
+  clubId: z.string().max(64).nullish(), // клуб со своим учётом; пусто — склад
   note: z.string().trim().max(300).optional(),
   lines: z
     .array(
@@ -33,9 +34,9 @@ export async function saveMoves(raw: unknown): Promise<MoveResult> {
   try {
     const done = await withStockNotices(
       lines.map((l) => l.variantId),
-      () => applyMoves(me.id, type, lines, p.data.note || null),
+      () => applyMoves(me.id, type, lines, p.data.note || null, p.data.clubId || null),
     );
-    await audit(me.id, `stock.${type.toLowerCase()}`, "product_variant", null, { lines: done.length, units: done.reduce((a, d) => a + d.qty, 0) });
+    await audit(me.id, `stock.${type.toLowerCase()}`, "product_variant", null, { lines: done.length, units: done.reduce((a, d) => a + d.qty, 0), club: p.data.clubId || undefined });
     revalidatePath("/", "layout");
     const units = done.reduce((a, d) => a + Math.abs(d.qty), 0);
     return {
@@ -50,5 +51,46 @@ export async function saveMoves(raw: unknown): Promise<MoveResult> {
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Не получилось сохранить" };
+  }
+}
+
+// ---------------------------------------------------------------- остатки по клубам
+
+const TransferIn = z.object({
+  from: z.string().max(64).nullable(), // null — склад
+  to: z.string().max(64).nullable(),
+  note: z.string().trim().max(200).optional(),
+  lines: z.array(z.object({ variantId: z.string().min(1).max(64), qty: z.number().int().min(1).max(100_000) })).min(1, "Добавьте товар").max(300),
+});
+
+export async function transferAction(raw: unknown): Promise<MoveResult> {
+  const me = await requireAdmin();
+  const p = TransferIn.safeParse(raw);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте строки" };
+  const { transferStock, StockError } = await import("@/lib/club-stock");
+  try {
+    const done = await withStockNotices(
+      p.data.lines.map((l) => l.variantId),
+      () => transferStock(me.id, p.data.from, p.data.to, p.data.lines, p.data.note || null),
+    );
+    await audit(me.id, "stock.transfer", "product_variant", null, { from: p.data.from, to: p.data.to, lines: done.length, units: done.reduce((a, d) => a + d.qty, 0) });
+    revalidatePath("/", "layout");
+    return { ok: `Перемещено: ${done.length} поз., ${done.reduce((a, d) => a + d.qty, 0)} шт` };
+  } catch (e) {
+    return { error: e instanceof StockError ? e.message : e instanceof Error ? e.message : "Не получилось переместить" };
+  }
+}
+
+export async function ownStockAction(clubId: string, on: boolean): Promise<MoveResult> {
+  const me = await requireAdmin("OWNER");
+  const { setOwnStock, StockError } = await import("@/lib/club-stock");
+  try {
+    await setOwnStock(String(clubId).slice(0, 64), !!on);
+    await audit(me.id, on ? "stock.club_on" : "stock.club_off", "club", clubId);
+    revalidatePath("/admin/stock/clubs");
+    revalidatePath("/kassa");
+    return { ok: on ? "Учёт клуба включён — привезите товар перемещением со склада" : "Учёт клуба выключен — касса клуба снова продаёт со склада" };
+  } catch (e) {
+    return { error: e instanceof StockError ? e.message : "Не получилось" };
   }
 }

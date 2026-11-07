@@ -2,7 +2,10 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
-import { posCancel, posCreate, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
+import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
+import { approvalReady, PinApprove, type Approval } from "@/components/pos/PinApprove";
+import type { PosCustomer } from "@/lib/pos";
+import { cashMoveAction, posCancel, posCreate, posFindCustomer, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
 
 type Method = "CASH" | "SBP" | "CARD";
 type Line = { o: PickOption; qty: number; price: string };
@@ -10,6 +13,10 @@ type Line = { o: PickOption; qty: number; price: string };
 const fmt = (kop: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(kop / 100) + " ₽";
 const toKop = (v: string) => Math.round(Number(v.replace(",", ".").replace(/\s/g, "")) * 100);
 const PLACE_KEY = "pos-place";
+const norm = (t: string) => t.trim().toLowerCase().replace(/ё/g, "е");
+const floorRub = (kop: number) => Math.floor(kop / 100) * 100;
+/** Как на сервере (lib/pos bonusAvailable): лимит программы и хотя бы 1 ₽ деньгами */
+const bonusAvailable = (total: number, balance: number, maxPct: number) => Math.max(0, Math.min(balance * 100, floorRub((total * maxPct) / 100), floorRub(total - 100)));
 const STAFF_KEY = "pos-staff";
 
 export function PosTerminal({
@@ -18,12 +25,14 @@ export function PosTerminal({
   ykEnabled,
   canEditPrice = true,
   maxDiscountPct = null,
+  approvers = null,
 }: {
   options: PickOption[];
   places: string[];
   ykEnabled: boolean;
   canEditPrice?: boolean;
-  maxDiscountPct?: number | null; // кассир: скидка не больше, %
+  maxDiscountPct?: number | null; // кассир: скидка не больше, % (больше — по PIN менеджера)
+  approvers?: { id: string; name: string }[] | null; // кассир: кто может подтвердить PIN
 }) {
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>([]);
@@ -36,7 +45,15 @@ export function PosTerminal({
   const [pending, start] = useTransition();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [note, setNote] = useState("");
-
+  const [scan, setScan] = useState(false);
+  // Бонусная программа: телефон покупателя
+  const [phone, setPhone] = useState("");
+  const [customer, setCustomer] = useState<PosCustomer | null>(null);
+  const [custError, setCustError] = useState("");
+  const [useBonus, setUseBonus] = useState(false);
+  const [finding, startFind] = useTransition();
+  // Скидка сверх лимита кассира — PIN менеджера
+  const [approval, setApproval] = useState<Approval>({ approverId: "", pin: "" });
 
   const picked = useMemo(() => new Set(lines.map((l) => l.o.id)), [lines]);
   const subtotal = lines.reduce((a, l) => a + (toKop(l.price) || 0) * l.qty, 0);
@@ -46,14 +63,44 @@ export function PosTerminal({
     if (v.endsWith("%")) return Math.round((subtotal * Math.min(100, Math.max(0, Number(v.slice(0, -1).replace(",", ".")) || 0))) / 100);
     return Math.min(subtotal, Math.max(0, toKop(v) || 0));
   })();
-  const total = subtotal - disc;
+  const afterDisc = subtotal - disc;
+  const bonusMax = customer ? bonusAvailable(afterDisc, customer.balance, customer.maxSpendPercent) : 0;
+  const bonusSpent = customer && useBonus ? bonusMax : 0;
+  const total = afterDisc - bonusSpent;
+  const accrue = customer ? floorRub((total * customer.tierPercent) / 100) / 100 : 0;
   const discTooBig = maxDiscountPct != null && disc > Math.round((subtotal * maxDiscountPct) / 100);
+  const needPin = discTooBig && !!approvers;
   const change = given.trim() ? toKop(given) - total : null;
 
+  // Добавить товар; уже есть в чеке — +1 шт. (сканер, повторный выбор)
   const add = (o: PickOption) => {
     setNote("");
-    setLines((ls) => [...ls, { o, qty: 1, price: String(o.price / 100) }]);
+    setLines((ls) => {
+      const i = ls.findIndex((l) => l.o.id === o.id);
+      if (i < 0) return [...ls, { o, qty: 1, price: String(o.price / 100) }];
+      return ls.map((l, n) => (n === i ? { ...l, qty: Math.min(l.qty + 1, l.o.stock) } : l));
+    });
   };
+  /** Код со сканера: артикул товара. Нашли — добавили, вернули название */
+  const onCode = (code: string) => {
+    const o = options.find((x) => x.stock > 0 && x.sku && norm(x.sku) === norm(code));
+    if (!o) return null;
+    const inCart = lines.find((l) => l.o.id === o.id)?.qty ?? 0;
+    if (inCart >= o.stock) return null;
+    add(o);
+    return o.name;
+  };
+
+  function findCustomer() {
+    setCustError("");
+    startFind(async () => {
+      const r = await posFindCustomer(phone);
+      if (r.customer) {
+        setCustomer(r.customer);
+        setUseBonus(false);
+      } else setCustError(r.error ?? "Не нашли");
+    });
+  }
   const upd = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
 
   function reset() {
@@ -64,6 +111,11 @@ export function PosTerminal({
     setSale(null);
     setError("");
     setConfirmCancel(false);
+    setPhone("");
+    setCustomer(null);
+    setCustError("");
+    setUseBonus(false);
+    setApproval({ approverId: "", pin: "" });
   }
 
   function submit() {
@@ -80,8 +132,14 @@ export function PosTerminal({
         method,
         place: null, // место — из смены
         contact: method === "CASH" ? null : contact.trim() || null,
+        customerPhone: customer ? phone : null,
+        useBonus: !!customer && useBonus,
+        approval: needPin ? approval : null,
       });
-      if (r.error) return setError(r.error);
+      if (r.error) {
+        if (r.needPin) setApproval((a) => ({ ...a, pin: "" }));
+        return setError(r.error);
+      }
       setSale(r.sale!);
       router.refresh();
     });
@@ -123,6 +181,8 @@ export function PosTerminal({
       <div className="pos-pay">
         <div className="muted small">Продажа {sale.number}</div>
         <div className="pos-pay__sum">{fmt(sale.total)}</div>
+        {sale.bonusSpent > 0 && <div className="small">и {Math.floor(sale.bonusSpent / 100)} бонусами</div>}
+        {sale.bonusAccrued > 0 && sale.status === "PAID" && <div className="small form-ok-text">Покупателю начислено {Math.floor(sale.bonusAccrued / 100)} бонусов</div>}
         {paid && (
           <>
             <div className="pos-pay__ok" role="status">
@@ -164,7 +224,18 @@ export function PosTerminal({
   return (
     <div className="pos stack" style={{ gap: 14 }}>
       {note && <div className="form-ok">{note}</div>}
-      <VariantPicker options={options.filter((o) => o.stock > 0)} onPick={add} exclude={picked} placeholder="Товар: название или артикул (можно сканером)" />
+      {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
+      <div className="pos-find">
+        <VariantPicker options={options.filter((o) => o.stock > 0)} onPick={add} exclude={picked} placeholder="Товар: название или артикул (можно сканером)" />
+        {!scan && (
+          <button type="button" className="btn btn--line pos-scan-btn" onClick={() => setScan(true)} aria-label="Сканировать штрихкод камерой">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M16 8v8" />
+            </svg>
+            Сканер
+          </button>
+        )}
+      </div>
 
       {lines.length > 0 ? (
         <ul className="pos-lines">
@@ -205,9 +276,43 @@ export function PosTerminal({
           <label className="field" style={{ margin: 0 }}>
             Скидка{maxDiscountPct != null ? ` (до ${maxDiscountPct} %)` : ""}
             <input className="input" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder={maxDiscountPct != null ? `${maxDiscountPct}%` : "500 или 10%"} inputMode="decimal" />
-            {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — только менеджер</span>}
+            {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — {approvers ? "подтверждает менеджер PIN-кодом" : "только менеджер"}</span>}
           </label>
         )}
+      </div>
+      {needPin && <PinApprove approvers={approvers!} value={approval} onChange={setApproval} title={`Скидка ${fmt(disc)} — подтверждение менеджера`} />}
+
+      <div className="pos-customer stack" style={{ gap: 8 }}>
+        {customer ? (
+          <>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div className="small">
+                <b>{customer.name || "Покупатель"}</b> · {customer.phone}
+                <div className="muted">
+                  {customer.balance} бонусов · начислим {customer.tierPercent} % от покупки
+                </div>
+              </div>
+              <button type="button" className="linklike small" onClick={() => (setCustomer(null), setUseBonus(false))}>
+                Убрать
+              </button>
+            </div>
+            <label className={`check ${bonusMax ? "" : "check--off"}`} style={{ margin: 0 }}>
+              <input type="checkbox" checked={useBonus && bonusMax > 0} disabled={!bonusMax} onChange={(e) => setUseBonus(e.target.checked)} />
+              <span>{bonusMax ? `Списать ${bonusMax / 100} бонусов (до ${customer.maxSpendPercent} % покупки)` : "Списать бонусы нельзя: мало на счёте или маленький чек"}</span>
+            </label>
+          </>
+        ) : (
+          <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "nowrap" }}>
+            <label className="field" style={{ margin: 0, flex: 1 }}>
+              Бонусы покупателя — телефон
+              <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" autoComplete="off" />
+            </label>
+            <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} disabled={finding || phone.replace(/\D/g, "").length < 10} onClick={findCustomer}>
+              {finding ? "…" : "Найти"}
+            </button>
+          </div>
+        )}
+        {custError && <div className="small is-loss">{custError}</div>}
       </div>
 
       <div className="pos-methods" role="radiogroup" aria-label="Оплата">
@@ -242,10 +347,13 @@ export function PosTerminal({
       {error && <div className="form-error">{error}</div>}
       <div className="pos-total">
         <div>
-          <div className="muted small">{disc > 0 ? `${fmt(subtotal)} − скидка ${fmt(disc)}` : "К оплате"}</div>
+          <div className="muted small">
+            {disc > 0 || bonusSpent > 0 ? `${fmt(subtotal)}${disc ? ` − скидка ${fmt(disc)}` : ""}${bonusSpent ? ` − бонусы ${fmt(bonusSpent)}` : ""}` : "К оплате"}
+            {customer && accrue > 0 ? ` · +${accrue} бонусов` : ""}
+          </div>
           <div className="pos-total__sum">{fmt(total)}</div>
         </div>
-        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || discTooBig || (method !== "CASH" && total <= 0)} onClick={submit}>
+        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (discTooBig && !(needPin && approvalReady(approval))) || (method !== "CASH" && total <= 0)} onClick={submit}>
           {pending ? "Проводим…" : method === "CASH" ? "Продать за наличные" : "Показать QR"}
         </button>
       </div>
@@ -290,7 +398,19 @@ export function ShiftPanel({
   allowOther,
   askName = false,
 }: {
-  shift: { openedAt: string; place: string | null; staffName?: string | null; opening: number; cash: number; other: number; count: number; pending: number } | null;
+  shift: {
+    openedAt: string;
+    place: string | null;
+    staffName?: string | null;
+    opening: number;
+    cash: number;
+    other: number;
+    count: number;
+    pending: number;
+    moves: number; // выемки (−) и внесения (+)
+    refunds: number; // возвраты наличными из кассы
+    expected: number; // должно быть в кассе
+  } | null;
   places: string[]; // турниры и другие места, где уже продавали
   clubs: { id: string; title: string }[]; // клубы, где может работать продавец
   allowOther: boolean; // можно ли продавать не в клубе (турнир)
@@ -425,7 +545,7 @@ export function ShiftPanel({
     );
   }
 
-  const expected = shift.opening + shift.cash;
+  const expected = shift.expected;
   const diff = counted.trim() ? toKop(counted) - expected : null;
   const time = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short", timeZone: "Europe/Moscow" }).format(new Date(shift.openedAt));
   return (
@@ -436,13 +556,19 @@ export function ShiftPanel({
           {shift.staffName ? ` · ${shift.staffName}` : ""}
           {shift.place ? ` · ${shift.place}` : ""}
           <div className="muted">
-            {shift.count} чек. · наличные {fmt(shift.cash)} · СБП и карта {fmt(shift.other)} · в кассе должно быть <b>{fmt(expected)}</b>
+            {shift.count} чек. · наличные {fmt(shift.cash)} · СБП и карта {fmt(shift.other)}
+            {shift.moves ? ` · выемки/внесения ${shift.moves > 0 ? "+" : "−"}${fmt(Math.abs(shift.moves))}` : ""}
+            {shift.refunds ? ` · возвраты наличными −${fmt(shift.refunds)}` : ""} · в кассе должно быть <b>{fmt(expected)}</b>
           </div>
         </div>
         {!ask && (
-          <button type="button" className="btn btn--line btn--sm" onClick={() => setAsk(true)}>
-            Закрыть смену
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <CashMove kind="out" />
+            <CashMove kind="in" />
+            <button type="button" className="btn btn--line btn--sm" onClick={() => setAsk(true)}>
+              Закрыть смену
+            </button>
+          </div>
         )}
       </div>
       {ask && (
@@ -473,5 +599,54 @@ export function ShiftPanel({
         </form>
       )}
     </div>
+  );
+}
+
+/** Выемка (забрали в сейф, инкассация) или внесение (докинули размен) — в открытой смене */
+function CashMove({ kind }: { kind: "in" | "out" }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<ShiftState, FormData>(async (s, fd) => {
+    const r = await cashMoveAction(s, fd);
+    if (r.ok) {
+      setOpen(false);
+      router.refresh();
+    }
+    return r;
+  }, {});
+  if (!open) {
+    return (
+      <span className="row" style={{ gap: 6, alignItems: "center" }}>
+        {state.ok && <span className="small form-ok-text">{state.ok}</span>}
+        <button type="button" className="btn btn--line btn--sm" onClick={() => setOpen(true)}>
+          {kind === "out" ? "Выемка" : "Внесение"}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <form action={action} className="pos-cashmove stack" style={{ gap: 8 }}>
+      <input type="hidden" name="kind" value={kind} />
+      <b className="small">{kind === "out" ? "Выемка: забираем наличные из кассы" : "Внесение: добавляем наличные в кассу"}</b>
+      <div className="pos-grid">
+        <label className="field" style={{ margin: 0 }}>
+          Сумма, ₽
+          <input className="input" name="amount" inputMode="decimal" autoFocus required />
+        </label>
+        <label className="field" style={{ margin: 0 }}>
+          {kind === "out" ? "Куда" : "Откуда"}
+          <input className="input" name="reason" maxLength={200} placeholder={kind === "out" ? "В сейф, инкассация, владельцу" : "Размен"} required={kind === "out"} />
+        </label>
+      </div>
+      {state.error && <div className="form-error small">{state.error}</div>}
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn btn--gold btn--sm" disabled={pending}>
+          {pending ? "Записываем…" : "Записать"}
+        </button>
+        <button type="button" className="btn btn--line btn--sm" onClick={() => setOpen(false)}>
+          Отмена
+        </button>
+      </div>
+    </form>
   );
 }

@@ -18,7 +18,7 @@ const TEXT: Record<Kind, { qty: string; btn: string; note: string; notePh: strin
   INVENTORY: { qty: "Стало, шт", btn: "Сохранить остатки", note: "Комментарий", notePh: "Пересчёт склада 6 ноября" },
 };
 
-export function MoveForm({ kind, options }: { kind: Kind; options: PickOption[] }) {
+export function MoveForm({ kind, options, clubId = null }: { kind: Kind; options: PickOption[]; clubId?: string | null }) {
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>([]);
   const [note, setNote] = useState("");
@@ -48,7 +48,7 @@ export function MoveForm({ kind, options }: { kind: Kind; options: PickOption[] 
       out.push({ variantId: l.o.id, qty, unitCost });
     }
     start(async () => {
-      const r = await saveMoves({ type: kind, note: note.trim() || undefined, lines: out });
+      const r = await saveMoves({ type: kind, clubId, note: note.trim() || undefined, lines: out });
       setRes(r);
       if (r.ok) {
         setLines([]);

@@ -131,8 +131,14 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                   label="Касса"
                   value={r.pos.revenue}
                   sub
-                  hint={r.pos.revenue ? `наличные ${rub(r.pos.cash)} · СБП ${rub(r.pos.sbp)} · карта ${rub(r.pos.card)}` : undefined}
+                  hint={
+                    r.pos.revenue || r.pos.returns
+                      ? `наличные ${rub(r.pos.cash)} · СБП ${rub(r.pos.sbp)} · карта ${rub(r.pos.card)}${r.pos.returns ? ` · возвраты −${rub(r.pos.returns)} (${num(r.pos.returnsCount)})` : ""}`
+                      : undefined
+                  }
                 />
+                {r.clubs.length > 1 &&
+                  r.clubs.map((c) => <Row key={c.clubId ?? "other"} label={`${c.title} · ${num(c.sales)} чек.`} value={c.revenue} sub />)}
                 {r.service.revenue > 0 && <Row label="Мастерская" value={r.service.revenue} sub />}
                 <Row label="Себестоимость проданного" value={r.cogs} minus hint="по закупочным ценам" />
                 <Row label="Валовая прибыль" value={r.gross} strong />

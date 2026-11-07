@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/copy-zxing.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@types/qrcode": "^1.5.5",
+    "barcode-detector": "^3.2.3",
     "better-auth": "1.7.7",
     "drizzle-orm": "0.45.4",
     "exceljs": "4.4.0",

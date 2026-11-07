@@ -4,7 +4,12 @@ import { Logo } from "@/components/Logo";
 import { getViewer } from "@/lib/viewer";
 import { KassaLoginForm } from "./KassaLoginForm";
 
-export const metadata: Metadata = { title: "Вход в кассу", robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: "Вход в кассу",
+  robots: { index: false, follow: false },
+  manifest: "/kassa/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Касса", statusBarStyle: "black-translucent" },
+};
 export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ login?: string; off?: string }> };

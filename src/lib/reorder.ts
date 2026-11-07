@@ -45,7 +45,7 @@ export async function reorderReport(): Promise<{ rows: ReorderRow[]; lead: numbe
   }>(sql`
     select v.id as variant_id, p.id as product_id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
-      coalesce(v.sku, p.sku) as sku, v.stock, v.cost_price as cost, p.visibility::text as visibility,
+      coalesce(v.sku, p.sku) as sku, v.stock + coalesce((select sum(cs.qty) from club_stock cs where cs.variant_id = v.id), 0)::int as stock, v.cost_price as cost, p.visibility::text as visibility,
       coalesce((select sum(i.quantity) from order_item i join "order" o on o.id = i.order_id
                 where i.variant_id = v.id and o.status in ('PAID','ASSEMBLING','SHIPPED','DELIVERED') and o.paid_at >= ${since}), 0)::int
       + coalesce((select sum(i.quantity) from pos_sale_item i join pos_sale ps on ps.id = i.sale_id

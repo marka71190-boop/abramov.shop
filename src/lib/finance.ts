@@ -20,7 +20,9 @@ export interface FinanceReport {
   from: Date;
   to: Date;
   site: { revenue: number; orders: number; refunds: number; cogs: number; fees: number; delivery: number; invoiceRevenue: number; invoiceOrders: number };
-  pos: { revenue: number; sales: number; cogs: number; fees: number; cash: number; sbp: number; card: number };
+  pos: { revenue: number; sales: number; cogs: number; fees: number; cash: number; sbp: number; card: number; returns: number; returnsCount: number };
+  /** Касса по клубам: выручка за вычетом возвратов */
+  clubs: { clubId: string | null; title: string; revenue: number; sales: number }[];
   service: { revenue: number; count: number; fees: number };
   losses: number; // списания и недостачи по закупке
   expenses: { total: number; byCategory: { category: string; amount: number }[] };
@@ -39,6 +41,18 @@ export interface FinanceReport {
 export async function financeReport(from: Date, to: Date): Promise<FinanceReport> {
   const f = (await getSettings()).finance;
 
+  const [retQ, clubQ] = await Promise.all([
+    db.execute<{ amount: number; cost: number; n: number }>(sql`
+      select coalesce(sum(amount), 0)::bigint as amount, coalesce(sum(cost), 0)::bigint as cost, count(*)::int as n
+      from pos_return where created_at >= ${from} and created_at < ${to}`),
+    db.execute<{ club_id: string | null; name: string | null; address: string | null; revenue: number; sales: number }>(sql`
+      select x.club_id, c.name, c.address, sum(x.revenue)::bigint as revenue, sum(x.sales)::int as sales from (
+        select club_id, total as revenue, 1 as sales from pos_sale where status = 'PAID' and paid_at >= ${from} and paid_at < ${to}
+        union all
+        select ps.club_id, -r.amount, 0 from pos_return r join pos_sale ps on ps.id = r.sale_id where r.created_at >= ${from} and r.created_at < ${to}
+      ) x left join club c on c.id = x.club_id
+      group by x.club_id, c.name, c.address order by sum(x.revenue) desc`),
+  ]);
   const [siteQ, feesQ, itemsQ, posQ, posCogsQ, svcQ, lossQ, expQ, topQ] = await Promise.all([
     db.execute<{ revenue: number; orders: number; refunds: number; delivery: number; inv_revenue: number; inv_orders: number }>(sql`
       select coalesce(sum(o.total), 0)::bigint as revenue, count(*)::int as orders,
@@ -119,7 +133,20 @@ export async function financeReport(from: Date, to: Date): Promise<FinanceReport
     invoiceRevenue: n(site0.inv_revenue),
     invoiceOrders: n(site0.inv_orders),
   };
-  const pos = { revenue: n(pos0.revenue), sales: n(pos0.sales), cogs: n(posCogs0.cogs), fees: n(pos0.fees), cash: n(pos0.cash), sbp: n(pos0.sbp), card: n(pos0.card) };
+  // Возвраты в кассе — в день возврата: минус выручка и минус себестоимость (товар вернулся на остаток)
+  const ret0 = retQ.rows[0];
+  const pos = {
+    revenue: n(pos0.revenue) - n(ret0.amount),
+    sales: n(pos0.sales),
+    cogs: n(posCogs0.cogs) - n(ret0.cost),
+    fees: n(pos0.fees),
+    cash: n(pos0.cash),
+    sbp: n(pos0.sbp),
+    card: n(pos0.card),
+    returns: n(ret0.amount),
+    returnsCount: n(ret0.n),
+  };
+  const clubs = clubQ.rows.map((r) => ({ clubId: r.club_id, title: r.name ? (r.address ? `${r.name} · ${r.address}` : r.name) : "Турнир и другие места", revenue: n(r.revenue), sales: n(r.sales) }));
   const service = { revenue: n(svc0.revenue), count: n(svc0.count), fees: Math.round((n(svc0.online) * f.feeYookassa) / 100) };
   const byCategory = expQ.rows.map((r) => ({ category: r.category, amount: n(r.amount) }));
   const expenses = { total: byCategory.reduce((a, r) => a + r.amount, 0), byCategory };
@@ -136,6 +163,7 @@ export async function financeReport(from: Date, to: Date): Promise<FinanceReport
     from,
     to,
     site,
+    clubs,
     pos,
     service,
     losses,

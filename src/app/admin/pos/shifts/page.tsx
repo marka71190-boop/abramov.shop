@@ -75,7 +75,9 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
               const t = openT.get(sh.id);
               const cash = sh.cashSales ?? t?.cash ?? 0;
               const other = sh.otherSales ?? t?.other ?? 0;
-              const expected = sh.expectedCash ?? sh.openingCash + cash;
+              const moves = sh.cashMoves ?? t?.moves ?? 0;
+              const refunds = sh.cashRefunds ?? t?.refunds ?? 0;
+              const expected = sh.expectedCash ?? sh.openingCash + cash + moves - refunds;
               const diff = sh.countedCash != null ? sh.countedCash - expected : null;
               return (
                 <tr key={sh.id}>
@@ -98,7 +100,11 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{rub(sh.openingCash)}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{rub(cash)}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{rub(other)}</td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{rub(expected)}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    {rub(expected)}
+                    {moves !== 0 && <div className="muted small">выемки/внесения {signed(moves)}</div>}
+                    {refunds > 0 && <div className="muted small">возвраты −{rub(refunds)}</div>}
+                  </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{sh.countedCash != null ? rub(sh.countedCash) : "—"}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }} className={diff ? "is-loss" : diff === 0 ? "form-ok-text" : "muted"}>
                     {diff == null ? "—" : diff === 0 ? "сошлось" : signed(diff)}

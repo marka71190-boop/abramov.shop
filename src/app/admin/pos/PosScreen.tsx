@@ -9,8 +9,11 @@ import { variantOptions } from "@/lib/stock-moves";
 import { getSettings } from "@/lib/settings";
 import { seesMoney, type UserRow } from "@/lib/viewer";
 import { yookassaEnabled } from "@/lib/yookassa";
-import { currentShift, shiftTotals } from "@/lib/pos-shifts";
+import { currentShift, expectedCash, shiftTotals } from "@/lib/pos-shifts";
+import { saleLocation } from "@/lib/club-stock";
+import { pinApprovers } from "@/lib/pin";
 import { CancelSale, PosTerminal, ShiftPanel } from "./PosTerminal";
+import { ReturnPanel } from "./ReturnPanel";
 
 const STATUS: Record<string, string> = {
   PAID: "оплачено",
@@ -28,10 +31,13 @@ function mskToday() {
  * Экран кассы: для админки (/admin/pos) и для кассира (/kassa).
  * Кассир не меняет цены, даёт скидку в пределах лимита, видит только свои продажи и не видит прибыль.
  */
-export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; admin: boolean; readonly?: boolean }) {
+export async function PosScreen({ me, admin, readonly = false, returnNumber = "" }: { me: UserRow; admin: boolean; readonly?: boolean; returnNumber?: string }) {
   const from = mskToday();
-  const [options, clubs, sales, usedPlaces, settings] = await Promise.all([
-    variantOptions(),
+  // Остатки: у клуба смены свой учёт — показываем остаток клуба, иначе склад
+  const shift = readonly ? null : await currentShift(me.id);
+  const loc = await saleLocation(shift?.clubId);
+  const [options, clubs, sales, usedPlaces, settings, approvers] = await Promise.all([
+    variantOptions(loc),
     listClubs().catch(() => []),
     db.query.posSale.findMany({
       where: and(gte(s.posSale.createdAt, from), admin ? undefined : eq(s.posSale.sellerId, me.id)),
@@ -44,6 +50,7 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
       .where(and(isNotNull(s.posSale.place), gte(s.posSale.createdAt, new Date(Date.now() - 90 * 86400_000))))
       .limit(30),
     getSettings(),
+    admin ? Promise.resolve(null) : pinApprovers(),
   ]);
   // Клубы продавца: кассир, закреплённый за клубами, — только они; остальные — любой клуб или турнир
   const fixed = !admin && me.clubIds.length > 0;
@@ -54,7 +61,6 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
   const by = (m: PosMethod) => paid.filter((x) => x.method === m).reduce((a, x) => a + x.total, 0);
   const total = paid.reduce((a, x) => a + x.total, 0);
   const profit = paid.reduce((a, x) => a + x.total - x.cost - x.fee, 0);
-  const shift = readonly ? null : await currentShift(me.id);
   const shiftT = shift ? await shiftTotals(shift.id) : null;
   const [{ noCost }] = await db
     .select({ noCost: sql<number>`count(*)::int` })
@@ -68,6 +74,7 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
         <h1 style={{ margin: 0 }}>Касса</h1>
         {admin && (
           <span className="row small" style={{ gap: 16 }}>
+            <Link href="/admin/pos/pin">Мой PIN →</Link>
             {me.role === "OWNER" && <Link href="/admin/pos/devices">Телефоны кассы →</Link>}
             <Link href="/admin/pos/shifts">Смены и сверка наличных →</Link>
           </span>
@@ -102,6 +109,9 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
                       other: shiftT.other,
                       count: shiftT.count,
                       pending: shiftT.pending,
+                      moves: shiftT.moves,
+                      refunds: shiftT.refunds,
+                      expected: expectedCash(shift.openingCash, shiftT),
                     }
                   : null
               }
@@ -121,8 +131,11 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
                 ykEnabled={yookassaEnabled()}
                 canEditPrice={admin}
                 maxDiscountPct={admin ? null : settings.finance.cashierMaxDiscount}
+                approvers={approvers}
               />
             )}
+            {loc && shift && <p className="muted small" style={{ margin: 0 }}>Остатки — товара этого клуба. Привезти со склада — «Склад» → «Перемещение».</p>}
+            {!readonly && <ReturnPanel key={returnNumber} approvers={approvers} initialNumber={returnNumber} />}
           </section>
         )}
 
@@ -187,9 +200,13 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
                       </div>
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      {!readonly && x.status !== "CANCELLED" && (admin || x.status === "PENDING") && (
-                        <CancelSale id={x.id} paid={x.status === "PAID"} cash={x.method === "CASH"} />
+                      {!readonly && x.status === "PENDING" && <CancelSale id={x.id} paid={false} cash={x.method === "CASH"} />}
+                      {!readonly && x.status === "PAID" && x.refunded < x.total && (
+                        <Link href={`?return=${x.number}#return`} className="small" scroll={false}>
+                          Возврат
+                        </Link>
                       )}
+                      {x.refunded > 0 && <div className="small muted">возврат {rub(x.refunded)}</div>}
                     </td>
                   </tr>
                 ))}
@@ -204,14 +221,14 @@ export async function PosScreen({ me, admin, readonly = false }: { me: UserRow; 
             </table>
           </div>
           <p className="muted small" style={{ margin: 0 }}>
-            Неоплаченный QR отменяется сам через 20 минут — товар возвращается на склад.
+            Неоплаченный QR отменяется сам через 20 минут — товар возвращается на склад. Возврат оплаченной покупки — кнопкой «Возврат»{admin ? "" : " с PIN менеджера"}.
             {admin ? (
               <>
                 {" "}
                 Все движения — в <Link href="/admin/stock/history?t=POS">журнале</Link>.
               </>
             ) : (
-              " Ошиблись в оплаченной продаже — попросите менеджера отменить её."
+              ""
             )}
           </p>
         </section>

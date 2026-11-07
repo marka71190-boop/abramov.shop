@@ -4375,6 +4375,77 @@ button.addr-card[aria-checked="true"] strong {
   }
 }
 
+/* ---- Касса: сканер, бонусы, PIN, выемки */
+.pos-find {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.pos-find .vpick {
+  flex: 1;
+  min-width: 0;
+}
+.pos-scan-btn {
+  flex: none;
+  min-height: 48px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.scanner {
+  display: grid;
+  gap: 10px;
+}
+.scanner__view {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4 / 3;
+  max-height: 46vh;
+}
+.scanner__view video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.scanner__frame {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 32%;
+  bottom: 32%;
+  border: 2px solid var(--c-gold);
+  border-radius: 8px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
+}
+.scanner__hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 14px;
+}
+.pos-customer,
+.pin-approve,
+.pos-cashmove {
+  padding: 12px;
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+}
+.pin-approve {
+  border-color: var(--c-gold);
+}
+.pos-cashmove {
+  flex-basis: 100%;
+}
+.pin-input {
+  letter-spacing: 0.4em;
+  font-size: 20px;
+}
+
 /* ---- Касса: вход телефона и выдача логина */
 .kassa-login {
   min-height: 100dvh;

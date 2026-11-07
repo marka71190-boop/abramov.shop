@@ -39,7 +39,9 @@ export async function periodText(key: "today" | "yesterday" | "week" | "month", 
   if (r.site.orders) parts.push(`  • сайт: ${rub(r.site.revenue)} (${num(r.site.orders)} заказ.)`);
   if (r.pos.sales) {
     const pay = [r.pos.cash ? `нал ${rub(r.pos.cash)}` : "", r.pos.sbp ? `СБП ${rub(r.pos.sbp)}` : "", r.pos.card ? `карта ${rub(r.pos.card)}` : ""].filter(Boolean).join(" · ");
-    parts.push(`  • касса: ${rub(r.pos.revenue)} (${num(r.pos.sales)} чек.${pay ? `; ${pay}` : ""})`);
+    parts.push(`  • касса: ${rub(r.pos.revenue)} (${num(r.pos.sales)} чек.${pay ? `; ${pay}` : ""}${r.pos.returns ? `; возвраты −${rub(r.pos.returns)}` : ""})`);
+    // По клубам — когда касса работает больше чем в одном месте
+    if (r.clubs.length > 1) for (const c of r.clubs) parts.push(`      ◦ ${esc(c.title)}: ${rub(c.revenue)} (${num(c.sales)} чек.)`);
   }
   if (r.service.revenue) parts.push(`  • мастерская: ${rub(r.service.revenue)}`);
   lines.push(...(parts.length ? parts : ["  продаж не было"]));

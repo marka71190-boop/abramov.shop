@@ -39,6 +39,9 @@ export async function register() {
   // Касса: оплаты по QR (СБП/карта) и отмена неоплаченных через 20 минут
   const { pollPosSales } = await import("@/lib/pos");
   setInterval(safe("pos", pollPosSales), 60_000);
+  // Касса: напоминание о незакрытой смене (ночью или через 14 часов)
+  const { remindOpenShifts } = await import("@/lib/pos-shifts");
+  setInterval(safe("pos-shifts", remindOpenShifts), 10 * 60_000);
 
   // Рассылки: очередь писем — партия раз в минуту (и сразу после перезапуска, если рассылка шла)
   const { processCampaigns } = await import("@/lib/campaigns");
