@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   ws.addRow(head);
   for (const it of items) {
     const name = it.variant ? `${it.name}, ${it.variant}` : it.name;
-    const row = [name, ...(withPrice ? [rub(it.price).replace(/ /g, " ")] : []), it.sku, it.url];
+    const row = [name, ...(withPrice ? [rub(it.price).replace(/ /g, " ")] : []), it.code, it.url];
     for (let k = 0; k < it.copies; k++) ws.addRow(row);
   }
   // Всё — текстом, чтобы артикул вроде 0007 не превратился в число

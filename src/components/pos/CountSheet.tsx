@@ -9,8 +9,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { countCancelAction, countSaveAction, countSubmitAction } from "@/app/admin/stock/count/actions";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
 import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
+import { codeMatches } from "@/lib/code-match";
 
-const norm = (t: string) => t.trim().toLowerCase().replace(/ё/g, "е");
 
 export function CountSheet({
   id,
@@ -76,7 +76,7 @@ export function CountSheet({
   };
 
   const onCode = (code: string) => {
-    const o = options.find((x) => x.sku && norm(x.sku) === norm(code));
+    const o = options.find((x) => codeMatches(x, code));
     if (!o) return null;
     bump(o.id, 1);
     return `${o.name} — ${(counts[o.id] ?? 0) + 1} шт`;

@@ -1,10 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
+import { codeMatches } from "@/lib/code-match";
 
 export interface PickOption {
   id: string;
   name: string;
   sku: string | null;
+  barcode?: string | null;
   stock: number;
   price: number;
   cost: number | null;
@@ -36,7 +38,7 @@ export function VariantPicker({
     return options
       .filter((o) => !exclude?.has(o.id))
       .filter((o) => {
-        const hay = norm(`${o.name} ${o.sku ?? ""}`);
+        const hay = norm(`${o.name} ${o.sku ?? ""} ${o.barcode ?? ""}`);
         return words.every((w) => hay.includes(w));
       })
       .slice(0, 12);
@@ -59,7 +61,7 @@ export function VariantPicker({
           if (e.key === "Enter") {
             e.preventDefault();
             // Сканер штрихкода/артикул: точное совпадение артикула — сразу добавляем
-            const exact = options.find((o) => o.sku && norm(o.sku) === norm(q.trim()));
+            const exact = options.find((o) => codeMatches(o, q));
             if (exact) pick(exact);
             else if (list.length === 1) pick(list[0]);
           }

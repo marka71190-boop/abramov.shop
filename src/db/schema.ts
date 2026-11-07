@@ -321,6 +321,8 @@ export const productVariant = pgTable("product_variant", {
     .references(() => product.id, { onDelete: "cascade" }),
   name: text("name").notNull(), // «Чёрный, M»
   sku: text("sku").unique(),
+  // Штрихкод EAN-13: свой магазинный (200…) — сайт выдаёт сам, или заводской с упаковки. Сканер ищет и по нему, и по артикулу
+  barcode: text("barcode").unique(),
   price: integer("price"), // если отличается от цены товара, копейки
   stock: integer("stock").default(0).notNull(),
   costPrice: integer("cost_price"), // закупочная цена за 1 шт., копейки (средняя по приходам); пусто — не указана

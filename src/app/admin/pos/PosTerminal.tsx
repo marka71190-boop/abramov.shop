@@ -6,6 +6,7 @@ import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
 import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
 import type { PosCustomer } from "@/lib/pos";
 import { cashMoveAction, posCancel, posCreate, posFindCustomer, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
+import { codeMatches } from "@/lib/code-match";
 
 type Method = "CASH" | "SBP" | "CARD";
 type Line = { o: PickOption; qty: number; price: string };
@@ -82,9 +83,9 @@ export function PosTerminal({
       return ls.map((l, n) => (n === i ? { ...l, qty: Math.min(l.qty + 1, l.o.stock) } : l));
     });
   };
-  /** Код со сканера: артикул товара. Нашли — добавили, вернули название */
+  /** Код со сканера: штрихкод или артикул товара. Нашли — добавили, вернули название */
   const onCode = (code: string) => {
-    const o = options.find((x) => x.stock > 0 && x.sku && norm(x.sku) === norm(code));
+    const o = options.find((x) => x.stock > 0 && codeMatches(x, code));
     if (!o) return null;
     const inCart = lines.find((l) => l.o.id === o.id)?.qty ?? 0;
     if (inCart >= o.stock) return null;

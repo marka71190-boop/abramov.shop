@@ -26,7 +26,7 @@ export default async function LabelsPrint({ searchParams }: { searchParams: Prom
   const labels = (
     await Promise.all(
       items.map(async (r) => {
-        const item = { name: r.name, variant: r.variant, sku: r.sku, price: r.price, svg: barcodeSvg(r.sku, { height: 40 }), qr: withQr ? await qrSvg(r.url) : null };
+        const item = { name: r.name, variant: r.variant, sku: r.sku ?? r.code, price: r.price, svg: barcodeSvg(r.code, { height: 40 }), qr: withQr ? await qrSvg(r.url) : null };
         return Array.from({ length: r.copies }, () => item);
       }),
     )

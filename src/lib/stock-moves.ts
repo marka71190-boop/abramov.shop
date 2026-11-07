@@ -111,11 +111,12 @@ export async function setCost(tx: Tx, userId: string, variantId: string, cost: n
 
 /** Варианты для выбора в формах прихода и кассы. clubId — остаток этого клуба вместо склада */
 export async function variantOptions(clubId: string | null = null) {
-  const rows = await db.execute<{ id: string; name: string; sku: string | null; stock: number; cost: number | null; price: number; visibility: string; image: string | null }>(sql`
+  const rows = await db.execute<{ id: string; name: string; sku: string | null; barcode: string | null; stock: number; cost: number | null; price: number; visibility: string; image: string | null }>(sql`
     select v.id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
       -- у товара с вариантами артикул товара общий — сканер по нему не поймёт, какой вариант; берём только свой
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then v.sku else coalesce(v.sku, p.sku) end as sku,
+      v.barcode,
       ${clubId ? sql`coalesce((select cs.qty from club_stock cs where cs.club_id = ${clubId} and cs.variant_id = v.id), 0)` : sql`v.stock`} as stock, v.cost_price as cost, coalesce(v.price, p.price) as price, p.visibility::text as visibility,
       (select i.url from product_image i where i.product_id = p.id order by i.sort_order asc limit 1) as image
     from product_variant v join product p on p.id = v.product_id

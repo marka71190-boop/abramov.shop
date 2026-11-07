@@ -7,9 +7,10 @@ interface Row {
   id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   stock: number;
   price: number;
-  ok: boolean; // артикул можно закодировать
+  ok: boolean; // есть что закодировать: штрихкод EAN-13 или артикул латиницей
 }
 
 const FORMATS = [
@@ -30,7 +31,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
   const [pending, start] = useTransition();
 
   const needle = q.trim().toLowerCase();
-  const shown = useMemo(() => rows.filter((r) => !needle || `${r.name} ${r.sku ?? ""}`.toLowerCase().includes(needle)), [rows, needle]);
+  const shown = useMemo(() => rows.filter((r) => !needle || `${r.name} ${r.sku ?? ""} ${r.barcode ?? ""}`.toLowerCase().includes(needle)), [rows, needle]);
   const n = (id: string) => Math.max(0, Math.min(500, Math.trunc(Number(copies[id] ?? 0)) || 0));
   const chosen = rows.filter((r) => r.ok && n(r.id) > 0);
   const total = chosen.reduce((a, r) => a + n(r.id), 0);
@@ -52,7 +53,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
           <li>Ниже укажите, сколько этикеток каждого товара, и нажмите <b>«Файл для NIIMBOT»</b> — таблица скачается на телефон.</li>
           <li>
             Один раз сделайте шаблон в приложении NIIMBOT: новая этикетка <b>50×30 мм</b>, добавьте текст (название), текст (цена), штрихкод (тип{" "}
-            <b>CODE128</b>) и QR-код. Сохраните — дальше этот шаг не нужен.
+            <b>EAN-13</b>) и QR-код. Сохраните — дальше этот шаг не нужен.
           </li>
           <li>
             В шаблоне откройте источник данных → <b>Excel</b>, выберите скачанный файл и привяжите поля к колонкам: «Название», «Цена», «Штрихкод», «Ссылка».
@@ -89,7 +90,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
       <div className="row" style={{ gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label className="field" style={{ flex: "1 1 220px", margin: 0 }}>
           Поиск
-          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название или артикул" />
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название, артикул или штрихкод" />
         </label>
         <button type="button" className="btn btn--line btn--sm" onClick={() => setCopies(Object.fromEntries(shown.filter((r) => r.ok).map((r) => [r.id, String(Math.max(0, r.stock))])))}>
           Сколько на складе
@@ -116,7 +117,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
             {shown.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td>
-                <td className="small">{r.ok ? r.sku : <span className="is-loss">{r.sku ? "русские буквы в артикуле" : "нет артикула"}</span>}</td>
+                <td className="small">{r.barcode ?? (r.ok ? r.sku : <span className="is-loss">{r.sku ? "русские буквы в артикуле" : "нет артикула"}</span>)}</td>
                 <td style={{ textAlign: "right" }}>{r.stock}</td>
                 <td style={{ textAlign: "right" }}>
                   <input

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { canBarcode } from "@/lib/barcode";
+import { canBarcode, isEan13 } from "@/lib/barcode";
+import { ensureShopBarcodes } from "@/lib/shop-barcodes";
 import { variantOptions } from "@/lib/stock-moves";
 import { requireAdmin } from "@/lib/viewer";
 import { LabelPicker } from "./LabelPicker";
@@ -10,10 +11,11 @@ export const dynamic = "force-dynamic";
 
 export default async function LabelsPage() {
   await requireAdmin();
+  await ensureShopBarcodes();
   const options = await variantOptions();
   const rows = options
     .filter((o) => o.visibility !== "DRAFT" || o.stock > 0)
-    .map((o) => ({ id: o.id, name: o.name, sku: o.sku, stock: o.stock, price: o.price, ok: canBarcode(o.sku) }));
+    .map((o) => ({ id: o.id, name: o.name, sku: o.sku, stock: o.stock, price: o.price, ok: isEan13(o.barcode) || canBarcode(o.sku), barcode: o.barcode }));
   const missing = rows.filter((r) => !r.ok).length;
   return (
     <>

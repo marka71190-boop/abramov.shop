@@ -22,9 +22,37 @@ export function code128(value: string): number[] {
   return [...codes, check, STOP].flatMap((c) => [...P[c]].map(Number));
 }
 
-/** SVG штрихкода: высота в модулях, тихие зоны по 10 модулей с краёв */
+// ---------- EAN-13: 13 цифр, 95 модулей — короче Code 128 и надёжнее читается с маленькой этикетки ----------
+const L = ["0001101", "0011001", "0010011", "0111101", "0100011", "0110001", "0101111", "0111011", "0110111", "0001011"];
+const G = L.map((c) => [...c].map((b) => (b === "0" ? "1" : "0")).reverse().join(""));
+const R = L.map((c) => [...c].map((b) => (b === "0" ? "1" : "0")).join(""));
+const PARITY = ["LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"];
+
+/** Контрольная цифра EAN-13 по первым 12 */
+export function ean13Check(d12: string) {
+  const sum = [...d12].reduce((a, c, i) => a + Number(c) * (i % 2 ? 3 : 1), 0);
+  return String((10 - (sum % 10)) % 10);
+}
+export const isEan13 = (v: string | null | undefined): v is string => !!v && /^\d{13}$/.test(v) && ean13Check(v.slice(0, 12)) === v[12];
+
+/** Магазинный штрихкод: 200 + 9 цифр номера + контрольная (диапазон 200–299 — для внутреннего учёта) */
+export const shopEan = (n: number) => {
+  const d12 = `200${String(n).padStart(9, "0")}`;
+  return d12 + ean13Check(d12);
+};
+
+/** Последовательность ширин модулей EAN-13 (полоса, пробел, …) */
+function ean13(value: string): number[] {
+  const d = [...value].map(Number);
+  const bits = "101" + d.slice(1, 7).map((x, i) => (PARITY[d[0]][i] === "L" ? L[x] : G[x])).join("") + "01010" + d.slice(7).map((x) => R[x]).join("") + "101";
+  const out: number[] = [];
+  for (let i = 0, run = 1; i < bits.length; i++, run++) if (bits[i] !== bits[i + 1]) (out.push(run), (run = 0));
+  return out;
+}
+
+/** SVG штрихкода: высота в модулях, тихие зоны по 10 модулей с краёв. 13 цифр с верной контрольной — EAN-13, иначе Code 128 */
 export function barcodeSvg(value: string, opts: { height?: number } = {}) {
-  const widths = code128(value);
+  const widths = isEan13(value) ? ean13(value) : code128(value);
   const quiet = 10;
   const total = widths.reduce((a, w) => a + w, 0) + quiet * 2;
   const h = opts.height ?? 40;
