@@ -2,10 +2,14 @@
 /**
  * Сканер штрихкодов камерой телефона. Android (Chrome) распознаёт сам, остальные — через zxing (wasm
  * со своего сайта, /zxing/zxing_reader.wasm). Сканирует подряд: навели — товар в чеке, можно следующий.
+ *
+ * iPhone: камера не фокусируется ближе 15–20 см, а на таком расстоянии маленькая этикетка (5×3 см) в кадре
+ * 1280×720 слишком мелкая — штрихкод не читается. Поэтому берём Full HD, приближение ×2 (если камера даёт)
+ * и кнопку «Сфотографировать»: обычное фото в полном разрешении читается почти всегда.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Detector = { detect: (src: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+type Detector = { detect: (src: HTMLVideoElement | HTMLCanvasElement | ImageBitmap) => Promise<{ rawValue: string }[]> };
 
 const FORMATS = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e", "code_39", "qr_code"];
 
@@ -37,11 +41,35 @@ function signal(ok: boolean) {
   } catch {}
 }
 
+/** Фото с камеры → холст не больше 2400 px по длинной стороне (12 Мп iPhone распознаётся долго) */
+async function photoCanvas(file: File) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+type ZoomTrack = Omit<MediaStreamTrack, "getCapabilities"> & { getCapabilities?: () => { zoom?: { min: number; max: number } } };
+
 export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => string | null; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<{ text: string; ok: boolean } | null>(null);
   const [ready, setReady] = useState(false);
+  const [zoom, setZoom] = useState<{ track: ZoomTrack; max: number; value: number } | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const detectorRef = useRef<Promise<Detector> | null>(null);
+  const getDetector = () => (detectorRef.current ??= makeDetector());
   const seen = useRef<{ code: string; at: number }>({ code: "", at: 0 });
   const handler = useRef(onCode);
   handler.current = onCode;
@@ -64,24 +92,38 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
     (async () => {
       if (!navigator.mediaDevices?.getUserMedia) return setError("Камера недоступна в этом браузере — введите артикул вручную");
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        // Full HD: на 720p этикетку 5×3 см приходится подносить ближе, чем камера умеет фокусироваться
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       } catch {
         return setError("Нет доступа к камере. Разрешите камеру для сайта в настройках браузера и попробуйте ещё раз");
       }
       if (stop || !video.current) return stream.getTracks().forEach((t) => t.stop());
       video.current.srcObject = stream;
       await video.current.play().catch(() => {});
+      // Приближение ×2, если камера умеет: штрихкод крупнее, а держать можно на расстоянии фокуса
+      const track = stream.getVideoTracks()[0] as unknown as ZoomTrack | undefined;
+      const zc = track?.getCapabilities?.().zoom;
+      if (track && zc && zc.max >= 1.5) {
+        const value = Math.min(2, zc.max);
+        await track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] }).catch(() => {});
+        setZoom({ track, max: Math.min(zc.max, 4), value });
+      }
       let detector: Detector;
       try {
-        detector = await makeDetector();
+        detector = await getDetector();
       } catch {
         return setError("Не получилось запустить распознавание — обновите страницу");
       }
       setReady(true);
+      let fails = 0;
       const tick = async () => {
         if (stop || !video.current) return;
         if (video.current.readyState >= 2) {
-          const codes = await detector.detect(video.current).catch(() => []);
+          const codes = await detector.detect(video.current).catch(() => {
+            fails++;
+            return [];
+          });
+          if (fails >= 5) return setError("Распознавание не запустилось — обновите страницу или сфотографируйте штрихкод кнопкой ниже");
           const code = codes.find((c) => c.rawValue?.trim())?.rawValue.trim();
           if (code) handle(code);
         }
@@ -96,6 +138,34 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
     };
   }, [handle]);
 
+  const setZoomTo = (value: number) => {
+    if (!zoom) return;
+    void zoom.track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] }).catch(() => {});
+    setZoom({ ...zoom, value });
+  };
+
+  /** Обычное фото: полное разрешение и автофокус камеры телефона — читается даже мелкий штрихкод */
+  const fromPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const [detector, canvas] = await Promise.all([getDetector(), photoCanvas(file)]);
+      const codes = await detector.detect(canvas);
+      const code = codes.find((c) => c.rawValue?.trim())?.rawValue.trim();
+      if (code) {
+        seen.current = { code: "", at: 0 }; // фото — осознанное действие: тот же товар можно добавить ещё раз
+        handle(code);
+      } else {
+        signal(false);
+        setLast({ text: "На фото не нашли штрихкод — снимите ближе, чтобы он был по всей ширине кадра и в фокусе", ok: false });
+      }
+    } catch {
+      setLast({ text: "Не получилось прочитать фото — попробуйте ещё раз", ok: false });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   return (
     <div className="scanner" role="dialog" aria-label="Сканер штрихкодов">
       <div className="scanner__view">
@@ -109,8 +179,34 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
           {last.text}
         </div>
       )}
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <span className="muted small">Наведите на штрихкод — товар добавится в чек. Ещё одна штука — уведите камеру и наведите снова.</span>
+      {zoom && (
+        <div className="row" style={{ gap: 6 }} role="group" aria-label="Приближение">
+          {[1, 2, 3].filter((z) => z <= zoom.max + 0.01).map((z) => (
+            <button key={z} type="button" className={`btn btn--sm ${Math.abs(zoom.value - z) < 0.1 ? "btn--gold" : "btn--line"}`} onClick={() => setZoomTo(z)}>
+              ×{z}
+            </button>
+          ))}
+        </div>
+      )}
+      <span className="muted small">
+        Держите телефон в 15–20 см, штрихкод — поперёк рамки, при хорошем свете. Ещё одна штука — уведите камеру и наведите снова. Не ловит — нажмите
+        «Сфотографировать».
+      </span>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <label className={`btn btn--line btn--sm${photoBusy ? " is-busy" : ""}`} style={{ cursor: "pointer" }}>
+          {photoBusy ? "Читаем фото…" : "Сфотографировать"}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            disabled={photoBusy}
+            onChange={(e) => {
+              void fromPhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
         <button type="button" className="btn btn--gold btn--sm" onClick={onClose}>
           Готово
         </button>
