@@ -7,6 +7,7 @@ import { goal } from "@/lib/track";
 import { rub } from "@/lib/format";
 import { ecommerce } from "@/lib/track";
 import { Lightbox } from "./Lightbox";
+import { sized, srcSetFor } from "@/lib/img";
 
 export interface GalleryImage {
   url: string;
@@ -61,7 +62,15 @@ export function Gallery({ images, badge }: { images: GalleryImage[]; badge?: str
         }}
         aria-label={images.length > 1 ? `Фото ${i + 1} из ${images.length}` : undefined}
       >
-        <img src={cur.url} alt={cur.alt} onClick={() => setOpen(true)} style={{ cursor: "zoom-in" }} />
+        <img
+          src={sized(cur.url, 1200)}
+          srcSet={srcSetFor(cur.url, [640, 1200])}
+          sizes="(max-width: 900px) 100vw, 600px"
+          alt={cur.alt}
+          fetchPriority={i === 0 ? "high" : undefined}
+          onClick={() => setOpen(true)}
+          style={{ cursor: "zoom-in" }}
+        />
         {badge && <span className="tag">{badge}</span>}
         {long && (
           <button type="button" className="gallery__long" onClick={() => setOpen(true)}>
@@ -92,7 +101,7 @@ export function Gallery({ images, badge }: { images: GalleryImage[]; badge?: str
         <div className="gallery__thumbs" role="tablist" aria-label="Фото товара">
           {images.map((im, n) => (
             <button key={im.url + n} type="button" role="tab" aria-selected={n === i} onClick={() => setI(n)}>
-              <img src={im.url} alt="" loading="lazy" />
+              <img src={sized(im.url, 160)} alt="" loading="lazy" />
             </button>
           ))}
         </div>
@@ -193,7 +202,7 @@ export function ProductView({
                     title={x.stock <= 0 ? "Нет в наличии" : undefined}
                     data-out={x.stock <= 0 || undefined}
                   >
-                    {thumb && <img src={thumb.url} alt="" />}
+                    {thumb && <img src={sized(thumb.url, 160)} alt="" />}
                     <span>{x.name}</span>
                   </button>
                 );

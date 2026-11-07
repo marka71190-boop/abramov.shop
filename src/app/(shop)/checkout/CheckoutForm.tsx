@@ -17,6 +17,7 @@ import { prettyPhone } from "@/lib/format";
 import { CountryField, type CountryValue } from "@/components/CountryField";
 import { checkTin, countryMode, MANUAL_CODE, tinRule } from "@/lib/countries";
 import type { ForeignConfig } from "@/lib/foreign";
+import { sized } from "@/lib/img";
 
 interface Props {
   user: { name: string; phone: string; email: string; bonus: number };
@@ -687,7 +688,7 @@ export function CheckoutForm({
         <ul className="summary__items">
           {quote?.lines.map((l) => (
             <li key={l.variantId}>
-              {l.image ? <img src={l.image} alt="" /> : <span />}
+              {l.image ? <img src={sized(l.image, 160)} alt="" /> : <span />}
               <span>
                 {l.name}
                 {l.variantName ? `, ${l.variantName}` : ""}

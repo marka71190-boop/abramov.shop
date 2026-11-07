@@ -8,10 +8,12 @@ interface Props {
   sort: string;
   showSearch: boolean;
   priceRange: { min: number; max: number } | null;
+  /** Сколько фильтров включено — число на кнопке «Фильтры» (на телефоне) */
+  activeCount?: number;
 }
 
 /** Сортировка и фильтры каталога. Меняют адрес страницы — фильтры можно отправить ссылкой. */
-export function CatalogFilters({ sorts, sort, showSearch, priceRange }: Props) {
+export function CatalogFilters({ sorts, sort, showSearch, priceRange, activeCount = 0 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -89,8 +91,11 @@ export function CatalogFilters({ sorts, sort, showSearch, priceRange }: Props) {
           ))}
         </select>
       </label>
+      <label htmlFor="cf-more" className="btn btn--line btn--sm cf-more-btn" role="button" aria-controls="cf-more">
+        Фильтры{activeCount ? ` · ${activeCount}` : ""}
+      </label>
       <form
-        className="cfilters__field"
+        className="cfilters__field cfilters__pricef"
         onSubmit={(e) => {
           e.preventDefault();
           applyPrice();

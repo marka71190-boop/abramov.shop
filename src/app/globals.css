@@ -13,7 +13,7 @@
   --c-line-3: rgba(255, 255, 255, 0.24);
   --c-text: #f3f2ef;
   --c-muted: #a3a3a8;
-  --c-dim: #6e6e74;
+  --c-dim: #8a8a91; /* контраст 5:1 на тёмном фоне — читается на телефоне при солнце */
   --c-gold: #dcbf83;
   --c-gold-hi: #ecd39f;
   --c-gold-soft: rgba(220, 191, 131, 0.07);
@@ -7389,4 +7389,38 @@ tr.is-muted td {
 }
 .set-card__benefit {
   color: var(--c-gold-hi);
+}
+
+/* Каталог на телефоне: цена, «в наличии» и характеристики — под кнопкой «Фильтры» */
+.cfilters .cf-more-btn {
+  display: none;
+}
+@media (max-width: 700px) {
+  .cfilters .cf-more-btn {
+    display: inline-flex;
+    align-self: flex-end;
+    min-height: 44px;
+  }
+  .cfilters__field:has(.select) {
+    flex: 1 1 0;
+  }
+  .cfilters__field .select {
+    min-width: 0;
+    width: 100%;
+  }
+  .cf-more:checked ~ .cfilters .cf-more-btn {
+    border-color: var(--c-gold);
+    color: var(--c-gold);
+  }
+  .cf-more:not(:checked) ~ .cfilters .cfilters__pricef,
+  .cf-more:not(:checked) ~ .cfilters .cfilters__stock,
+  .cf-more:not(:checked) ~ .facets {
+    display: none;
+  }
+}
+
+/* Ссылки в подвале — зона нажатия больше, а вёрстка та же */
+.footer__col a {
+  padding-block: 5px;
+  margin-block: -5px;
 }

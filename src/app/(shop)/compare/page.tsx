@@ -7,6 +7,7 @@ import { getPublicProductsByIds } from "@/lib/catalog";
 import { rub } from "@/lib/format";
 import { ratingsFor } from "@/lib/reviews";
 import { getViewer, isAdmin } from "@/lib/viewer";
+import { sized } from "@/lib/img";
 
 export const metadata: Metadata = { title: "Сравнение товаров", robots: { index: false } };
 
@@ -56,7 +57,7 @@ export default async function ComparePage({ searchParams }: Props) {
               <th />
               {products.map((p) => (
                 <th key={p.id}>
-                  <Link href={`/product/${p.slug}`}>{p.image ? <img src={p.image.url} alt={p.image.alt} /> : null}</Link>
+                  <Link href={`/product/${p.slug}`}>{p.image ? <img src={sized(p.image.url, 320)} alt={p.image.alt} /> : null}</Link>
                   <div style={{ marginTop: 8 }}>
                     <Link href={`/product/${p.slug}`}>{p.name}</Link>
                   </div>

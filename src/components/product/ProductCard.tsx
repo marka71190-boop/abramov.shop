@@ -5,6 +5,7 @@ import { rub } from "@/lib/format";
 import type { RatingInfo } from "@/lib/reviews";
 import { FavoriteButton } from "./FavoriteButton";
 import { Stars } from "./Stars";
+import { sized, srcSetFor } from "@/lib/img";
 
 interface CardVariant {
   id: string;
@@ -29,7 +30,8 @@ interface CardProduct {
 
 const MAX_CHIPS = 6;
 
-export function ProductCard({ p, rating, favorite }: { p: CardProduct; rating?: RatingInfo; favorite: boolean }) {
+/** eager — карточка в первом ряду: фото грузим сразу, без отложенной загрузки */
+export function ProductCard({ p, rating, favorite, eager }: { p: CardProduct; rating?: RatingInfo; favorite: boolean; eager?: boolean }) {
   const variants = p.variants ?? [];
   const multi = variants.length > 1;
   const [hover, setHover] = useState<CardVariant | null>(null);
@@ -44,7 +46,16 @@ export function ProductCard({ p, rating, favorite }: { p: CardProduct; rating?: 
     <div className="pcard-wrap">
       <div className="pcard">
         <Link href={href(hover ?? undefined)} className="pcard__link" aria-label={p.name}>
-          {shown ? <img className="pcard__img" src={shown} alt={p.image?.alt ?? p.name} /> : <div className="pcard__img" />}
+          {shown ? <img
+              className="pcard__img"
+              src={sized(shown, 640)}
+              srcSet={srcSetFor(shown, [320, 640])}
+              sizes="(max-width: 700px) 50vw, 300px"
+              alt={p.image?.alt ?? p.name}
+              loading={eager ? undefined : "lazy"}
+              fetchPriority={eager ? "high" : undefined}
+              decoding="async"
+            /> : <div className="pcard__img" />}
         </Link>
         <div className="pcard__body">
           <Link href={href()} className="pcard__name">
@@ -71,7 +82,7 @@ export function ProductCard({ p, rating, favorite }: { p: CardProduct; rating?: 
                   onMouseEnter={() => setHover(v)}
                   onFocus={() => setHover(v)}
                 >
-                  {v.image && <img src={v.image} alt="" />}
+                  {v.image && <img src={sized(v.image, 160)} alt="" loading="lazy" />}
                   <span>{v.name}</span>
                 </Link>
               ))}

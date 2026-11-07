@@ -189,6 +189,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </div>
         <div className="row-line">
           <div>
+            <div>Поисковики · Яндекс Вебмастер и Google Search Console</div>
+            <div className="muted small">
+              {process.env.YANDEX_VERIFICATION && process.env.GOOGLE_SITE_VERIFICATION
+                ? "Права на сайт подтверждены мета-тегом. Карта сайта для добавления: "
+                : "Без этого Яндекс и Google находят сайт медленно. Добавьте сайт в webmaster.yandex.ru и search.google.com/search-console, выберите проверку «Мета-тег» и вставьте код из content=\"…\" в Timeweb: YANDEX_VERIFICATION и GOOGLE_SITE_VERIFICATION. После перезапуска нажмите «Проверить» и добавьте карту сайта: "}
+              <code>{SITE.url}/sitemap.xml</code>
+            </div>
+          </div>
+          <span className={`pill ${process.env.YANDEX_VERIFICATION && process.env.GOOGLE_SITE_VERIFICATION ? "pill--ok" : "pill--bad"}`}>
+            {process.env.YANDEX_VERIFICATION && process.env.GOOGLE_SITE_VERIFICATION ? "подключены" : process.env.YANDEX_VERIFICATION || process.env.GOOGLE_SITE_VERIFICATION ? "частично" : "не подключены"}
+          </span>
+        </div>
+        <div className="row-line">
+          <div>
             <div>Яндекс Карты · пункты выдачи на карте</div>
             <div className="muted small">
               {process.env.YANDEX_MAPS_KEY

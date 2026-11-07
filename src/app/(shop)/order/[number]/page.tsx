@@ -22,6 +22,7 @@ import { expectedReady, productionEvents, STAGE_LABEL } from "@/lib/production";
 import { clubMapUrl, getClub } from "@/lib/clubs";
 import { fmtDate } from "@/lib/format";
 import { countryText } from "@/lib/foreign";
+import { sized } from "@/lib/img";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -238,7 +239,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <h2>Состав</h2>
           {items.map((i) => (
             <div key={i.id} className="order-item">
-              {i.product?.images[0] ? <img src={i.product.images[0].url} alt="" /> : <span />}
+              {i.product?.images[0] ? <img src={sized(i.product.images[0].url, 160)} alt="" /> : <span />}
               <div style={{ flex: 1 }}>
                 {i.product && !i.spec ? <Link href={`/product/${i.product.slug}`}>{i.name}</Link> : i.name}
                 {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}

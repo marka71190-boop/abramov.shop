@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   applicationName: SITE.name,
   appleWebApp: { capable: true, title: SITE.name, statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
+  // Подтверждение прав на сайт в Яндекс Вебмастере и Google Search Console (код из мета-тега — в переменные Timeweb)
+  verification: {
+    yandex: process.env.YANDEX_VERIFICATION || undefined,
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+  },
 };
 
 export const viewport: Viewport = {

@@ -5,6 +5,7 @@ import { useCart } from "@/components/cart/CartProvider";
 import { rub } from "@/lib/format";
 import { goal } from "@/lib/track";
 import type { BundleCard } from "@/lib/bundles";
+import { sized } from "@/lib/img";
 
 /** Набор на витрине: коллаж товаров, состав, цена набора и одна кнопка «в корзину» */
 export function SetCard({ set: b, level }: { set: BundleCard; level: string | null }) {
@@ -23,7 +24,7 @@ export function SetCard({ set: b, level }: { set: BundleCard; level: string | nu
   return (
     <article className="set-card">
       <div className={`set-card__pics set-card__pics--${Math.max(1, pics.length)}`} aria-hidden>
-        {pics.length ? pics.map((i) => <img key={i.productId} src={i.image!} alt="" loading="lazy" />) : <span className="ph" />}
+        {pics.length ? pics.map((i) => <img key={i.productId} src={sized(i.image!, 320)} alt="" loading="lazy" />) : <span className="ph" />}
         <span className="set-card__save">−{b.percent}%</span>
       </div>
       <div className="set-card__body">

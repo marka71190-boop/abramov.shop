@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconArrow, IconSearch } from "@/components/Icons";
 import { rub } from "@/lib/format";
+import { sized } from "@/lib/img";
 
 interface Suggest {
   products: {
@@ -182,7 +183,7 @@ export function HeaderSearch({ categories }: { categories: { slug: string; name:
                       {results.map((p, i) => (
                         <li key={p.slug} role="option" id={`sr-${i}`} aria-selected={i === active}>
                           <Link href={`/product/${p.slug}`} className="search__item" data-active={i === active || undefined}>
-                            {p.image ? <img src={p.image} alt="" /> : <span className="search__noimg" />}
+                            {p.image ? <img src={sized(p.image, 160)} alt="" /> : <span className="search__noimg" />}
                             <span className="search__name">
                               {p.name}
                               {!p.inStock && <span className="muted small"> · нет в наличии</span>}

@@ -17,6 +17,10 @@ import { PromoSlider } from "@/components/banners/PromoSlider";
 import { getViewer } from "@/lib/viewer";
 import { ldJson } from "@/lib/seo";
 import { SITE } from "@/lib/site";
+import { sized, srcSetFor } from "@/lib/img";
+
+/** Главная — основной адрес сайта для поисковиков (без меток рекламы и рассылок) */
+export const metadata = { alternates: { canonical: "/" } };
 
 type Card = Awaited<ReturnType<typeof getNewArrivals>>[number];
 
@@ -151,7 +155,7 @@ export default async function HomePage() {
           <div className="cats">
             {categories.map((c, i) => (
               <Link key={c.id} href={`/catalog/${c.slug}`} className="cat">
-                {c.image && <img className="cat__img" src={c.image} alt="" />}
+                {c.image && <img className="cat__img" src={sized(c.image, 640)} alt="" loading="lazy" decoding="async" />}
                 <span className="cat__num">{String(i + 1).padStart(2, "0")}</span>
                 <span className="cat__row">
                   <span className="cat__name">{c.name}</span>
@@ -190,7 +194,7 @@ export default async function HomePage() {
         <section id="drop" className="container section">
           <div className="drop">
             <div className="drop__media">
-              {drop.image && <img src={drop.image.url} alt={drop.image.alt} />}
+              {drop.image && <img src={sized(drop.image.url, 1200)} srcSet={srcSetFor(drop.image.url, [640, 1200])} sizes="(max-width: 900px) 100vw, 600px" alt={drop.image.alt} loading="lazy" decoding="async" />}
               <span className="tag">Limited</span>
             </div>
             <div className="drop__body">

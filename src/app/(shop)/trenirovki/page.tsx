@@ -5,6 +5,7 @@ import { listClubs } from "@/lib/clubs";
 import { CANCEL_HOURS, myBookings, publicCoaches, TRIAL_LABEL, upcomingSlots } from "@/lib/trainings";
 import { getViewer } from "@/lib/viewer";
 import { Schedule } from "./Schedule";
+import { sized } from "@/lib/img";
 
 export const metadata: Metadata = {
   title: "Тренировки по бильярду в клубах",
@@ -59,7 +60,7 @@ export default async function TrainingsPage({ searchParams }: Props) {
           <div className="coach-grid">
             {shownCoaches.map((c) => (
               <Link key={c.userId} href={`/trenirovki/${c.slug}`} className="coach-card">
-                <div className="coach-card__photo">{c.photo ? <img src={c.photo} alt={c.displayName} loading="lazy" /> : <span aria-hidden>{c.displayName[0]}</span>}</div>
+                <div className="coach-card__photo">{c.photo ? <img src={sized(c.photo, 320)} alt={c.displayName} loading="lazy" /> : <span aria-hidden>{c.displayName[0]}</span>}</div>
                 <b>{c.displayName}</b>
                 {c.title && <span className="small muted">{c.title}</span>}
                 <span className="small">{c.games}</span>

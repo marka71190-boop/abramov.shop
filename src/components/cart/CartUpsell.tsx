@@ -5,6 +5,7 @@ import { rub } from "@/lib/format";
 import { ecommerce, goal } from "@/lib/track";
 import { useCart } from "./CartProvider";
 import { cartUpsellAction } from "./upsell-action";
+import { sized } from "@/lib/img";
 
 type Item = Awaited<ReturnType<typeof cartUpsellAction>>[number];
 
@@ -34,7 +35,7 @@ export function CartUpsell() {
       <div className="upsell">
         {items.map((it) => (
           <div key={it.id} className="upsell__item">
-            <Link href={`/product/${it.slug}`}>{it.image ? <img src={it.image} alt="" /> : <span className="ph" />}</Link>
+            <Link href={`/product/${it.slug}`}>{it.image ? <img src={sized(it.image, 320)} alt="" loading="lazy" /> : <span className="ph" />}</Link>
             <div className="stack" style={{ gap: 6, minWidth: 0 }}>
               <Link href={`/product/${it.slug}`} className="upsell__name">
                 {it.name}

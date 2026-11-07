@@ -5,6 +5,7 @@ import { QtyStepper } from "./AddToCart";
 import { useCart } from "./CartProvider";
 import { useQuote } from "./useQuote";
 import { CartUpsell } from "./CartUpsell";
+import { sized } from "@/lib/img";
 
 export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerItem: number }) {
   const cart = useCart();
@@ -44,7 +45,7 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
           : lines.map((l) => (
               <div key={l.variantId} className="cart-line">
                 <Link href={l.href ?? `/product/${l.slug}`} className="cart-line__img">
-                  {l.image ? <img src={l.image} alt="" /> : null}
+                  {l.image ? <img src={sized(l.image, 160)} alt="" /> : null}
                 </Link>
                 <div className="cart-line__info">
                   <Link href={l.href ?? `/product/${l.slug}`} className="cart-line__name">

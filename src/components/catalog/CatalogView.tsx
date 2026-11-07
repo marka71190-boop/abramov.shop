@@ -94,11 +94,14 @@ export async function CatalogView({ basePath, params, raw, viewer, isAll, catego
       .map(([k, v]) => [k, one(v)] as const)
       .filter(([k, v]) => v && k !== "page" && !skip.includes(k));
   const filtered = !!params.q || hasFilters;
+  // На телефоне цена, «в наличии» и характеристики свёрнуты под кнопку «Фильтры» — товары видны сразу
+  const activeCount = (params.min || params.max ? 1 : 0) + (params.inStock ? 1 : 0) + Object.keys(params.attrs ?? {}).length + Object.keys(params.ranges ?? {}).length;
 
   return (
     <>
+      <input type="checkbox" id="cf-more" className="cf-more" defaultChecked={activeCount > 0} hidden />
       <Suspense fallback={<div className="cfilters" />}>
-        <CatalogFilters sorts={sorts} sort={res.sort} showSearch={isAll} priceRange={res.priceRange} />
+        <CatalogFilters sorts={sorts} sort={res.sort} showSearch={isAll} priceRange={res.priceRange} activeCount={activeCount} />
       </Suspense>
 
       {isAll && res.categories.length > 1 && (
@@ -197,8 +200,8 @@ export async function CatalogView({ basePath, params, raw, viewer, isAll, catego
       ) : (
         <>
           <div className="products">
-            {res.items.map((p) => (
-              <ProductCard key={p.id} p={p} rating={ratings.get(p.id)} favorite={favs.has(p.id)} />
+            {res.items.map((p, n) => (
+              <ProductCard key={p.id} p={p} eager={n < 2 && (params.page ?? 1) === 1} rating={ratings.get(p.id)} favorite={favs.has(p.id)} />
             ))}
           </div>
           {res.hasMore && (

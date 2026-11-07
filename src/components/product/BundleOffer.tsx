@@ -5,6 +5,7 @@ import { useCart } from "@/components/cart/CartProvider";
 import { rub } from "@/lib/format";
 import { goal } from "@/lib/track";
 import type { BundleCard } from "@/lib/bundles";
+import { sized } from "@/lib/img";
 
 /** «Вместе дешевле»: комплект в карточке товара */
 export function BundleOffer({ bundle: b }: { bundle: BundleCard }) {
@@ -39,7 +40,7 @@ export function BundleOffer({ bundle: b }: { bundle: BundleCard }) {
               </span>
             )}
             <Link href={`/product/${it.slug}`} className="bundle__item">
-              {it.image ? <img src={it.image} alt="" loading="lazy" /> : <span className="ph" />}
+              {it.image ? <img src={sized(it.image, 160)} alt="" loading="lazy" /> : <span className="ph" />}
               <span className="bundle__name">{it.name}</span>
               <span className="small muted">{rub(it.price)}</span>
             </Link>

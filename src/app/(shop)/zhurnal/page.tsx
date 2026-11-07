@@ -4,6 +4,7 @@ import { fmtDate } from "@/lib/format";
 import { articleDate, publicArticles } from "@/lib/journal";
 import { readMinutes, SECTIONS } from "@/lib/journal-shared";
 import { og } from "@/lib/seo";
+import { sized, srcSetFor } from "@/lib/img";
 
 const DESC = "Журнал Abramov Shop: как выбрать кий для русского бильярда, уход за кием и наклейкой, советы по игре и открытию бильярдного клуба.";
 
@@ -46,7 +47,7 @@ export default async function JournalPage({ searchParams }: Props) {
       {!list.length && <p className="muted">Скоро здесь появятся первые статьи.</p>}
       {first && (
         <Link href={`/zhurnal/${first.slug}`} className="jcard jcard--lead">
-          <div className="jcard__img">{first.cover ? <img src={first.cover} alt="" /> : <span className="ph" />}</div>
+          <div className="jcard__img">{first.cover ? <img src={sized(first.cover, 1200)} srcSet={srcSetFor(first.cover, [640, 1200])} sizes="(max-width: 900px) 100vw, 800px" alt="" /> : <span className="ph" />}</div>
           <div className="jcard__body">
             <span className="label gold">{SECTIONS[first.section] ?? "Статья"}</span>
             <h2 className="h3">{first.title}</h2>
@@ -61,7 +62,7 @@ export default async function JournalPage({ searchParams }: Props) {
         <div className="jgrid">
           {rest.map((a) => (
             <Link key={a.id} href={`/zhurnal/${a.slug}`} className="jcard">
-              <div className="jcard__img">{a.cover ? <img src={a.cover} alt="" loading="lazy" /> : <span className="ph" />}</div>
+              <div className="jcard__img">{a.cover ? <img src={sized(a.cover, 640)} alt="" loading="lazy" /> : <span className="ph" />}</div>
               <div className="jcard__body">
                 <span className="label gold">{SECTIONS[a.section] ?? "Статья"}</span>
                 <b className="jcard__title">{a.title}</b>

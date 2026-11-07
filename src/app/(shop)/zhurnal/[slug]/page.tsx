@@ -14,6 +14,7 @@ import { breadcrumbs, ldJson, og, shareImage, snippet } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 import { getViewer, isAdmin } from "@/lib/viewer";
 import { canView, isPublic } from "@/lib/visibility";
+import { sized } from "@/lib/img";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> };
 
@@ -96,7 +97,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
             <div className="jgrid">
               {more.map((m) => (
                 <Link key={m.id} href={`/zhurnal/${m.slug}`} className="jcard">
-                  <div className="jcard__img">{m.cover ? <img src={m.cover} alt="" loading="lazy" /> : <span className="ph" />}</div>
+                  <div className="jcard__img">{m.cover ? <img src={sized(m.cover, 640)} alt="" loading="lazy" /> : <span className="ph" />}</div>
                   <div className="jcard__body">
                     <span className="label gold">{SECTIONS[m.section] ?? "Статья"}</span>
                     <b className="jcard__title">{m.title}</b>
