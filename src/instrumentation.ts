@@ -84,6 +84,8 @@ export async function register() {
     await remindReturnDeadlines();
     const { checkLowStock } = await import("@/lib/low-stock");
     await checkLowStock();
+    const { checkClubLow } = await import("@/lib/club-low");
+    await checkClubLow();
     const { requestReviews } = await import("@/lib/review-request");
     await requestReviews();
   };

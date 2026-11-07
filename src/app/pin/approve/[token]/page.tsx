@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { rub } from "@/lib/format";
+import { ApprovalCard } from "@/components/pos/ApprovalCard";
 import { approvalByToken } from "@/lib/pos-approval";
+import { decideAction } from "./actions";
 import { DecideForm } from "./DecideForm";
 
 export const metadata: Metadata = { title: "Подтверждение в кассе", robots: { index: false, follow: false } };
@@ -21,25 +22,8 @@ export default async function ApprovePage({ params }: { params: Promise<{ token:
           <p className="muted">Ссылка недействительна.</p>
         ) : (
           <>
-            <div className="panel stack" style={{ gap: 8 }}>
-              <b>{r.summary}</b>
-              <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-                {d.lines.map((l, i) => (
-                  <li key={i}>
-                    {l.name} × {l.qty} — {rub(l.amount)}
-                  </li>
-                ))}
-              </ul>
-              {r.kind === "DISCOUNT" && (
-                <div className="small">
-                  Скидка {rub(d.discount ?? 0)} ({d.percent} %), к оплате {rub(d.total)}
-                </div>
-              )}
-              <div className="muted small">
-                Касса: {d.kassa}
-                {d.staffName ? ` · на смене ${d.staffName}` : ""}
-                {d.place && !d.kassa.includes(d.place) ? ` · ${d.place}` : ""}
-              </div>
+            <div className="panel">
+              <ApprovalCard kind={r.kind} summary={r.summary} details={d} />
             </div>
             {r.pinLocked ? (
               <div className="form-error">Ваш PIN заблокирован — задайте новый в админке: «Касса» → «Мой PIN».</div>
@@ -50,7 +34,7 @@ export default async function ApprovePage({ params }: { params: Promise<{ token:
             ) : r.expired ? (
               <div className="notice notice--muted">Время вышло — касса может запросить подтверждение снова.</div>
             ) : (
-              <DecideForm token={token} />
+              <DecideForm action={decideAction.bind(null, token)} />
             )}
           </>
         )}

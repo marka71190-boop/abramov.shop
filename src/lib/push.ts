@@ -62,6 +62,10 @@ export interface PushMessage {
   url?: string;
   /** Одинаковый tag заменяет предыдущее уведомление (например, по одному заказу) */
   tag?: string;
+  /** Сколько секунд служба уведомлений держит сообщение, если телефон не в сети (по умолчанию сутки) */
+  ttl?: number;
+  /** Срочное — доставить сразу, даже в режиме экономии батареи (подтверждения в кассе) */
+  urgent?: boolean;
 }
 
 /** Отправить на все устройства этих пользователей. Мёртвые подписки удаляем. Ошибки не ломают работу магазина */
@@ -77,7 +81,12 @@ export async function pushToUsers(userIds: string[], msg: PushMessage) {
       url: msg.url && msg.url.startsWith("/") && !msg.url.startsWith("//") ? msg.url : "/",
       tag: msg.tag,
     });
-    const opts = { vapidDetails: { subject: SITE.url.startsWith("https://") ? SITE.url : "https://abramov.shop", ...k }, TTL: 24 * 3600, timeout: 10_000 };
+    const opts = {
+      vapidDetails: { subject: SITE.url.startsWith("https://") ? SITE.url : "https://abramov.shop", ...k },
+      TTL: msg.ttl ?? 24 * 3600,
+      timeout: 10_000,
+      ...(msg.urgent ? { urgency: "high" as const } : {}),
+    };
     let ok = 0;
     await Promise.all(
       subs.map(async (sub) => {

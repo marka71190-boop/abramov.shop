@@ -12,6 +12,8 @@ import { yookassaEnabled } from "@/lib/yookassa";
 import { currentShift, expectedCash, shiftTotals } from "@/lib/pos-shifts";
 import { saleLocation } from "@/lib/club-stock";
 import { pinApprovers } from "@/lib/pin";
+import { pendingApprovalsCount } from "@/lib/pos-approval";
+import { countClubs } from "@/lib/stock-count";
 import { CancelSale, PosTerminal, ShiftPanel } from "./PosTerminal";
 import { ReturnPanel } from "./ReturnPanel";
 
@@ -68,12 +70,28 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
     .innerJoin(s.posSale, eq(s.posSale.id, s.posSaleItem.saleId))
     .where(and(gte(s.posSale.createdAt, from), eq(s.posSale.status, "PAID"), sql`${s.posSaleItem.unitCost} is null`));
 
+  const waiting = admin ? await pendingApprovalsCount(me.id).catch(() => 0) : 0;
+  // Ревизия с телефона кассы — в клубах со своим учётом остатков
+  const canCount = !admin && !readonly && (await countClubs(me.clubIds.length ? me.clubIds : null).catch(() => [])).length > 0;
+
   return (
     <>
+      {waiting > 0 && (
+        <Link href="/admin/pos/approvals" className="notice" style={{ display: "block", borderColor: "var(--c-gold)" }}>
+          <b>Касса ждёт вашего подтверждения{waiting > 1 ? ` (${waiting})` : ""}</b> — открыть →
+        </Link>
+      )}
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: 0 }}>Касса</h1>
+        {canCount && (
+          <Link href="/kassa/count" className="small">
+            Ревизия →
+          </Link>
+        )}
         {admin && (
           <span className="row small" style={{ gap: 16 }}>
+            <Link href="/admin/pos/approvals">Ждут подтверждения →</Link>
+            <Link href="/admin/pos/report">Скидки и возвраты →</Link>
             <Link href="/admin/pos/pin">Мой PIN →</Link>
             {me.role === "OWNER" && <Link href="/admin/pos/devices">Телефоны кассы →</Link>}
             <Link href="/admin/pos/shifts">Смены и сверка наличных →</Link>

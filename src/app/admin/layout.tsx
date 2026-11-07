@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { db, schema as s } from "@/db";
 import type { BadgeKey } from "@/lib/admin-sections";
 import { lowStockCount } from "@/lib/low-stock";
+import { pendingApprovalsCount } from "@/lib/pos-approval";
 import { openReturnsCount } from "@/lib/returns";
 import { rolesOf } from "@/lib/roles";
 import { requireAdmin } from "@/lib/viewer";
@@ -14,21 +15,22 @@ export const metadata: Metadata = { title: "Админка", robots: { index: fa
 export const dynamic = "force-dynamic";
 
 /** Счётчики в меню: сколько ждёт действия. Ошибка одного счётчика не ломает админку */
-async function badges(): Promise<Partial<Record<BadgeKey, number>>> {
+async function badges(meId: string): Promise<Partial<Record<BadgeKey, number>>> {
   const safe = (p: Promise<number>) => p.catch(() => 0);
-  const [orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches] = await Promise.all([
+  const [orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches, approvals] = await Promise.all([
     // Собрать и отправить + заказы из-за рубежа, где ждут расчёт доставки
     safe(db.$count(s.order, or(inArray(s.order.status, ["PAID", "ASSEMBLING"]), and(eq(s.order.status, "AWAITING_PAYMENT"), eq(s.order.shippingPending, true))))),
     safe(openReturnsCount()),
-    safe(lowStockCount()),
+    safe(Promise.all([lowStockCount(), import("@/lib/club-low").then((m) => m.clubLowCount())]).then(([a, b]) => a + b)),
     safe(db.$count(s.productQuestion, eq(s.productQuestion.status, "NEW"))),
     safe(db.$count(s.review, eq(s.review.status, "PENDING"))),
     safe(db.$count(s.serviceRequest, eq(s.serviceRequest.status, "NEW"))),
     safe(db.$count(s.organization, eq(s.organization.status, "PENDING"))),
     safe(db.$count(s.turnkeyRequest, and(eq(s.turnkeyRequest.status, "NEW")))),
     safe(db.$count(s.coachApplication, eq(s.coachApplication.status, "NEW"))),
+    safe(pendingApprovalsCount(meId)),
   ]);
-  return { orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches };
+  return { approvals, orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches };
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -42,7 +44,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ADMIN
           </span>
         </Link>
-        <AdminNav roles={rolesOf(me)} sections={me.role === "OWNER" ? null : (me.adminSections ?? null)} badges={await badges()} />
+        <AdminNav roles={rolesOf(me)} sections={me.role === "OWNER" ? null : (me.adminSections ?? null)} badges={await badges(me.id)} />
       </nav>
       <main className="admin__main">{children}</main>
     </div>

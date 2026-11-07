@@ -7424,3 +7424,38 @@ tr.is-muted td {
   padding-block: 5px;
   margin-block: -5px;
 }
+
+/* Лист ревизии: строка — товар и количество с кнопками */
+.count-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--c-line);
+}
+.count-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.count-list__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.count-list__qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.count-list__qty .btn {
+  min-width: 40px;
+  min-height: 40px;
+  justify-content: center;
+}
+.count-list__qty .input {
+  width: 64px;
+  text-align: center;
+}

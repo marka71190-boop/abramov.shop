@@ -34,6 +34,9 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           <Link href="/admin/stock/move?t=WRITE_OFF" className="btn btn--sm btn--line">
             Списание
           </Link>
+          <Link href="/admin/stock/count" className="btn btn--sm btn--line">
+            Ревизии в клубах
+          </Link>
           <Link href="/admin/stock/move?t=INVENTORY" className="btn btn--sm btn--line">
             Инвентаризация
           </Link>

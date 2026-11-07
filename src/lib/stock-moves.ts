@@ -145,6 +145,7 @@ export async function withStockNotices<T>(variantIds: string[], fn: () => Promis
       }
     }
     await import("@/lib/low-stock").then((m) => m.checkLowStock(variantIds)).catch(() => 0);
+    await import("@/lib/club-low").then((m) => m.checkClubLow(variantIds)).catch(() => 0);
   })().catch((e) => console.error("[stock] уведомления:", e instanceof Error ? e.message : e));
   return out;
 }

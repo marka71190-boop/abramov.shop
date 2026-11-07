@@ -1560,6 +1560,8 @@ export const clubStock = pgTable(
       .notNull()
       .references(() => productVariant.id, { onDelete: "cascade" }),
     qty: integer("qty").default(0).notNull(),
+    minQty: integer("min_qty"), // норма: сколько держать в клубе; напомним, когда останется половина. Пусто — напомним, когда закончится
+    lowNotifiedAt: ts("low_notified_at"), // уже предупредили, что заканчивается
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.clubId, t.variantId] }), index("club_stock_variant_idx").on(t.variantId)],
@@ -1706,6 +1708,34 @@ export const posApproval = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("pos_approval_seller_idx").on(t.sellerId)],
+);
+
+// ============================================================
+// Ревизия в клубе: сотрудник сканирует товар, менеджер сверяет с учётом и проводит расхождения
+// ============================================================
+export const stockCount = pgTable(
+  "stock_count",
+  {
+    id: id(),
+    clubId: text("club_id")
+      .notNull()
+      .references(() => club.id, { onDelete: "cascade" }),
+    status: text("status").default("DRAFT").notNull(), // DRAFT — считают, SUBMITTED — ждёт менеджера, APPLIED — проведено, CANCELLED
+    counts: jsonb("counts").$type<Record<string, number>>().default({}).notNull(), // variantId → насчитали штук
+    full: boolean("full").default(true).notNull(), // полный пересчёт: что не отсканировали — нет в клубе
+    staffName: text("staff_name"), // кто считал (общий телефон кассы)
+    note: text("note"),
+    createdById: text("created_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    submittedAt: ts("submitted_at"),
+    appliedAt: ts("applied_at"),
+    appliedById: text("applied_by_id").references(() => user.id, { onDelete: "set null" }),
+    result: jsonb("result").$type<{ lines: number; plus: number; minus: number; minusCost: number }>(), // итог проведения: позиций, излишки и недостача, шт; недостача по себестоимости, копейки
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at"),
+  },
+  (t) => [index("stock_count_club_idx").on(t.clubId), index("stock_count_status_idx").on(t.status)],
 );
 
 /** Выемка (−) и внесение (+) наличных в кассе во время смены */

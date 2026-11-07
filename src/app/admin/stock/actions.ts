@@ -94,3 +94,25 @@ export async function ownStockAction(clubId: string, on: boolean): Promise<MoveR
     return { error: e instanceof StockError ? e.message : "Не получилось" };
   }
 }
+
+const NormsIn = z.object({
+  clubId: z.string().min(1).max(64),
+  norms: z.record(z.string().max(64), z.number().int().min(0).max(10_000).nullable()),
+});
+
+/** Нормы клуба: сколько держать на полке — по ним приходит «заканчивается в клубе» */
+export async function normsAction(raw: unknown): Promise<MoveResult> {
+  const me = await requireAdmin();
+  const p = NormsIn.safeParse(raw);
+  if (!p.success) return { error: "Проверьте нормы — целые числа от 0" };
+  try {
+    const { setClubNorms, checkClubLow } = await import("@/lib/club-low");
+    const n = await setClubNorms(p.data.clubId, p.data.norms);
+    await audit(me.id, "stock.club_norms", "club", p.data.clubId, { lines: n });
+    void checkClubLow(Object.keys(p.data.norms)).catch(() => 0);
+    revalidatePath("/admin/stock/refill");
+    return { ok: n ? `Нормы сохранены: ${n} поз.` : "Нечего сохранять" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Не получилось сохранить" };
+  }
+}

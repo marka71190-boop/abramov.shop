@@ -1,9 +1,10 @@
 "use client";
 import { useActionState } from "react";
-import { decideAction, type DecideState } from "./actions";
+import type { DecideState } from "./actions";
 
-export function DecideForm({ token }: { token: string }) {
-  const [state, action, pending] = useActionState<DecideState, FormData>(decideAction.bind(null, token), {});
+/** Ввод PIN и «Подтвердить» / «Отклонить». action — серверное действие с уже привязанным запросом (по ссылке из письма или из админки) */
+export function DecideForm({ action: decide, autoFocus = true }: { action: (s: DecideState, fd: FormData) => Promise<DecideState>; autoFocus?: boolean }) {
+  const [state, action, pending] = useActionState<DecideState, FormData>(decide, {});
   if (state.final) return <div className={state.ok?.startsWith("Подтвержд") ? "form-ok" : "notice notice--muted"}>{state.ok}</div>;
   return (
     <form action={action} className="stack" style={{ gap: 12 }}>
@@ -16,7 +17,7 @@ export function DecideForm({ token }: { token: string }) {
           inputMode="numeric"
           autoComplete="off"
           maxLength={6}
-          autoFocus
+          autoFocus={autoFocus}
           onInput={(e) => (e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "").slice(0, 6))}
         />
       </label>

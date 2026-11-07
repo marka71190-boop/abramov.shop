@@ -7,10 +7,12 @@
  * 3. Менеджер открывает ссылку у себя, вводит PIN и подтверждает или отклоняет.
  * 4. Касса проводит операцию — только с тем же содержимым чека, что подтвердили.
  * Запрос живёт 10 минут; 5 неверных PIN — PIN блокируется (как в lib/pin).
+ * Кроме письма — push на телефон менеджера (если он включил уведомления в админке), и раздел
+ * «Касса → Ждут подтверждения»: там менеджер подтверждает тем же PIN, войдя в свой аккаунт.
  */
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { rub } from "@/lib/format";
 import { checkPin, PinError } from "@/lib/pin";
@@ -77,6 +79,19 @@ export async function requestApproval(p: { kind: ApprovalKind; sellerId: string;
     await db.update(s.posApproval).set({ status: "CANCELLED", decidedAt: new Date() }).where(eq(s.posApproval.id, row.id));
     throw new ApprovalError("Не получилось отправить письмо менеджеру — попробуйте ещё раз");
   }
+  // Push приходит быстрее письма. В нём нет данных покупателя: что подтвердить, сумма, клуб
+  void import("@/lib/push")
+    .then((m) =>
+      m.pushToUser(approver.id, {
+        title: p.kind === "RETURN" ? "Касса просит подтвердить возврат" : "Касса просит подтвердить скидку",
+        body: `${p.summary}${d.place ? ` · ${d.place}` : ""}${d.staffName ? ` · ${d.staffName}` : ""}`,
+        url: `/pin/approve/${token}`,
+        tag: `approval-${row.id}`,
+        ttl: TTL_MIN * 60,
+        urgent: true,
+      }),
+    )
+    .catch(() => {});
   return { id: row.id, approver: approver.name, expiresAt: row.expiresAt };
 }
 
@@ -128,6 +143,33 @@ export async function approvalByToken(token: string) {
 export async function decideApproval(token: string, decision: "APPROVE" | "DENY", pin: string) {
   const r = await approvalByToken(token);
   if (!r) throw new ApprovalError("Ссылка недействительна");
+  return decide(r, decision, pin);
+}
+
+/** То же из админки: менеджер вошёл в свой аккаунт и решает свой запрос */
+export async function decideApprovalById(id: string, userId: string, decision: "APPROVE" | "DENY", pin: string) {
+  const r = await db.query.posApproval.findFirst({ where: and(eq(s.posApproval.id, String(id).slice(0, 64)), eq(s.posApproval.approverId, userId)) });
+  if (!r) throw new ApprovalError("Запрос не найден");
+  return decide({ ...r, expired: r.status === "PENDING" && r.expiresAt < new Date() }, decision, pin);
+}
+
+/** Открытые запросы: свои (их можно решить) и, для владельца, чужие — посмотреть, кто ждёт */
+export async function pendingApprovals(userId: string, all: boolean) {
+  const rows = await db
+    .select({ a: s.posApproval, approverName: s.user.name })
+    .from(s.posApproval)
+    .innerJoin(s.user, eq(s.user.id, s.posApproval.approverId))
+    .where(and(eq(s.posApproval.status, "PENDING"), gt(s.posApproval.expiresAt, new Date()), all ? undefined : eq(s.posApproval.approverId, userId)))
+    .orderBy(desc(s.posApproval.createdAt))
+    .limit(50);
+  return rows.map((x) => ({ ...x.a, approverName: x.approverName, mine: x.a.approverId === userId }));
+}
+
+export async function pendingApprovalsCount(userId: string) {
+  return db.$count(s.posApproval, and(eq(s.posApproval.status, "PENDING"), gt(s.posApproval.expiresAt, new Date()), eq(s.posApproval.approverId, userId)));
+}
+
+async function decide(r: ApprovalRow & { expired: boolean }, decision: "APPROVE" | "DENY", pin: string) {
   if (r.status !== "PENDING") throw new ApprovalError(r.status === "APPROVED" || r.status === "USED" ? "Уже подтверждено" : r.status === "DENIED" ? "Уже отклонено" : "Кассир отменил запрос");
   if (r.expired) throw new ApprovalError("Время вышло — пусть касса запросит подтверждение снова");
   if (decision === "DENY") {

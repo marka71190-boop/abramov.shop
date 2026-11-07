@@ -3,7 +3,7 @@
  * Общий файл для сервера и браузера — без серверных зависимостей.
  */
 
-export type BadgeKey = "orders" | "returns" | "stock" | "questions" | "reviews" | "service" | "orgs" | "turnkey" | "coaches";
+export type BadgeKey = "approvals" | "orders" | "returns" | "stock" | "questions" | "reviews" | "service" | "orgs" | "turnkey" | "coaches";
 
 export interface AdminItem {
   key: string;
@@ -30,7 +30,7 @@ export const ADMIN_GROUPS: AdminGroup[] = [
       { key: "home", href: "/admin", label: "Обзор", exact: true, always: true },
       { key: "orders", href: "/admin/orders", label: "Заказы", badge: "orders" },
       { key: "waybills", href: "/admin/waybills", label: "Накладные" },
-      { key: "pos", href: "/admin/pos", label: "Касса" },
+      { key: "pos", href: "/admin/pos", label: "Касса", badge: "approvals" },
       { key: "returns", href: "/admin/returns", label: "Возвраты", badge: "returns" },
       { key: "club", href: "/club", label: "Выдача в клубах" },
     ],
