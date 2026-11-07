@@ -7,16 +7,18 @@ import { audit } from "@/lib/audit";
 import { clubTitle } from "@/lib/club-label";
 import { getClub } from "@/lib/clubs";
 import { rub } from "@/lib/format";
-import { PinError, verifyPin } from "@/lib/pin";
+import { PinError } from "@/lib/pin";
+import { ApprovalError, approvalStatus, cancelApproval, consumeApproval, requestApproval } from "@/lib/pos-approval";
 import { cancelSale, createSale, discountOverLimit, findCustomer, PosError, refreshSale, returnSale, saleForReturn, type PosCustomer, type SaleRow } from "@/lib/pos";
 import { addCashMove, closeShift, currentShift, openShift, ShiftError } from "@/lib/pos-shifts";
 import { qrSvg } from "@/lib/qr";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { getSettings } from "@/lib/settings";
 import { withStockNotices } from "@/lib/stock-moves";
-import { requireCashier, type UserRow } from "@/lib/viewer";
+import { requireCashier } from "@/lib/viewer";
 
-const Approval = z.object({ approverId: z.string().min(1).max(64), pin: z.string().regex(/^\d{6}$/, "PIN — 6 цифр") }).nullish();
+/** id подтверждённого менеджером запроса (письмо + PIN) */
+const ApprovalId = z.string().max(64).nullish();
 
 const In = z.object({
   items: z.array(z.object({ variantId: z.string().min(1).max(64), qty: z.number().int().min(1).max(1000), price: z.number().int().min(0).max(1_000_000_000) })).min(1, "Добавьте товар").max(100),
@@ -26,8 +28,36 @@ const In = z.object({
   contact: z.string().trim().max(200).nullish(),
   customerPhone: z.string().trim().max(30).nullish(),
   useBonus: z.boolean().optional(),
-  approval: Approval,
+  approvalId: ApprovalId,
 });
+
+/** То, что подтверждает менеджер: изменили чек после подтверждения — нужно новое */
+const salePayload = (d: z.infer<typeof In>) => ({
+  items: d.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+  discount: d.discount,
+  method: d.method,
+  customerPhone: d.customerPhone?.replace(/\D/g, "") || null,
+  useBonus: !!d.useBonus,
+});
+
+/** Цены каталога и лимит скидки кассира */
+async function catalogCheck(items: { variantId: string; qty: number }[], discountRaw: number, maxPct: number | null) {
+  const rows = await db.execute<{ id: string; price: number; name: string }>(
+    sql`select v.id, coalesce(v.price, p.price)::int as price,
+      case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name
+      from product_variant v join product p on p.id = v.product_id where v.id in (${sql.join(
+        items.map((i) => sql`${i.variantId}`),
+        sql`, `,
+      )})`,
+  );
+  const lines = items.map((i) => {
+    const r = rows.rows.find((x) => x.id === i.variantId);
+    return { name: r?.name ?? "Товар", qty: i.qty, amount: Number(r?.price ?? 0) * i.qty };
+  });
+  const subtotal = lines.reduce((a, l) => a + l.amount, 0);
+  const discount = Math.min(discountRaw, subtotal);
+  return { lines, subtotal, discount, over: discountOverLimit(subtotal, discount, maxPct) };
+}
 
 export interface SaleView {
   id: string;
@@ -60,12 +90,6 @@ const refresh = () => {
   revalidatePath("/kassa");
 };
 
-/** Кто в кассе — для письма владельцу PIN: имя сотрудника или название телефона кассы */
-async function kassaWho(me: UserRow) {
-  const shift = await currentShift(me.id);
-  return { kassa: me.name, staffName: shift?.staffName ?? null, place: shift?.place ?? null, shift };
-}
-
 /** Кассир видит и отменяет только свои продажи */
 async function ownSale(id: string, me: { id: string }, admin: boolean) {
   const sale = await db.query.posSale.findFirst({ where: eq(s.posSale.id, String(id).slice(0, 64)), columns: { id: true, sellerId: true, status: true } });
@@ -84,22 +108,13 @@ export async function posCreate(raw: unknown): Promise<{ sale?: SaleView; error?
     const settings = await getSettings();
     let limits = admin ? { lockPrices: false, maxDiscountPct: null as number | null, discountById: null as string | null } : { lockPrices: true, maxDiscountPct: settings.finance.cashierMaxDiscount as number | null, discountById: null as string | null };
 
-    // Скидка сверх лимита кассира — только с PIN менеджера
+    // Скидка сверх лимита кассира — только с подтверждением менеджера (письмо + его PIN)
     if (!admin) {
-      const catalog = await db.execute<{ id: string; price: number }>(
-        sql`select v.id, coalesce(v.price, p.price)::int as price from product_variant v join product p on p.id = v.product_id where v.id in (${sql.join(
-          p.data.items.map((i) => sql`${i.variantId}`),
-          sql`, `,
-        )})`,
-      );
-      const subtotal = p.data.items.reduce((a, i) => a + Number(catalog.rows.find((r) => r.id === i.variantId)?.price ?? 0) * i.qty, 0);
-      const discount = Math.min(p.data.discount, subtotal);
-      if (discountOverLimit(subtotal, discount, limits.maxDiscountPct)) {
-        if (!p.data.approval) return { error: `Скидка больше ${limits.maxDiscountPct} % — нужен PIN менеджера`, needPin: true };
-        const pct = subtotal ? Math.round((discount / subtotal) * 100) : 0;
-        const who = await kassaWho(me);
-        const approver = await verifyPin(p.data.approval.approverId, p.data.approval.pin, { action: `скидка ${rub(discount)} (${pct} %) на чек ${rub(subtotal)}`, ...who });
-        limits = { ...limits, maxDiscountPct: null, discountById: approver.id };
+      const c = await catalogCheck(p.data.items, p.data.discount, limits.maxDiscountPct);
+      if (c.over) {
+        if (!p.data.approvalId) return { error: `Скидка больше ${limits.maxDiscountPct} % — нужно подтверждение менеджера`, needPin: true };
+        const approverId = await consumeApproval(p.data.approvalId, me.id, "DISCOUNT", salePayload(p.data));
+        limits = { ...limits, maxDiscountPct: null, discountById: approverId };
       }
     }
 
@@ -118,7 +133,7 @@ export async function posCreate(raw: unknown): Promise<{ sale?: SaleView; error?
     revalidatePath("/", "layout");
     return { sale: await view(sale) };
   } catch (e) {
-    if (e instanceof PosError || e instanceof PinError) return { error: e.message, needPin: e instanceof PinError };
+    if (e instanceof PosError || e instanceof PinError || e instanceof ApprovalError) return { error: e.message, needPin: e instanceof ApprovalError };
     console.error("[pos] продажа:", e);
     return { error: "Не получилось провести продажу. Попробуйте ещё раз" };
   }
@@ -218,8 +233,9 @@ const ReturnIn = z.object({
   saleId: z.string().min(1).max(64),
   items: z.array(z.object({ saleItemId: z.string().min(1).max(64), qty: z.number().int().min(0).max(1000) })).min(1).max(100),
   reason: z.string().trim().max(300).nullish(),
-  approval: Approval,
+  approvalId: ApprovalId,
 });
+const returnPayload = (d: z.infer<typeof ReturnIn>) => ({ saleId: d.saleId, items: d.items.filter((i) => i.qty > 0).map((i) => ({ id: i.saleItemId, qty: i.qty })) });
 
 export async function posReturn(raw: unknown): Promise<{ ok?: string; error?: string; needPin?: boolean; money?: number; cash?: boolean }> {
   const { me, admin } = await requireCashier();
@@ -232,18 +248,11 @@ export async function posReturn(raw: unknown): Promise<{ ok?: string; error?: st
     const shift = await currentShift(me.id);
     if (sale.method === "CASH" && !shift && !admin) return { error: "Откройте смену — наличные за возврат выдаются из кассы смены" };
 
-    // Кассир — только с PIN менеджера; менеджер в своей кассе подтверждает сам
+    // Кассир — только с подтверждением менеджера (письмо + его PIN); менеджер в своей кассе подтверждает сам
     let approverId: string | null = admin ? me.id : null;
     if (!admin) {
-      if (!p.data.approval) return { error: "Возврат подтверждает менеджер своим PIN", needPin: true };
-      const n = p.data.items.reduce((a, i) => a + i.qty, 0);
-      const approver = await verifyPin(p.data.approval.approverId, p.data.approval.pin, {
-        action: `возврат по чеку ${sale.number} (${n} шт., ${sale.method === "CASH" ? "наличными" : "через ЮKassa"})`,
-        kassa: me.name,
-        staffName: shift?.staffName ?? null,
-        place: shift?.place ?? sale.place,
-      });
-      approverId = approver.id;
+      if (!p.data.approvalId) return { error: "Возврат подтверждает менеджер", needPin: true };
+      approverId = await consumeApproval(p.data.approvalId, me.id, "RETURN", returnPayload(p.data));
     }
     const r = await withStockNotices(
       sale.items.map((i) => i.variantId).filter((x): x is string => !!x),
@@ -267,7 +276,7 @@ export async function posReturn(raw: unknown): Promise<{ ok?: string; error?: st
       cash: r.method === "CASH",
     };
   } catch (e) {
-    if (e instanceof PosError || e instanceof PinError) return { error: e.message, needPin: e instanceof PinError };
+    if (e instanceof PosError || e instanceof PinError || e instanceof ApprovalError) return { error: e.message, needPin: e instanceof ApprovalError };
     console.error("[pos] возврат:", e);
     return { error: "Не получилось оформить возврат — возможно, ЮKassa не приняла его. Попробуйте ещё раз" };
   }
@@ -352,4 +361,80 @@ export async function cashMoveAction(_: ShiftState, fd: FormData): Promise<Shift
   } catch (e) {
     return { error: e instanceof ShiftError ? e.message : "Не получилось записать" };
   }
+}
+
+// ---------------------------------------------------------------- подтверждение менеджера
+
+export type ApprovalRequest = { id?: string; approver?: string; expiresAt?: string; error?: string };
+
+/** Скидка сверх лимита: отправить менеджеру письмо и ждать */
+export async function posRequestSaleApproval(raw: unknown, approverId: string): Promise<ApprovalRequest> {
+  const { me, admin } = await requireCashier();
+  if (admin) return { error: "Менеджеру подтверждение не нужно" };
+  const p = In.safeParse(raw);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте продажу" };
+  const shift = await currentShift(me.id);
+  if (!shift) return { error: "Сначала откройте смену" };
+  const settings = await getSettings();
+  const c = await catalogCheck(p.data.items, p.data.discount, settings.finance.cashierMaxDiscount);
+  if (!c.over) return { error: "Скидка в пределах лимита — подтверждение не нужно" };
+  const pct = c.subtotal ? Math.round((c.discount / c.subtotal) * 100) : 0;
+  try {
+    const r = await requestApproval({
+      kind: "DISCOUNT",
+      sellerId: me.id,
+      approverId: String(approverId).slice(0, 64),
+      payload: salePayload(p.data),
+      summary: `скидка ${rub(c.discount)} (${pct} %) на чек ${rub(c.subtotal)}`,
+      details: { lines: c.lines, total: c.subtotal - c.discount, discount: c.discount, percent: pct, kassa: me.name, staffName: shift.staffName, place: shift.place },
+    });
+    await audit(me.id, "pos.approval_request", "user", r.id, { kind: "DISCOUNT", approver: approverId, discount: c.discount });
+    return { id: r.id, approver: r.approver, expiresAt: r.expiresAt.toISOString() };
+  } catch (e) {
+    return { error: e instanceof ApprovalError ? e.message : "Не получилось отправить запрос" };
+  }
+}
+
+/** Возврат: отправить менеджеру письмо и ждать */
+export async function posRequestReturnApproval(raw: unknown, approverId: string): Promise<ApprovalRequest> {
+  const { me, admin } = await requireCashier();
+  if (admin) return { error: "Менеджеру подтверждение не нужно" };
+  const p = ReturnIn.safeParse(raw);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте возврат" };
+  const sale = await db.query.posSale.findFirst({ where: eq(s.posSale.id, p.data.saleId), with: { items: true } });
+  if (!sale || sale.status !== "PAID") return { error: "Продажа не найдена" };
+  const lines = p.data.items
+    .filter((i) => i.qty > 0)
+    .map((i) => {
+      const it = sale.items.find((x) => x.id === i.saleItemId);
+      return { name: it?.name ?? "Товар", qty: i.qty, amount: (it?.price ?? 0) * i.qty };
+    });
+  if (!lines.length) return { error: "Отметьте, что возвращают" };
+  const shift = await currentShift(me.id);
+  const way = sale.method === "CASH" ? "наличными" : "через ЮKassa";
+  try {
+    const r = await requestApproval({
+      kind: "RETURN",
+      sellerId: me.id,
+      approverId: String(approverId).slice(0, 64),
+      payload: returnPayload(p.data),
+      summary: `возврат по чеку ${sale.number} (${lines.reduce((a, l) => a + l.qty, 0)} шт., ${way})${p.data.reason ? `: ${p.data.reason}` : ""}`,
+      details: { lines, total: lines.reduce((a, l) => a + l.amount, 0), kassa: me.name, staffName: shift?.staffName ?? null, place: shift?.place ?? sale.place },
+    });
+    await audit(me.id, "pos.approval_request", "user", r.id, { kind: "RETURN", approver: approverId, sale: sale.number });
+    return { id: r.id, approver: r.approver, expiresAt: r.expiresAt.toISOString() };
+  } catch (e) {
+    return { error: e instanceof ApprovalError ? e.message : "Не получилось отправить запрос" };
+  }
+}
+
+export async function posApprovalStatus(id: string): Promise<{ status: string }> {
+  const { me } = await requireCashier();
+  const r = await approvalStatus(String(id).slice(0, 64), me.id);
+  return { status: r?.status ?? "CANCELLED" };
+}
+
+export async function posApprovalCancel(id: string): Promise<void> {
+  const { me } = await requireCashier();
+  await cancelApproval(String(id).slice(0, 64), me.id);
 }

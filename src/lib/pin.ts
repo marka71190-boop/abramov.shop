@@ -94,8 +94,13 @@ export interface PinContext {
   place?: string | null;
 }
 
+/** Проверить PIN без письма об использовании (менеджер вводит его сам, на своём телефоне, по ссылке из письма) */
+export async function checkPin(approverId: string, pin: string, ctx: PinContext) {
+  return verifyPin(approverId, pin, ctx, { notify: false });
+}
+
 /** Проверить PIN. Ошибка — PinError с понятным текстом; успех — данные подтвердившего */
-export async function verifyPin(approverId: string, pin: string, ctx: PinContext) {
+export async function verifyPin(approverId: string, pin: string, ctx: PinContext, opts: { notify?: boolean } = {}) {
   const u = await db.query.user.findFirst({ where: eq(s.user.id, String(approverId).slice(0, 64)) });
   const staff = u && !u.isDevice && !u.bannedAt && (u.role === "OWNER" || u.role === "MANAGER" || u.extraRoles.includes("MANAGER") || u.extraRoles.includes("OWNER"));
   if (!u || !staff || !u.pinHash) throw new PinError("Выберите менеджера, который подтверждает");
@@ -124,6 +129,7 @@ export async function verifyPin(approverId: string, pin: string, ctx: PinContext
     throw new PinError(`Неверный PIN — осталось попыток: ${MAX_FAILS - fails}`);
   }
   if (u.pinFailed) await db.update(s.user).set({ pinFailed: 0 }).where(eq(s.user.id, u.id));
+  if (opts.notify === false) return { id: u.id, name: u.name };
 
   // Письмо владельцу PIN: что подтвердили и кнопка «это был не я»
   const token = randomBytes(24).toString("hex");

@@ -1,8 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { approvalReady, PinApprove, type Approval } from "@/components/pos/PinApprove";
-import { posFindSale, posReturn, type ReturnView } from "./actions";
+import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
+import { posFindSale, posRequestReturnApproval, posReturn, type ReturnView } from "./actions";
 
 const fmt = (kop: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(kop / 100) + " ₽";
 const METHOD: Record<string, string> = { CASH: "наличные", SBP: "СБП", CARD: "карта" };
@@ -18,7 +18,8 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
   const [sale, setSale] = useState<ReturnView | null>(null);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
-  const [approval, setApproval] = useState<Approval>({ approverId: "", pin: "" });
+  const [approverId, setApproverId] = useState("");
+  const [waiting, setWaiting] = useState<{ req: WaitRequest; payload: Record<string, unknown> } | null>(null);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [pending, start] = useTransition();
@@ -47,21 +48,31 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
   const estimate = sale ? (left === 0 ? sale.total - sale.refunded : Math.min(sale.total - sale.refunded, Math.round((sale.total * value) / Math.max(1, subtotal)))) : 0;
   const any = Object.values(qty).some((q) => q > 0);
 
+  const doReturn = async (payload: Record<string, unknown>, approvalId?: string) => {
+    const r = await posReturn({ ...payload, approvalId: approvalId ?? null });
+    if (r.error) return setError(r.error);
+    setDone(r.ok ?? "Возврат оформлен");
+    setSale(null);
+    setNumber("");
+    setReason("");
+    setApproverId("");
+    router.refresh();
+  };
+
   const submit = () => {
     if (!sale) return;
     setError("");
+    const payload = { saleId: sale.id, items: Object.entries(qty).map(([saleItemId, q]) => ({ saleItemId, qty: q })), reason: reason || null };
     start(async () => {
-      const r = await posReturn({ saleId: sale.id, items: Object.entries(qty).map(([saleItemId, q]) => ({ saleItemId, qty: q })), reason: reason || null, approval: approvers ? approval : null });
-      if (r.error) {
-        if (r.needPin) setApproval((a) => ({ ...a, pin: "" }));
-        return setError(r.error);
+      // Кассир: сначала подтверждение менеджера — окно «Ждём подтверждения»
+      if (approvers) {
+        if (!approverId) return setError("Выберите менеджера, который подтвердит возврат");
+        const q = await posRequestReturnApproval(payload, approverId);
+        if (q.error || !q.id) return setError(q.error ?? "Не получилось отправить запрос");
+        setWaiting({ req: { id: q.id, approver: q.approver!, expiresAt: q.expiresAt! }, payload });
+        return;
       }
-      setDone(r.ok ?? "Возврат оформлен");
-      setSale(null);
-      setNumber("");
-      setReason("");
-      setApproval({ approverId: "", pin: "" });
-      router.refresh();
+      await doReturn(payload);
     });
   };
 
@@ -135,7 +146,20 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
             Причина
             <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder="Не подошёл, брак, передумал" />
           </label>
-          {approvers && any && <PinApprove approvers={approvers} value={approval} onChange={setApproval} title="Возврат подтверждает менеджер" />}
+          {approvers && any && <ApproverPick approvers={approvers} value={approverId} onChange={setApproverId} title="Возврат подтверждает менеджер" />}
+          {waiting && (
+            <ApprovalWait
+              request={waiting.req}
+              what={`Возврат ${fmt(estimate)} по чеку ${sale.number}`}
+              deniedHint="Возврат не оформлен — уточните у менеджера, что не так."
+              onApproved={async () => {
+                const w = waiting;
+                await doReturn(w.payload, w.req.id);
+                setWaiting(null);
+              }}
+              onClose={() => setWaiting(null)}
+            />
+          )}
           {any && (
             <div className="small">
               Вернуть покупателю: <b>{fmt(estimate)}</b> {sale.method === "CASH" ? "наличными из кассы" : "через ЮKassa на карту или счёт"}
@@ -144,7 +168,7 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
           )}
           {error && <div className="form-error">{error}</div>}
           <div className="row" style={{ gap: 8 }}>
-            <button type="button" className="btn btn--gold btn--sm" disabled={pending || !any || (!!approvers && !approvalReady(approval))} onClick={submit}>
+            <button type="button" className="btn btn--gold btn--sm" disabled={pending || !any || (!!approvers && !approverId)} onClick={submit}>
               {pending ? "Оформляем…" : "Оформить возврат"}
             </button>
             <button type="button" className="btn btn--line btn--sm" onClick={() => (setSale(null), setError(""))}>

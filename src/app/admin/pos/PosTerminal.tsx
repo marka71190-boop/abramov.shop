@@ -3,9 +3,9 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
 import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
-import { approvalReady, PinApprove, type Approval } from "@/components/pos/PinApprove";
+import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
 import type { PosCustomer } from "@/lib/pos";
-import { cashMoveAction, posCancel, posCreate, posFindCustomer, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
+import { cashMoveAction, posCancel, posCreate, posFindCustomer, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
 
 type Method = "CASH" | "SBP" | "CARD";
 type Line = { o: PickOption; qty: number; price: string };
@@ -52,8 +52,9 @@ export function PosTerminal({
   const [custError, setCustError] = useState("");
   const [useBonus, setUseBonus] = useState(false);
   const [finding, startFind] = useTransition();
-  // Скидка сверх лимита кассира — PIN менеджера
-  const [approval, setApproval] = useState<Approval>({ approverId: "", pin: "" });
+  // Скидка сверх лимита кассира — подтверждение менеджера (письмо + его PIN)
+  const [approverId, setApproverId] = useState("");
+  const [waiting, setWaiting] = useState<{ req: WaitRequest; payload: Record<string, unknown> } | null>(null);
 
   const picked = useMemo(() => new Set(lines.map((l) => l.o.id)), [lines]);
   const subtotal = lines.reduce((a, l) => a + (toKop(l.price) || 0) * l.qty, 0);
@@ -115,7 +116,8 @@ export function PosTerminal({
     setCustomer(null);
     setCustError("");
     setUseBonus(false);
-    setApproval({ approverId: "", pin: "" });
+    setApproverId("");
+    setWaiting(null);
   }
 
   function submit() {
@@ -125,24 +127,33 @@ export function PosTerminal({
       if (!(p >= 0)) return setError(`«${l.o.name}»: проверьте цену`);
       if (l.qty > l.o.stock) return setError(`«${l.o.name}»: в наличии ${l.o.stock} шт`);
     }
+    const payload = {
+      items: lines.map((l) => ({ variantId: l.o.id, qty: l.qty, price: toKop(l.price) })),
+      discount: disc,
+      method,
+      place: null, // место — из смены
+      contact: method === "CASH" ? null : contact.trim() || null,
+      customerPhone: customer ? phone : null,
+      useBonus: !!customer && useBonus,
+    };
     start(async () => {
-      const r = await posCreate({
-        items: lines.map((l) => ({ variantId: l.o.id, qty: l.qty, price: toKop(l.price) })),
-        discount: disc,
-        method,
-        place: null, // место — из смены
-        contact: method === "CASH" ? null : contact.trim() || null,
-        customerPhone: customer ? phone : null,
-        useBonus: !!customer && useBonus,
-        approval: needPin ? approval : null,
-      });
-      if (r.error) {
-        if (r.needPin) setApproval((a) => ({ ...a, pin: "" }));
-        return setError(r.error);
+      // Скидка сверх лимита: сначала запрос менеджеру — окно «Ждём подтверждения», продажа — после него
+      if (needPin) {
+        if (!approverId) return setError("Выберите менеджера, который подтвердит скидку");
+        const q = await posRequestSaleApproval(payload, approverId);
+        if (q.error || !q.id) return setError(q.error ?? "Не получилось отправить запрос");
+        setWaiting({ req: { id: q.id, approver: q.approver!, expiresAt: q.expiresAt! }, payload });
+        return;
       }
-      setSale(r.sale!);
-      router.refresh();
+      await sell(payload);
     });
+  }
+
+  async function sell(payload: Record<string, unknown>, approvalId?: string) {
+    const r = await posCreate({ ...payload, approvalId: approvalId ?? null });
+    if (r.error) return setError(r.error);
+    setSale(r.sale!);
+    router.refresh();
   }
 
   // Ждём оплату по QR: спрашиваем раз в 3 секунды
@@ -276,11 +287,23 @@ export function PosTerminal({
           <label className="field" style={{ margin: 0 }}>
             Скидка{maxDiscountPct != null ? ` (до ${maxDiscountPct} %)` : ""}
             <input className="input" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder={maxDiscountPct != null ? `${maxDiscountPct}%` : "500 или 10%"} inputMode="decimal" />
-            {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — {approvers ? "подтверждает менеджер PIN-кодом" : "только менеджер"}</span>}
+            {discTooBig && <span className="form-error small">Больше {maxDiscountPct} % — {approvers ? "нужно подтверждение менеджера" : "только менеджер"}</span>}
           </label>
         )}
       </div>
-      {needPin && <PinApprove approvers={approvers!} value={approval} onChange={setApproval} title={`Скидка ${fmt(disc)} — подтверждение менеджера`} />}
+      {needPin && <ApproverPick approvers={approvers!} value={approverId} onChange={setApproverId} title={`Скидка ${fmt(disc)} — подтверждение менеджера`} />}
+      {waiting && (
+        <ApprovalWait
+          request={waiting.req}
+          what={`Скидка ${fmt(disc)} на чек ${fmt(subtotal)}`}
+          onApproved={async () => {
+            const w = waiting;
+            await sell(w.payload, w.req.id);
+            setWaiting(null);
+          }}
+          onClose={() => setWaiting(null)}
+        />
+      )}
 
       <div className="pos-customer stack" style={{ gap: 8 }}>
         {customer ? (
@@ -353,7 +376,7 @@ export function PosTerminal({
           </div>
           <div className="pos-total__sum">{fmt(total)}</div>
         </div>
-        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (discTooBig && !(needPin && approvalReady(approval))) || (method !== "CASH" && total <= 0)} onClick={submit}>
+        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (discTooBig && !(needPin && !!approverId)) || (method !== "CASH" && total <= 0)} onClick={submit}>
           {pending ? "Проводим…" : method === "CASH" ? "Продать за наличные" : "Показать QR"}
         </button>
       </div>

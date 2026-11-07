@@ -393,6 +393,13 @@
       "when": 1794007072632,
       "tag": "0055_kassa_plus",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794058196748,
+      "tag": "0056_pos_approval",
+      "breakpoints": true
     }
   ]
 }

@@ -1678,6 +1678,36 @@ export const posReturnItem = pgTable("pos_return_item", {
   amount: integer("amount").notNull(), // вернули за позицию деньгами, копейки
 });
 
+/**
+ * Запрос подтверждения менеджера из кассы: скидка сверх лимита кассира или возврат.
+ * Менеджеру уходит письмо со ссылкой; он открывает её у себя, вводит PIN и подтверждает или отклоняет.
+ * Касса ждёт и проводит операцию только с тем же содержимым, что подтвердили (payloadHash).
+ */
+export const posApproval = pgTable(
+  "pos_approval",
+  {
+    id: id(),
+    tokenHash: text("token_hash").notNull().unique(), // ссылка из письма — в базе только хеш
+    kind: text("kind").notNull(), // DISCOUNT | RETURN
+    sellerId: text("seller_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    approverId: text("approver_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    payloadHash: text("payload_hash").notNull(),
+    summary: text("summary").notNull(), // что подтверждают — текстом для письма и страницы
+    details: jsonb("details").$type<{ lines: { name: string; qty: number; amount: number }[]; total: number; discount?: number; percent?: number; kassa: string; staffName?: string | null; place?: string | null }>().notNull(),
+    status: text("status").default("PENDING").notNull(), // PENDING | APPROVED | DENIED | CANCELLED | USED
+    attempts: integer("attempts").default(0).notNull(), // неверных PIN по этой ссылке
+    expiresAt: ts("expires_at").notNull(),
+    decidedAt: ts("decided_at"),
+    usedAt: ts("used_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("pos_approval_seller_idx").on(t.sellerId)],
+);
+
 /** Выемка (−) и внесение (+) наличных в кассе во время смены */
 export const posCashMove = pgTable(
   "pos_cash_move",
