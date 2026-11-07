@@ -1,10 +1,8 @@
-import { inArray, sql } from "drizzle-orm";
 import type { Metadata } from "next";
-import { db, schema as s } from "@/db";
-import { barcodeSvg, canBarcode } from "@/lib/barcode";
+import { barcodeSvg } from "@/lib/barcode";
 import { rub } from "@/lib/format";
 import { qrSvg } from "@/lib/qr";
-import { SITE } from "@/lib/site";
+import { labelItems, parseLabelQuery } from "@/lib/labels";
 import { requireAdmin } from "@/lib/viewer";
 import { PrintButton } from "./PrintButton";
 
@@ -23,38 +21,13 @@ export default async function LabelsPrint({ searchParams }: { searchParams: Prom
   await requireAdmin();
   const sp = await searchParams;
   const fmt = FORMATS[(sp.f ?? "58x40") as keyof typeof FORMATS] ?? FORMATS["58x40"];
-  const wanted = String(sp.i ?? "")
-    .split(",")
-    .map((x) => x.split(":"))
-    .filter(([id, n]) => id && Number(n) > 0)
-    .slice(0, 500)
-    .map(([id, n]) => ({ id, n: Math.min(500, Math.trunc(Number(n))) }));
-  const ids = wanted.map((w) => w.id);
-  const rows = ids.length
-    ? await db
-        .select({
-          id: s.productVariant.id,
-          product: s.product.name,
-          slug: s.product.slug,
-          variant: s.productVariant.name,
-          multi: sql<number>`(select count(*)::int from product_variant v2 where v2.product_id = ${s.product.id} and v2.is_active)`,
-          sku: sql<string | null>`case when (select count(*) from product_variant v2 where v2.product_id = ${s.product.id} and v2.is_active) > 1 then ${s.productVariant.sku} else coalesce(${s.productVariant.sku}, ${s.product.sku}) end`,
-          price: sql<number>`coalesce(${s.productVariant.price}, ${s.product.price})`,
-        })
-        .from(s.productVariant)
-        .innerJoin(s.product, sql`${s.product.id} = ${s.productVariant.productId}`)
-        .where(inArray(s.productVariant.id, ids))
-    : [];
   const withQr = sp.q === "1";
+  const items = await labelItems(parseLabelQuery(sp.i));
   const labels = (
     await Promise.all(
-      wanted.map(async (w) => {
-        const r = rows.find((x) => x.id === w.id);
-        if (!r || !canBarcode(r.sku)) return [];
-        // QR — ссылка на товар; у товара с вариантами сразу открывается нужный вариант
-        const url = `${SITE.url}/product/${r.slug}${r.multi > 1 ? `?v=${r.id}` : ""}`;
-        const item = { name: r.product, variant: r.multi > 1 ? r.variant : null, sku: r.sku, price: Number(r.price), svg: barcodeSvg(r.sku, { height: 40 }), qr: withQr ? await qrSvg(url) : null };
-        return Array.from({ length: w.n }, () => item);
+      items.map(async (r) => {
+        const item = { name: r.name, variant: r.variant, sku: r.sku, price: r.price, svg: barcodeSvg(r.sku, { height: 40 }), qr: withQr ? await qrSvg(r.url) : null };
+        return Array.from({ length: r.copies }, () => item);
       }),
     )
   ).flat();

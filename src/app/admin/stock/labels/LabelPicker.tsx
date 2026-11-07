@@ -35,13 +35,34 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
   const chosen = rows.filter((r) => r.ok && n(r.id) > 0);
   const total = chosen.reduce((a, r) => a + n(r.id), 0);
 
-  const print = () => {
-    const items = chosen.map((r) => `${r.id}:${n(r.id)}`).join(",");
-    window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}&i=${encodeURIComponent(items)}`, "_blank", "noopener");
+  const items = () => encodeURIComponent(chosen.map((r) => `${r.id}:${n(r.id)}`).join(","));
+  const print = () => window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}&i=${items()}`, "_blank", "noopener");
+  // NIIMBOT печатает только из своего приложения — отдаём таблицу, приложение само сделает штрихкоды и QR
+  const niimbot = () => {
+    window.location.href = `/admin/stock/labels/niimbot?p=${price ? 1 : 0}&i=${items()}`;
   };
 
   return (
     <div className="stack" style={{ gap: 14 }}>
+      <details className="panel" open>
+        <summary>
+          <b>Печать на NIIMBOT</b> <span className="muted small">— через приложение NIIMBOT на телефоне</span>
+        </summary>
+        <ol className="small" style={{ margin: "10px 0 0", paddingLeft: 20, display: "grid", gap: 6 }}>
+          <li>Ниже укажите, сколько этикеток каждого товара, и нажмите <b>«Файл для NIIMBOT»</b> — таблица скачается на телефон.</li>
+          <li>
+            Один раз сделайте шаблон в приложении NIIMBOT: новая этикетка <b>50×30 мм</b>, добавьте текст (название), текст (цена), штрихкод (тип{" "}
+            <b>CODE128</b>) и QR-код. Сохраните — дальше этот шаг не нужен.
+          </li>
+          <li>
+            В шаблоне откройте источник данных → <b>Excel</b>, выберите скачанный файл и привяжите поля к колонкам: «Название», «Цена», «Штрихкод», «Ссылка».
+          </li>
+          <li>Печать — по одной этикетке на каждую строку файла. Нужно 3 штуки — в файле будет 3 строки.</li>
+        </ol>
+        <p className="muted small" style={{ margin: "8px 0 0" }}>
+          Названия кнопок в приложении зависят от его версии. Принтер с драйвером на компьютере (Xprinter, TSC и другие) — кнопка «Печать из браузера».
+        </p>
+      </details>
       {missing > 0 && (
         <div className="notice notice--muted row" style={{ gap: 12, alignItems: "center", margin: 0 }}>
           <span>
@@ -133,9 +154,14 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
             <span>QR-код — ссылка на товар</span>
           </label>
         </div>
-        <button type="button" className="btn btn--gold btn--sm" disabled={!total} onClick={print}>
-          Печатать {total ? `${total} шт` : ""}
-        </button>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="btn btn--gold btn--sm" disabled={!total} onClick={niimbot}>
+            Файл для NIIMBOT {total ? `· ${total} шт` : ""}
+          </button>
+          <button type="button" className="btn btn--line btn--sm" disabled={!total} onClick={print}>
+            Печать из браузера
+          </button>
+        </div>
       </div>
     </div>
   );
