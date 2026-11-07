@@ -58,6 +58,7 @@ export async function duplicateProduct(id: string) {
     if (related.length) await tx.insert(s.productRelated).values(related.map((r) => ({ productId: p.id, relatedId: r.relatedId, sortOrder: r.sortOrder })));
     return p.id;
   });
+  await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([newId])).catch(() => {});
   await audit(me.id, "product.duplicate", "product", newId, { from: id });
   revalidatePath("/admin/catalog");
   redirect(`/admin/catalog/product/${newId}?copied=1`);
@@ -137,6 +138,7 @@ export async function quickCue(_: QuickState, form: FormData): Promise<QuickStat
     if (rows.length) await tx.insert(s.productAttribute).values(rows.map((r) => ({ ...r, productId: pid })));
     return created;
   });
+  await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([prod.id])).catch(() => {});
   await audit(me.id, "product.create", "product", prod.id, { slug, quick: true, visibility: d.publish });
   revalidatePath("/", "layout");
   return { ok: { id: prod.id, slug: prod.slug, previewToken: prod.previewToken, name, published: d.publish === "PUBLISHED" } };
@@ -154,6 +156,7 @@ export async function fillMissingSkus() {
     if (p.variants.length > 1)
       for (const v of p.variants.filter((x) => !x.sku)) await db.update(s.productVariant).set({ sku: `${sku}-${v.sortOrder + 1}` }).where(eq(s.productVariant.id, v.id)).catch(() => {});
   }
+  await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode(list.map((p) => p.id))).catch(() => {});
   await audit(me.id, "product.fill_sku", "product", null, { count: list.length });
   revalidatePath("/admin/catalog");
 }

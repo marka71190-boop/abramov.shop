@@ -7,6 +7,7 @@ export interface PickOption {
   name: string;
   sku: string | null;
   barcode?: string | null;
+  oldSku?: string | null;
   stock: number;
   price: number;
   cost: number | null;
@@ -38,7 +39,7 @@ export function VariantPicker({
     return options
       .filter((o) => !exclude?.has(o.id))
       .filter((o) => {
-        const hay = norm(`${o.name} ${o.sku ?? ""} ${o.barcode ?? ""}`);
+        const hay = norm(`${o.name} ${o.sku ?? ""} ${o.barcode ?? ""} ${o.oldSku ?? ""}`);
         return words.every((w) => hay.includes(w));
       })
       .slice(0, 12);

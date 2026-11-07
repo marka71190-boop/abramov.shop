@@ -499,6 +499,8 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
     }
     throw e;
   }
+  // Артикул = штрихкод (новые варианты получают свой EAN-13)
+  await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([productId!])).catch(() => {});
   await audit(me.id, d.id ? "product.update" : "product.create", "product", productId, { slug: d.slug, visibility: d.visibility });
   // Пополнили остаток — снова предупредим, когда будет заканчиваться
   const ids = (await db.select({ id: s.productVariant.id }).from(s.productVariant).where(eq(s.productVariant.productId, productId!))).map((v) => v.id);

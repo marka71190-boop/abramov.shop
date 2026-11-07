@@ -140,6 +140,8 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
                   id: o.id,
                   name: o.name,
                   sku: o.sku,
+                  barcode: o.barcode,
+                  oldSku: o.oldSku,
                   stock: o.stock,
                   price: o.price,
                   cost: null,

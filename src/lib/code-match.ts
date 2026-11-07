@@ -4,7 +4,7 @@
  */
 const norm = (t: string) => t.trim().toLowerCase().replace(/ё/g, "е");
 
-export function codeMatches(o: { sku: string | null; barcode?: string | null }, code: string) {
+export function codeMatches(o: { sku: string | null; barcode?: string | null; oldSku?: string | null }, code: string) {
   const c = code.trim();
   if (!c) return false;
   if (o.barcode) {
@@ -12,5 +12,6 @@ export function codeMatches(o: { sku: string | null; barcode?: string | null }, 
     // UPC-A (12 цифр) — тот же EAN-13 с ведущим нулём
     if (digits === o.barcode || (digits.length === 12 && `0${digits}` === o.barcode)) return true;
   }
-  return !!o.sku && norm(o.sku) === norm(c);
+  // Прежний артикул — со старых этикеток
+  return (!!o.sku && norm(o.sku) === norm(c)) || (!!o.oldSku && norm(o.oldSku) === norm(c));
 }

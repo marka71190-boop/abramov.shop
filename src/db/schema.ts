@@ -288,6 +288,7 @@ export const product = pgTable("product", {
   price: integer("price").notNull(), // копейки
   oldPrice: integer("old_price"),
   sku: text("sku").unique(),
+  oldSku: text("old_sku"), // артикул до перехода «артикул = штрихкод»: по нему находим старые файлы и этикетки
   visibility: visibilityEnum("visibility").default("DRAFT").notNull(),
   publishAt: ts("publish_at"),
   previewToken: previewToken(),
@@ -321,6 +322,7 @@ export const productVariant = pgTable("product_variant", {
     .references(() => product.id, { onDelete: "cascade" }),
   name: text("name").notNull(), // «Чёрный, M»
   sku: text("sku").unique(),
+  oldSku: text("old_sku"), // прежний артикул — старые этикетки и файлы Excel по нему тоже находятся
   // Штрихкод EAN-13: свой магазинный (200…) — сайт выдаёт сам, или заводской с упаковки. Сканер ищет и по нему, и по артикулу
   barcode: text("barcode").unique(),
   price: integer("price"), // если отличается от цены товара, копейки

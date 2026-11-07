@@ -221,7 +221,7 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
   const skus = [...groups.values()].map((g) => g[0].productSku!.trim());
   const existing = skus.length
     ? await db.query.product.findMany({
-        where: sql`lower(${s.product.sku}) in ${skus.map((x) => x.toLowerCase())} or ${s.product.slug} in ${skus.map((x) => x.toLowerCase())}`,
+        where: sql`lower(${s.product.sku}) in ${skus.map((x) => x.toLowerCase())} or lower(${s.product.oldSku}) in ${skus.map((x) => x.toLowerCase())} or ${s.product.slug} in ${skus.map((x) => x.toLowerCase())}`,
         with: { variants: true, images: true },
       })
     : [];
@@ -233,7 +233,10 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
   for (const g of groups.values()) {
     const first = g[0];
     const sku = first.productSku!.trim();
-    const prod = existing.find((p) => p.sku?.toLowerCase() === sku.toLowerCase()) ?? existing.find((p) => p.slug === sku.toLowerCase());
+    const prod =
+      existing.find((p) => p.sku?.toLowerCase() === sku.toLowerCase()) ??
+      existing.find((p) => p.oldSku?.toLowerCase() === sku.toLowerCase()) ?? // файл со старыми артикулами
+      existing.find((p) => p.slug === sku.toLowerCase());
     const pick = (k: ColKey) => g.map((r) => r[k]).find((v) => v?.trim()) ?? null;
     const rowErr = (row: number, text: string) => errors.push({ row, text: `${sku}: ${text}` });
     let bad = false;
@@ -424,7 +427,7 @@ function samePhotos(
 type VariantRow = typeof s.productVariant.$inferSelect;
 function matchVariant(list: VariantRow[], v: { name: string | null; sku: string | null }, inputCount: number) {
   if (v.sku) {
-    const bySku = list.find((x) => x.sku?.toLowerCase() === v.sku!.toLowerCase());
+    const bySku = list.find((x) => x.sku?.toLowerCase() === v.sku!.toLowerCase()) ?? list.find((x) => x.oldSku?.toLowerCase() === v.sku!.toLowerCase());
     if (bySku) return bySku;
   }
   if (v.name) {
@@ -566,6 +569,7 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
   const sku = input.productSku;
   const prod =
     (await db.query.product.findFirst({ where: sql`lower(${s.product.sku}) = ${sku.toLowerCase()}`, with: { variants: { orderBy: asc(s.productVariant.sortOrder) } } })) ??
+    (await db.query.product.findFirst({ where: sql`lower(${s.product.oldSku}) = ${sku.toLowerCase()}`, with: { variants: { orderBy: asc(s.productVariant.sortOrder) } } })) ??
     (await db.query.product.findFirst({ where: eq(s.product.slug, sku.toLowerCase()), with: { variants: { orderBy: asc(s.productVariant.sortOrder) } } }));
   if (!prod && !input.name) return { sku, ok: false, error: "нет названия", warnings };
 
@@ -643,7 +647,8 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
           stock: v.stock,
           isActive: true,
           ...(v.name ? { name: v.name.trim() } : {}),
-          ...(v.sku ? { sku: v.sku } : {}),
+          // Старый артикул из файла не возвращаем — артикул теперь = штрихкод
+          ...(v.sku && v.sku.toLowerCase() !== ev?.oldSku?.toLowerCase() ? { sku: v.sku } : {}),
         };
         if (ev) {
           await tx.update(s.productVariant).set(row).where(eq(s.productVariant.id, ev.id));
@@ -685,6 +690,7 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
       return id;
     });
     const stockAfter = input.variants.reduce((a, v) => a + v.stock, 0);
+    await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([productId!])).catch(() => {});
     return { sku, ok: true, created: !prod, productId, warnings, backInStock: !!prod && stockBefore === 0 && stockAfter > 0 };
   } catch (e) {
     const text = e instanceof Error ? e.message + String((e as { cause?: unknown }).cause ?? "") : "";
