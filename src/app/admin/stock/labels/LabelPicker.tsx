@@ -13,6 +13,7 @@ interface Row {
 }
 
 const FORMATS = [
+  { key: "50x30", label: "Термопринтер 50×30 мм" },
   { key: "58x40", label: "Термопринтер 58×40 мм" },
   { key: "58x30", label: "Термопринтер 58×30 мм" },
   { key: "a4", label: "Лист A4: 3×8 наклеек 70×37 мм" },
@@ -22,8 +23,9 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
   const router = useRouter();
   const [q, setQ] = useState("");
   const [copies, setCopies] = useState<Record<string, string>>({});
-  const [format, setFormat] = useState("58x40");
+  const [format, setFormat] = useState("50x30");
   const [price, setPrice] = useState(true);
+  const [qr, setQr] = useState(true);
   const [msg, setMsg] = useState("");
   const [pending, start] = useTransition();
 
@@ -35,7 +37,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
 
   const print = () => {
     const items = chosen.map((r) => `${r.id}:${n(r.id)}`).join(",");
-    window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&i=${encodeURIComponent(items)}`, "_blank", "noopener");
+    window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}&i=${encodeURIComponent(items)}`, "_blank", "noopener");
   };
 
   return (
@@ -125,6 +127,10 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
           <label className="check" style={{ margin: 0 }}>
             <input type="checkbox" checked={price} onChange={(e) => setPrice(e.target.checked)} />
             <span>С ценой</span>
+          </label>
+          <label className="check" style={{ margin: 0 }}>
+            <input type="checkbox" checked={qr} onChange={(e) => setQr(e.target.checked)} />
+            <span>QR-код — ссылка на товар</span>
           </label>
         </div>
         <button type="button" className="btn btn--gold btn--sm" disabled={!total} onClick={print}>
