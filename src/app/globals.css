@@ -7459,3 +7459,31 @@ tr.is-muted td {
   width: 64px;
   text-align: center;
 }
+
+/* Загрузка таблицы: перетащить файл или нажать */
+.file-drop {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  text-align: center;
+  border: 2px dashed var(--c-line);
+  color: var(--c-text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.file-drop:hover,
+.file-drop:focus-visible {
+  border-color: var(--c-gold);
+  outline: none;
+}
+.file-drop.is-drop {
+  border-color: var(--c-gold);
+  background: rgba(212, 175, 55, 0.08);
+}
+.file-drop.has-file {
+  border-style: solid;
+}
+.file-drop svg {
+  color: var(--c-gold);
+}

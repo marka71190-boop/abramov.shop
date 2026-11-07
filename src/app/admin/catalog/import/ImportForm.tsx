@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ApplyResult, Plan } from "@/lib/catalog-import";
 import { applyImportAction, finishImportAction } from "./actions";
 
@@ -13,15 +13,30 @@ export function ImportForm() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
   const [results, setResults] = useState<ApplyResult[] | null>(null);
+  const [drag, setDrag] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
 
-  async function check() {
-    if (!file) return;
+  /** Файл выбрали или перетащили — сразу проверяем */
+  function take(f: File | null | undefined) {
+    if (!f) return;
+    if (!/\.xlsx$/i.test(f.name)) {
+      setFile(null);
+      setPlan(null);
+      setError(`«${f.name}» — не таблица Excel. Нужен файл .xlsx (в Google Таблицах: Файл → Скачать → Microsoft Excel)`);
+      return;
+    }
+    setFile(f);
+    void check(f);
+  }
+
+  async function check(f: File | null = file) {
+    if (!f) return;
     setBusy(true);
     setError(null);
     setPlan(null);
     setResults(null);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", f);
     const r = await fetch("/api/admin/catalog-import", { method: "POST", body: fd })
       .then((x) => x.json())
       .catch(() => ({ error: "Нет связи с сервером" }));
@@ -126,20 +141,71 @@ export function ImportForm() {
 
       <div className="panel stack">
         <h2 style={{ marginBottom: 0 }}>2. Загрузка</h2>
-        <div className="row" style={{ alignItems: "center" }}>
+        <div
+          className={`file-drop${drag ? " is-drop" : ""}${file ? " has-file" : ""}`}
+          role="button"
+          tabIndex={0}
+          aria-label="Выбрать файл .xlsx"
+          onClick={() => !busy && input.current?.click()}
+          onKeyDown={(e) => {
+            if ((e.key === "Enter" || e.key === " ") && !busy) {
+              e.preventDefault();
+              input.current?.click();
+            }
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("Files")) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              setDrag(true);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDrag(false);
+            if (!busy) take(e.dataTransfer.files?.[0]);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+            <path d="M14 3v5h5M9 13l3-3 3 3M12 10v7" />
+          </svg>
+          {busy && !plan ? (
+            <b>Проверяем {file?.name}…</b>
+          ) : drag ? (
+            <b>Отпустите — проверим файл</b>
+          ) : file ? (
+            <>
+              <b>{file.name}</b>
+              <span className="muted small">Другой файл — перетащите сюда или нажмите</span>
+            </>
+          ) : (
+            <>
+              <b>Перетащите файл .xlsx сюда</b>
+              <span className="muted small">или нажмите, чтобы выбрать</span>
+            </>
+          )}
           <input
+            ref={input}
             type="file"
+            hidden
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
-              setPlan(null);
-              setError(null);
+              take(e.target.files?.[0]);
+              e.target.value = "";
             }}
           />
-          <button type="button" className="btn btn--gold btn--sm" disabled={!file || busy} onClick={check}>
-            {busy && !plan ? "Проверяем…" : "Проверить файл"}
-          </button>
         </div>
+        {file && !busy && (
+          <div>
+            <button type="button" className="btn btn--line btn--sm" onClick={() => check()}>
+              Проверить снова
+            </button>
+          </div>
+        )}
         {error && <div className="form-error">{error}</div>}
       </div>
 
