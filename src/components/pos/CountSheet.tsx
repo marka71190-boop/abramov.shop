@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { countCancelAction, countSaveAction, countSubmitAction } from "@/app/admin/stock/count/actions";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
-import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
+import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
+import { useScanWedge } from "@/components/pos/useScanWedge";
 import { codeMatches } from "@/lib/code-match";
 
 
@@ -82,6 +83,14 @@ export function CountSheet({
     return `${o.name} — ${(counts[o.id] ?? 0) + 1} шт`;
   };
 
+  // Сканер-клавиатура (USB / Bluetooth): каждое сканирование +1 шт
+  const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  useScanWedge((code) => {
+    const name = onCode(code);
+    signal(!!name);
+    setScanMsg(name ? { text: `+ ${name}`, ok: true } : { text: `Не нашли товар с кодом ${code}`, ok: false });
+  }, !scan);
+
   const total = Object.values(counts).reduce((a, x) => a + x, 0);
   const lines = order.filter((vid) => vid in counts);
 
@@ -104,8 +113,13 @@ export function CountSheet({
           </button>
         )}
       </div>
+      {scanMsg && !scan && (
+        <div className={scanMsg.ok ? "form-ok" : "form-error"} role="status">
+          {scanMsg.text}
+        </div>
+      )}
       <p className="muted small" style={{ margin: 0 }}>
-        Каждое сканирование — +1 шт. Одинаковых товаров много — отсканируйте один и впишите количество.
+        Каждое сканирование — +1 шт. Сканер-пистолет (USB или Bluetooth) тоже работает — просто сканируйте. Одинаковых товаров много — отсканируйте один и впишите количество.
       </p>
 
       <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>

@@ -2,7 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
-import { BarcodeScanner } from "@/components/pos/BarcodeScanner";
+import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
+import { useScanWedge } from "@/components/pos/useScanWedge";
 import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
 import type { PosCustomer } from "@/lib/pos";
 import { cashMoveAction, posCancel, posCreate, posFindCustomer, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
@@ -93,6 +94,17 @@ export function PosTerminal({
     return o.name;
   };
 
+  // Сканер-клавиатура (USB / Bluetooth): ловим на всей странице, пока чек собирается
+  const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  useScanWedge(
+    (code) => {
+      const name = onCode(code);
+      signal(!!name);
+      setScanMsg(name ? { text: `+ ${name}`, ok: true } : { text: `Не нашли товар в наличии с кодом ${code}`, ok: false });
+    },
+    !scan && !sale && !waiting,
+  );
+
   function findCustomer() {
     setCustError("");
     startFind(async () => {
@@ -119,6 +131,7 @@ export function PosTerminal({
     setUseBonus(false);
     setApproverId("");
     setWaiting(null);
+    setScanMsg(null);
   }
 
   function submit() {
@@ -237,6 +250,11 @@ export function PosTerminal({
     <div className="pos stack" style={{ gap: 14 }}>
       {note && <div className="form-ok">{note}</div>}
       {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
+      {scanMsg && !scan && (
+        <div className={scanMsg.ok ? "form-ok" : "form-error"} role="status">
+          {scanMsg.text}
+        </div>
+      )}
       <div className="pos-find">
         <VariantPicker options={options.filter((o) => o.stock > 0)} onPick={add} exclude={picked} placeholder="Товар: название или артикул (можно сканером)" />
         {!scan && (

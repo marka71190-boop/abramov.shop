@@ -3,6 +3,8 @@ import { variantOptions } from "@/lib/stock-moves";
 import { stockClubs } from "@/lib/club-stock";
 import { redirect } from "next/navigation";
 import { isDirector, requireAdmin } from "@/lib/viewer";
+import { db, schema as s } from "@/db";
+import { asc } from "drizzle-orm";
 import { MoveForm } from "./MoveForm";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,8 @@ export default async function StockMovePage({ searchParams }: { searchParams: Pr
   const clubs = (await stockClubs()).filter((x) => x.ownStock);
   const club = clubs.find((x) => x.id === c) ?? null;
   const options = await variantOptions(club?.id ?? null);
+  // Для нового товара прямо из приёмки
+  const categories = kind.key === "RECEIPT" ? await db.select({ id: s.category.id, name: s.category.name }).from(s.category).orderBy(asc(s.category.name)) : [];
   return (
     <>
       <h1>{kind.title}</h1>
@@ -52,7 +56,7 @@ export default async function StockMovePage({ searchParams }: { searchParams: Pr
         {club ? `В клубе «${club.title}». ` : ""}
         {kind.text}
       </p>
-      <MoveForm key={`${kind.key}-${club?.id ?? "wh"}`} kind={kind.key} options={options} clubId={club?.id ?? null} />
+      <MoveForm key={`${kind.key}-${club?.id ?? "wh"}`} kind={kind.key} options={options} clubId={club?.id ?? null} categories={categories} />
     </>
   );
 }

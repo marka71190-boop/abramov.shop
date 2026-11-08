@@ -1,0 +1,54 @@
+# Проверка сайта перед выкладкой: сборка (с проверкой типов) и автотесты в браузере —
+# покупка, касса со сканером, подтверждение менеджера, приёмка, ревизия.
+# Всё зелёное — код уходит в ветку production, с которой Timeweb выкладывает сайт.
+# Красное — сайт остаётся прежним, GitHub пришлёт письмо, логи — во вкладке Actions.
+name: Проверка сайта
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: check-main
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci --no-audit --no-fund
+
+      - name: Браузер для тестов
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Сборка и автотесты
+        run: bash e2e/run.sh
+
+      - name: Логи, если тесты упали
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: e2e/.run/*.log
+          if-no-files-found: ignore
+
+      - name: Выложить — в ветку production
+        if: success() && github.ref == 'refs/heads/main'
+        run: git push --force origin HEAD:refs/heads/production

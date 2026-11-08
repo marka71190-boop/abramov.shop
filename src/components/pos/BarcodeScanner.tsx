@@ -25,7 +25,7 @@ async function makeDetector(): Promise<Detector> {
 }
 
 /** Короткий сигнал и вибрация: товар добавлен (или нет) */
-function signal(ok: boolean) {
+export function signal(ok: boolean) {
   try {
     navigator.vibrate?.(ok ? 60 : [40, 60, 40]);
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;

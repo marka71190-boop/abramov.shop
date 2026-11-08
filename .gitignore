@@ -16,3 +16,6 @@ npm-debug.log*
 
 # Копируется перед сборкой из zxing-wasm (scripts/copy-zxing.mjs)
 /public/zxing/
+
+# Автотесты: база, письма, логи прогона
+/e2e/.run/

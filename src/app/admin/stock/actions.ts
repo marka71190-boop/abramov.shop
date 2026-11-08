@@ -116,3 +116,86 @@ export async function normsAction(raw: unknown): Promise<MoveResult> {
     return { error: e instanceof Error ? e.message : "Не получилось сохранить" };
   }
 }
+
+// ---------- Приёмка сканером: неизвестный штрихкод ----------
+
+const CodeIn = z.string().trim().min(3, "Пустой код").max(64).regex(/^[\p{L}\d\-_.\/ ]+$/u, "Странный код — отсканируйте ещё раз");
+
+/** Найти вариант (для списка приёмки) после изменения: тот же вид, что даёт variantOptions */
+async function optionFor(variantId: string, clubId: string | null) {
+  const { variantOptions } = await import("@/lib/stock-moves");
+  return (await variantOptions(clubId)).find((o) => o.id === variantId) ?? null;
+}
+
+/**
+ * Заводской штрихкод с упаковки → к существующему товару. Артикул = штрихкод, прежний — в old_sku,
+ * так что старые этикетки этого товара тоже продолжат сканироваться.
+ */
+export async function bindCodeAction(raw: { variantId: string; code: string; clubId?: string | null }) {
+  const me = await requireAdmin();
+  const code = CodeIn.safeParse(raw.code);
+  if (!code.success) return { error: code.error.issues[0]?.message };
+  const { db, schema: s } = await import("@/db");
+  const { eq, or } = await import("drizzle-orm");
+  const { isEan13 } = await import("@/lib/barcode");
+  const busy = await db.query.productVariant.findFirst({ where: or(eq(s.productVariant.barcode, code.data), eq(s.productVariant.sku, code.data)) });
+  if (busy && busy.id !== raw.variantId) return { error: "Этот код уже у другого товара" };
+  const v = await db.query.productVariant.findFirst({ where: eq(s.productVariant.id, String(raw.variantId).slice(0, 64)) });
+  if (!v) return { error: "Товар не найден" };
+  try {
+    if (isEan13(code.data)) {
+      await db.update(s.productVariant).set({ barcode: code.data, sku: code.data, oldSku: v.oldSku ?? v.sku }).where(eq(s.productVariant.id, v.id));
+      const { syncSkuToBarcode } = await import("@/lib/shop-barcodes");
+      await syncSkuToBarcode([v.productId]);
+    } else {
+      // Не EAN-13 (Code 128 и т. п.) — запоминаем как прежний артикул: сканер найдёт товар по нему
+      await db.update(s.productVariant).set({ oldSku: code.data }).where(eq(s.productVariant.id, v.id));
+    }
+  } catch {
+    return { error: "Не получилось сохранить код — он уже занят" };
+  }
+  await audit(me.id, "stock.bind_code", "product_variant", v.id, { code: code.data });
+  return { ok: true as const, option: await optionFor(v.id, raw.clubId ?? null) };
+}
+
+const NewIn = z.object({
+  code: CodeIn,
+  name: z.string().trim().min(2, "Название — хотя бы 2 буквы").max(200),
+  price: z.number().int().min(0).max(100_000_000),
+  categoryId: z.string().max(64).nullish(),
+  clubId: z.string().max(64).nullish(),
+});
+
+/** Новый товар прямо из приёмки: черновик с этим штрихкодом — фото и описание добавите потом */
+export async function quickProductAction(raw: unknown) {
+  const me = await requireAdmin();
+  const p = NewIn.safeParse(raw);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте поля" };
+  const d = p.data;
+  const { db, schema: s } = await import("@/db");
+  const { eq, or } = await import("drizzle-orm");
+  const { isEan13 } = await import("@/lib/barcode");
+  const busy = await db.query.productVariant.findFirst({ where: or(eq(s.productVariant.barcode, d.code), eq(s.productVariant.sku, d.code)) });
+  if (busy) return { error: "Товар с этим кодом уже есть — обновите страницу" };
+  const { slugify } = await import("@/lib/slug");
+  const base = (slugify(d.name) || "tovar").slice(0, 70);
+  let slug = base;
+  for (let i = 2; await db.query.product.findFirst({ where: eq(s.product.slug, slug), columns: { id: true } }); i++) slug = `${base}-${i}`;
+  const ean = isEan13(d.code);
+  const variantId = await db.transaction(async (tx) => {
+    const [prod] = await tx
+      .insert(s.product)
+      .values({ name: d.name.replace(/\s+/g, " "), slug, sku: ean ? d.code : null, categoryId: d.categoryId || null, price: d.price, visibility: "DRAFT" })
+      .returning({ id: s.product.id });
+    const [v] = await tx
+      .insert(s.productVariant)
+      .values({ productId: prod.id, name: "Основной", stock: 0, isActive: true, sortOrder: 0, ...(ean ? { barcode: d.code, sku: d.code } : { oldSku: d.code }) })
+      .returning({ id: s.productVariant.id, productId: s.productVariant.productId });
+    return v;
+  });
+  const { syncSkuToBarcode } = await import("@/lib/shop-barcodes");
+  await syncSkuToBarcode([variantId.productId]);
+  await audit(me.id, "product.create", "product", variantId.productId, { slug, fromReceipt: true });
+  revalidatePath("/admin/catalog");
+  return { ok: true as const, productId: variantId.productId, option: await optionFor(variantId.id, d.clubId ?? null) };
+}

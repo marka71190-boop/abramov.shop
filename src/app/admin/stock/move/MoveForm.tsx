@@ -3,7 +3,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
-import { saveMoves, type MoveResult } from "../actions";
+import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
+import { useScanWedge } from "@/components/pos/useScanWedge";
+import { codeMatches } from "@/lib/code-match";
+import { bindCodeAction, quickProductAction, saveMoves, type MoveResult } from "../actions";
 
 type Kind = "RECEIPT" | "WRITE_OFF" | "INVENTORY";
 type Line = { o: PickOption; qty: string; cost: string };
@@ -18,17 +21,71 @@ const TEXT: Record<Kind, { qty: string; btn: string; note: string; notePh: strin
   INVENTORY: { qty: "Стало, шт", btn: "Сохранить остатки", note: "Комментарий", notePh: "Пересчёт склада 6 ноября" },
 };
 
-export function MoveForm({ kind, options, clubId = null }: { kind: Kind; options: PickOption[]; clubId?: string | null }) {
+export function MoveForm({
+  kind,
+  options: initialOptions,
+  clubId = null,
+  categories = [],
+}: {
+  kind: Kind;
+  options: PickOption[];
+  clubId?: string | null;
+  categories?: { id: string; name: string }[];
+}) {
   const router = useRouter();
+  const [options, setOptions] = useState(initialOptions);
   const [lines, setLines] = useState<Line[]>([]);
+  const [scan, setScan] = useState(false);
+  const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  // Отсканировали код, которого нет ни у одного товара: привязать к товару или создать новый
+  const [unknown, setUnknown] = useState<string | null>(null);
+  // Что пришло последним приходом — для печати этикеток
+  const [received, setReceived] = useState<{ id: string; qty: number }[]>([]);
   const [note, setNote] = useState("");
   const [res, setRes] = useState<MoveResult>({});
   const [pending, start] = useTransition();
   const t = TEXT[kind];
   const picked = useMemo(() => new Set(lines.map((l) => l.o.id)), [lines]);
 
+  // Уже в списке — +1 шт (сканер, повторный выбор); при инвентаризации просто поднимаем строку наверх
   const add = (o: PickOption) =>
-    setLines((ls) => [...ls, { o, qty: kind === "INVENTORY" ? String(o.stock) : "1", cost: kind === "RECEIPT" ? rubStr(o.cost) : "" }]);
+    setLines((ls) => {
+      const i = ls.findIndex((l) => l.o.id === o.id);
+      const fresh = { o, qty: kind === "INVENTORY" ? String(o.stock) : "1", cost: kind === "RECEIPT" ? rubStr(o.cost) : "" };
+      if (i < 0) return [fresh, ...ls];
+      const cur = ls[i];
+      const next = kind === "INVENTORY" ? cur : { ...cur, qty: String((Math.trunc(Number(cur.qty)) || 0) + 1) };
+      return [next, ...ls.filter((_, n) => n !== i)];
+    });
+
+  /** Код со сканера (камера или сканер-пистолет) */
+  const onCode = (code: string) => {
+    const o = options.find((x) => codeMatches(x, code));
+    if (!o) {
+      signal(false);
+      if (kind === "RECEIPT") {
+        setUnknown(code.trim());
+        setScan(false);
+        setScanMsg({ text: `Код ${code} не найден — привяжите его к товару или создайте новый ниже`, ok: false });
+      } else setScanMsg({ text: `Не нашли товар с кодом ${code}`, ok: false });
+      return null;
+    }
+    add(o);
+    signal(true);
+    const was = lines.find((l) => l.o.id === o.id);
+    const n = kind === "INVENTORY" ? null : (Math.trunc(Number(was?.qty)) || 0) + 1;
+    setScanMsg({ text: `+ ${o.name}${n ? ` — ${n} шт` : ""}`, ok: true });
+    return o.name;
+  };
+  useScanWedge((code) => void onCode(code), !scan && !unknown);
+
+  /** Новый товар или привязанный код — в список вариантов и сразу в приход */
+  const adopt = (o: PickOption) => {
+    setOptions((os) => [o, ...os.filter((x) => x.id !== o.id)]);
+    setUnknown(null);
+    add(o);
+    setScanMsg({ text: `+ ${o.name} — 1 шт`, ok: true });
+  };
   const upd = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
 
   const total = kind === "RECEIPT" ? lines.reduce((a, l) => a + (Number(l.qty) || 0) * (toKop(l.cost) || 0), 0) : 0;
@@ -51,6 +108,7 @@ export function MoveForm({ kind, options, clubId = null }: { kind: Kind; options
       const r = await saveMoves({ type: kind, clubId, note: note.trim() || undefined, lines: out });
       setRes(r);
       if (r.ok) {
+        if (kind === "RECEIPT") setReceived(out.map((l) => ({ id: l.variantId, qty: l.qty })));
         setLines([]);
         setNote("");
         router.refresh();
@@ -58,16 +116,39 @@ export function MoveForm({ kind, options, clubId = null }: { kind: Kind; options
     });
   }
 
+  const labelsQuery = encodeURIComponent(received.map((r) => `${r.id}:${r.qty}`).join(","));
+
   return (
     <div className="stack" style={{ gap: 14 }}>
-      <VariantPicker
-        options={options}
-        onPick={add}
-        exclude={picked}
-        autoFocus
-        hint={(o) => `в наличии ${o.stock} шт${o.cost != null ? ` · закупка ${fmt(o.cost)}` : ""}`}
-        placeholder="Найдите товар: название или артикул (можно сканером)"
-      />
+      {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
+      <div className="pos-find">
+        <VariantPicker
+          options={options}
+          onPick={add}
+          exclude={kind === "INVENTORY" ? picked : undefined}
+          autoFocus
+          hint={(o) => `в наличии ${o.stock} шт${o.cost != null ? ` · закупка ${fmt(o.cost)}` : ""}`}
+          placeholder="Название, артикул или штрихкод"
+        />
+        {!scan && (
+          <button type="button" className="btn btn--line pos-scan-btn" onClick={() => setScan(true)} aria-label="Сканировать штрихкод камерой">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M16 8v8" />
+            </svg>
+            <span>Камера</span>
+          </button>
+        )}
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        Сканер-пистолет (USB или Bluetooth) работает сразу — просто сканируйте: каждый скан +1 шт.
+        {kind === "RECEIPT" ? " Незнакомый штрихкод с упаковки можно тут же привязать к товару или завести новый товар." : ""}
+      </p>
+      {scanMsg && !scan && (
+        <div className={scanMsg.ok ? "form-ok" : "form-error"} role="status">
+          {scanMsg.text}
+        </div>
+      )}
+      {unknown && <UnknownCode code={unknown} options={options} clubId={clubId} categories={categories} onDone={adopt} onCancel={() => setUnknown(null)} />}
 
       {lines.length > 0 && (
         <div className="table-wrap">
@@ -146,6 +227,111 @@ export function MoveForm({ kind, options, clubId = null }: { kind: Kind; options
         {res.ok && <span className="form-ok">{res.ok}</span>}
         {res.error && <span className="form-error">{res.error}</span>}
       </div>
+      {received.length > 0 && res.ok && (
+        <div className="panel row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span>Этикетки на пришедшее ({received.reduce((a, r) => a + r.qty, 0)} шт):</span>
+          <a className="btn btn--gold btn--sm" href={`/admin/stock/labels/niimbot?p=1&i=${labelsQuery}`}>
+            Файл для NIIMBOT
+          </a>
+          <a className="btn btn--line btn--sm" href={`/print/labels?f=50x30&p=1&q=1&i=${labelsQuery}`} target="_blank" rel="noopener">
+            Печать из браузера
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Незнакомый штрихкод при приёмке: привязать к существующему товару или завести новый черновик */
+function UnknownCode({
+  code,
+  options,
+  clubId,
+  categories,
+  onDone,
+  onCancel,
+}: {
+  code: string;
+  options: PickOption[];
+  clubId: string | null;
+  categories: { id: string; name: string }[];
+  onDone: (o: PickOption) => void;
+  onCancel: () => void;
+}) {
+  const [mode, setMode] = useState<"bind" | "new">("bind");
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [cat, setCat] = useState("");
+  const [err, setErr] = useState("");
+  const [pending, start] = useTransition();
+
+  const bind = (o: PickOption) =>
+    start(async () => {
+      setErr("");
+      const r = await bindCodeAction({ variantId: o.id, code, clubId });
+      if ("error" in r && r.error) return setErr(r.error);
+      if ("option" in r && r.option) onDone(r.option as PickOption);
+    });
+  const create = () =>
+    start(async () => {
+      setErr("");
+      const kop = toKop(price);
+      if (!(kop >= 0) || !price.trim()) return setErr("Укажите цену продажи в рублях");
+      const r = await quickProductAction({ code, name, price: kop, categoryId: cat || null, clubId });
+      if ("error" in r && r.error) return setErr(r.error);
+      if ("option" in r && r.option) onDone(r.option as PickOption);
+    });
+
+  return (
+    <div className="panel stack" style={{ gap: 10, borderColor: "var(--c-gold)" }}>
+      <div className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <b>
+          Новый код: <code>{code}</code>
+        </b>
+        <button type="button" className="linklike small" onClick={onCancel}>
+          Пропустить
+        </button>
+      </div>
+      <div className="row" style={{ gap: 6 }}>
+        <button type="button" className={`btn btn--sm ${mode === "bind" ? "btn--gold" : "btn--line"}`} onClick={() => setMode("bind")}>
+          Это товар из каталога
+        </button>
+        <button type="button" className={`btn btn--sm ${mode === "new" ? "btn--gold" : "btn--line"}`} onClick={() => setMode("new")}>
+          Новый товар
+        </button>
+      </div>
+      {mode === "bind" ? (
+        <>
+          <VariantPicker options={options} onPick={bind} autoFocus placeholder="Какой это товар? Начните вводить название" />
+          <p className="muted small" style={{ margin: 0 }}>
+            Штрихкод с упаковки станет штрихкодом и артикулом товара — дальше он будет находиться сканером сразу. Старые этикетки товара тоже продолжат работать.
+          </p>
+        </>
+      ) : (
+        <div className="stack" style={{ gap: 8 }}>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Название товара" maxLength={200} autoFocus />
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <input className="input" style={{ width: 160 }} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Цена продажи, ₽" />
+            {categories.length > 0 && (
+              <select className="select" style={{ flex: "1 1 180px" }} value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Категория">
+                <option value="">Категория — потом</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <p className="muted small" style={{ margin: 0 }}>
+            Товар появится черновиком — на сайте его не видно, пока не добавите фото и не опубликуете. Остаток придёт с этим приходом.
+          </p>
+          <button type="button" className="btn btn--gold btn--sm" style={{ alignSelf: "flex-start" }} disabled={pending || name.trim().length < 2} onClick={create}>
+            {pending ? "Создаём…" : "Создать и добавить в приход"}
+          </button>
+        </div>
+      )}
+      {err && <div className="form-error">{err}</div>}
     </div>
   );
 }

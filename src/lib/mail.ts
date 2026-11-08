@@ -18,8 +18,9 @@ function getTransport() {
       host: process.env.SMTP_HOST,
       port,
       secure: port === 465,
-      // 587 и 2525 — сначала без шифрования, затем обязательно STARTTLS
-      requireTLS: port !== 465 && port !== 25,
+      // 587 и 2525 — сначала без шифрования, затем обязательно STARTTLS. Почтовый сервер на этой же машине
+      // (заглушка автотестов) — без шифрования: письмо не выходит за пределы сервера
+      requireTLS: port !== 465 && port !== 25 && !/^(127\.0\.0\.1|localhost)$/.test(process.env.SMTP_HOST ?? ""),
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
