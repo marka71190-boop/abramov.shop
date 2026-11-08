@@ -62,8 +62,9 @@ test("ревизия: касса считает сканером вслепую 
   const [c] = await q("select id from stock_count where status = 'SUBMITTED' order by created_at desc limit 1");
   await o.goto(`${B}/admin/stock/count/${c.id}`);
   await o.click("button:has-text('Провести ревизию')");
+  // Ответ кнопки («Проведено: …») или уже обновлённая страница («Проведена …») — что успеет первым
   await o.waitForSelector(".form-ok, .form-error", { timeout: 15_000 });
-  assert.match(await o.locator(".form-ok, .form-error").first().innerText(), /Проведено/);
+  assert.match(await o.locator(".form-ok, .form-error").first().innerText(), /Проведен[оа]/);
   const rows = await q("select v.id, cs.qty from club_stock cs join product_variant v on v.id = cs.variant_id where cs.club_id = $1", [E2E.club.id]);
   assert.equal(rows.find((r) => r.id === v.id).qty, 1, "посчитанный товар — 1 шт");
   assert.ok(rows.filter((r) => r.id !== v.id).every((r) => r.qty === 0), "полный пересчёт: остальное списано");
