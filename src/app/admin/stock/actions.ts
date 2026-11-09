@@ -18,7 +18,7 @@ const In = z.object({
       }),
     )
     .min(1, "Добавьте хотя бы один товар")
-    .max(300),
+    .max(2000), // инвентаризация всего склада разом
 });
 
 export type MoveResult = { ok?: string; error?: string };

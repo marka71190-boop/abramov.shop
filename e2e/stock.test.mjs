@@ -112,3 +112,23 @@ test("этикетки: галочки — по одной, «отметить �
   assert.equal(await p.locator("button:has-text('Файл для NIIMBOT')").isDisabled(), true);
   assert.deepEqual(p.errors, []);
 });
+
+test("первая инвентаризация: всем по 100 → поправить → черновик переживает перезагрузку → сохранить", async () => {
+  const p = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(p);
+  await p.goto(`${B}/admin/stock/move?t=INVENTORY`);
+  await p.click("button:has-text('Заполнить')");
+  const rows = await p.locator("table tbody tr").count();
+  assert.ok(rows >= 3, "в списке все товары");
+  await p.getByLabel(`Стало, шт: ${E2E.products[1].name}`).fill("7");
+  await p.reload();
+  assert.equal(await p.getByLabel(`Стало, шт: ${E2E.products[1].name}`).inputValue(), "7", "поправка сохранилась в черновике");
+  assert.equal(await p.getByLabel(`Стало, шт: ${E2E.products[0].name}`).inputValue(), "100");
+  await p.click("button:has-text('Сохранить остатки')");
+  await p.waitForFunction(() => !document.querySelector("table tbody tr"), null, { timeout: 20_000 }); // сохранили — список очищен
+  assert.equal((await variant(E2E.products[0].slug)).stock, 100);
+  assert.equal((await variant(E2E.products[1].slug)).stock, 7);
+  await p.reload();
+  assert.equal(await p.locator("table tbody tr").count(), 0, "после сохранения черновик очищен");
+  assert.deepEqual(p.errors, []);
+});

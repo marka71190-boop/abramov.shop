@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { VariantPicker, type PickOption } from "@/components/admin/VariantPicker";
 import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
 import { useScanWedge } from "@/components/pos/useScanWedge";
@@ -46,6 +46,37 @@ export function MoveForm({
   const [pending, start] = useTransition();
   const t = TEXT[kind];
   const picked = useMemo(() => new Set(lines.map((l) => l.o.id)), [lines]);
+
+  // Инвентаризация: список длинный и правится долго — черновик в браузере, перезагрузка ничего не теряет
+  const [fillN, setFillN] = useState("100");
+  const [find, setFind] = useState("");
+  const draftKey = `inventory:${clubId ?? "wh"}`;
+  const [restored, setRestored] = useState(kind !== "INVENTORY");
+  useEffect(() => {
+    if (kind !== "INVENTORY") return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(draftKey) ?? "[]") as [string, string][];
+      const byId = new Map(options.map((o) => [o.id, o]));
+      const ls = saved.filter(([id]) => byId.has(id)).map(([id, qty]) => ({ o: byId.get(id)!, qty, cost: "" }));
+      if (ls.length) setLines(ls);
+    } catch {}
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (kind !== "INVENTORY" || !restored) return;
+    try {
+      if (lines.length) localStorage.setItem(draftKey, JSON.stringify(lines.map((l) => [l.o.id, l.qty])));
+      else localStorage.removeItem(draftKey);
+    } catch {}
+  }, [lines, kind, draftKey, restored]);
+
+  /** Первая инвентаризация: всем товарам сразу N шт, дальше поправить, где не так */
+  const fillAll = () => {
+    const n = Math.max(0, Math.trunc(Number(fillN)) || 0);
+    if (lines.length && !window.confirm(`Поставить ${n} шт всем товарам? Уже вписанные количества заменятся.`)) return;
+    setLines(options.map((o) => ({ o, qty: String(n), cost: "" })));
+  };
 
   // Уже в списке — +1 шт (сканер, повторный выбор); при инвентаризации просто поднимаем строку наверх
   const add = (o: PickOption) =>
@@ -150,6 +181,26 @@ export function MoveForm({
       )}
       {unknown && <UnknownCode code={unknown} options={options} clubId={clubId} categories={categories} onDone={adopt} onCancel={() => setUnknown(null)} />}
 
+      {kind === "INVENTORY" && (
+        <div className="panel stack" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span>Всем товарам ({options.length}) поставить</span>
+            <input className="input" inputMode="numeric" style={{ width: 80 }} value={fillN} onChange={(e) => setFillN(e.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Сколько штук всем" />
+            <span>шт</span>
+            <button type="button" className="btn btn--line btn--sm" onClick={fillAll}>
+              Заполнить
+            </button>
+          </div>
+          <p className="muted small" style={{ margin: 0 }}>
+            Удобно для первой инвентаризации: у всех сразу {fillN || 0} шт, дальше поправляете, где на самом деле другое количество. Список сохраняется в
+            браузере — можно прерваться и продолжить. На сайте ничего не меняется, пока не нажмёте «{t.btn}». Нажимайте, когда всё поправлено: что останется
+            в остатке, сайт покажет «в наличии» и напишет тем, кто ждал товар.
+          </p>
+        </div>
+      )}
+      {kind === "INVENTORY" && lines.length > 15 && (
+        <input className="input" type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Найти в списке: название, артикул, штрихкод" aria-label="Найти в списке" />
+      )}
       {lines.length > 0 && (
         <div className="table-wrap">
           <table className="table">
@@ -165,6 +216,8 @@ export function MoveForm({
             </thead>
             <tbody>
               {lines.map((l, i) => {
+                const needle = find.trim().toLowerCase().replace(/ё/g, "е");
+                if (needle && !`${l.o.name} ${l.o.sku ?? ""} ${l.o.barcode ?? ""}`.toLowerCase().replace(/ё/g, "е").includes(needle)) return null;
                 const diff = kind === "INVENTORY" ? (Math.trunc(Number(l.qty)) || 0) - l.o.stock : 0;
                 return (
                   <tr key={l.o.id}>
@@ -174,7 +227,7 @@ export function MoveForm({
                     </td>
                     <td style={{ textAlign: "right" }}>{l.o.stock}</td>
                     <td>
-                      <input className="input bulk-input" inputMode="numeric" value={l.qty} onChange={(e) => upd(i, { qty: e.target.value })} style={{ width: 90 }} aria-label={t.qty} />
+                      <input className="input bulk-input" inputMode="numeric" value={l.qty} onChange={(e) => upd(i, { qty: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: 90 }} aria-label={`${t.qty}: ${l.o.name}`} />
                     </td>
                     {kind === "RECEIPT" && (
                       <td>
