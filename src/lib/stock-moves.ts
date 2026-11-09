@@ -113,14 +113,15 @@ export async function setCost(tx: Tx, userId: string, variantId: string, cost: n
 export async function variantOptions(clubId: string | null = null) {
   // Новые варианты без штрихкода — выдать (артикул = штрихкод)
   await import("@/lib/shop-barcodes").then((m) => m.ensureShopBarcodes()).catch(() => 0);
-  const rows = await db.execute<{ id: string; name: string; sku: string | null; barcode: string | null; oldSku: string | null; stock: number; cost: number | null; price: number; visibility: string; image: string | null }>(sql`
+  const rows = await db.execute<{ id: string; name: string; sku: string | null; barcode: string | null; oldSku: string | null; stock: number; cost: number | null; price: number; visibility: string; image: string | null; category: string | null }>(sql`
     select v.id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
       -- у товара с вариантами артикул товара общий — сканер по нему не поймёт, какой вариант; берём только свой
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then v.sku else coalesce(v.sku, p.sku) end as sku,
       v.barcode, coalesce(v.old_sku, case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) = 1 then p.old_sku end) as "oldSku",
       ${clubId ? sql`coalesce((select cs.qty from club_stock cs where cs.club_id = ${clubId} and cs.variant_id = v.id), 0)` : sql`v.stock`} as stock, v.cost_price as cost, coalesce(v.price, p.price) as price, p.visibility::text as visibility,
-      (select i.url from product_image i where i.product_id = p.id order by i.sort_order asc limit 1) as image
+      (select i.url from product_image i where i.product_id = p.id order by i.sort_order asc limit 1) as image,
+      (select c.name from category c where c.id = p.category_id) as category
     from product_variant v join product p on p.id = v.product_id
     where v.is_active
     order by p.name asc, v.sort_order asc`);

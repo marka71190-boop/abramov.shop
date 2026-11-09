@@ -70,3 +70,29 @@ test("ревизия: касса считает сканером вслепую 
   assert.ok(rows.filter((r) => r.id !== v.id).every((r) => r.qty === 0), "полный пересчёт: остальное списано");
   assert.deepEqual([...k.errors, ...o.errors], []);
 });
+
+test("перемещение списком: набрать кнопками несколько товаров со склада и отвезти в клуб одним разом", async () => {
+  const p = await page(b);
+  await loginOwner(p);
+  await p.goto(`${B}/admin/stock/transfer?from=wh&to=${E2E.club.id}`);
+  const [mel, kiy] = [await variant(E2E.products[0].slug), await variant(E2E.products[1].slug)];
+  const clubQty = async (id) => (await q("select qty from club_stock where club_id = $1 and variant_id = $2", [E2E.club.id, id]))[0]?.qty ?? 0;
+  const [melClub, kiyClub] = [await clubQty(mel.id), await clubQty(kiy.id)];
+  for (let i = 0; i < 3; i++) await p.getByLabel(`Больше: ${E2E.products[0].name}`).click();
+  await p.getByLabel(`Больше: ${E2E.products[1].name}`).click();
+  await p.locator("h1").click();
+  await wedgeScan(p, kiy.barcode); // сканер тоже +1
+  assert.match(await p.locator(".tr-bar").innerText(), /2 поз\. · 5 шт/);
+  await p.reload(); // набранное не теряется
+  assert.match(await p.locator(".tr-bar").innerText(), /2 поз\. · 5 шт/);
+  await p.click(".tr-bar button:has-text('Дальше')");
+  assert.match(await p.locator(".tr-bar").innerText(), /5 шт/);
+  await p.click(".tr-bar button:has-text('Переместить')");
+  await p.waitForSelector(".form-ok");
+  assert.equal((await variant(E2E.products[0].slug)).stock, mel.stock - 3);
+  assert.equal((await variant(E2E.products[1].slug)).stock, kiy.stock - 2);
+  assert.equal(await clubQty(mel.id), melClub + 3);
+  assert.equal(await clubQty(kiy.id), kiyClub + 2);
+  assert.equal(await p.locator(".tr-bar").count(), 0, "после перемещения выбор сброшен");
+  assert.deepEqual(p.errors, []);
+});

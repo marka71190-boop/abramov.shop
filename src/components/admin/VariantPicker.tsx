@@ -12,6 +12,7 @@ export interface PickOption {
   price: number;
   cost: number | null;
   image: string | null;
+  category?: string | null;
 }
 
 const norm = (t: string) => t.toLowerCase().replace(/ё/g, "е");

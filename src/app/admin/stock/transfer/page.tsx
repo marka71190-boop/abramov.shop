@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { clubLines } from "@/lib/club-low";
 import { stockClubs } from "@/lib/club-stock";
 import { variantOptions } from "@/lib/stock-moves";
 import { isDirector, requireAdmin } from "@/lib/viewer";
@@ -18,7 +19,10 @@ export default async function TransferPage({ searchParams }: { searchParams: Pro
   const pick = (v: string | undefined, def: string) => (v === "wh" ? "" : locations.some((l) => l.id === v) ? v! : def);
   const from = pick(sp.from, "");
   const to = pick(sp.to, clubs[0]?.id ?? "");
-  const options = await variantOptions(from || null);
+  // Откуда — что есть; куда — сколько там уже и какая норма (чтобы видеть, чего не хватает в клубе)
+  const [options, dest] = await Promise.all([variantOptions(from || null), from === to ? Promise.resolve([]) : to ? clubLines(to) : variantOptions(null)]);
+  const there: Record<string, { qty: number; norm: number | null }> = {};
+  for (const d of dest) there["variantId" in d ? d.variantId : d.id] = { qty: "qty" in d ? d.qty : d.stock, norm: "minQty" in d ? d.minQty : null };
   return (
     <>
       <p className="small" style={{ margin: 0 }}>
@@ -33,10 +37,10 @@ export default async function TransferPage({ searchParams }: { searchParams: Pro
       ) : (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Отвезли товар в клуб или забрали обратно. Остаток уменьшится там, откуда забрали, и увеличится там, куда привезли. На сайте продаётся только товар со
-            склада.
+            Отметьте кнопками «+», что и сколько везёте, — сразу всё, — и переместите одной кнопкой внизу. Остаток уменьшится там, откуда забрали, и увеличится там,
+            куда привезли. На сайте продаётся только товар со склада.
           </p>
-          <TransferForm key={`${from}-${to}`} locations={locations} from={from} to={to} options={options} />
+          <TransferForm key={`${from}-${to}`} locations={locations} from={from} to={to} options={options} there={there} />
         </>
       )}
     </>
