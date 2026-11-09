@@ -7578,3 +7578,30 @@ tr.is-muted td {
   background: var(--c-panel, #141416);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
 }
+
+.tr-list__check,
+.labels-check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--c-gold);
+  cursor: pointer;
+}
+.tr-list__info,
+.tr-list img,
+.tr-list__noimg {
+  cursor: pointer;
+}
+.tr-all {
+  margin: 0;
+  padding: 4px 4px 0;
+}
+.tr-all input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--c-gold);
+}
+
+.table tr.is-on td {
+  background: rgba(220, 191, 131, 0.08);
+}

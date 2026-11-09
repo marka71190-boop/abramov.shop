@@ -1,6 +1,7 @@
 "use client";
 /**
- * Перемещение списком: всё, что есть в месте «Откуда», — одним списком с кнопками − / +.
+ * Перемещение списком: всё, что есть в месте «Откуда», — одним списком. Отметили галочкой — 1 шт,
+ * больше — кнопками − / + или цифрой. «Отметить все» — всё, что сейчас в списке (например, вся категория).
  * Набрали сразу всё, что везёте (с телефона, на складе), проверили и переместили одной кнопкой.
  * Сканер (пистолет или камера) тоже добавляет +1. Набранное не теряется при перезагрузке страницы.
  */
@@ -196,6 +197,27 @@ export function TransferForm({ locations, from, to, options, there }: { location
             </button>
           )}
 
+          {shown.length > 0 && (
+            <label className="check tr-all">
+              <input
+                type="checkbox"
+                checked={shown.every((o) => qty[o.id])}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setQty((m) => {
+                    const next = { ...m };
+                    for (const o of shown) {
+                      if (on) next[o.id] = next[o.id] || 1;
+                      else delete next[o.id];
+                    }
+                    return next;
+                  });
+                }}
+              />
+              <span>{shown.every((o) => qty[o.id]) ? "Снять все" : `Отметить все${shown.length < avail.length ? " в списке" : ""} (${shown.length}) — по 1 шт`}</span>
+            </label>
+          )}
+
           {shown.length === 0 ? (
             <p className="muted">Ничего не нашли.</p>
           ) : (
@@ -203,23 +225,23 @@ export function TransferForm({ locations, from, to, options, there }: { location
               {shown.map((o) => {
                 const n = qty[o.id] ?? 0;
                 const t = there[o.id];
+                const toggle = () => set(o.id, n ? 0 : 1);
                 return (
                   <li key={o.id} className={n ? "is-on" : undefined}>
-                    {o.image ? <img src={sized(o.image, 160)} alt="" loading="lazy" /> : <span className="tr-list__noimg" aria-hidden />}
-                    <div className="tr-list__info">
+                    <input type="checkbox" className="tr-list__check" checked={n > 0} onChange={toggle} aria-label={`Выбрать: ${o.name}`} />
+                    {o.image ? <img src={sized(o.image, 160)} alt="" loading="lazy" onClick={toggle} /> : <span className="tr-list__noimg" aria-hidden onClick={toggle} />}
+                    <div className="tr-list__info" onClick={toggle}>
                       <div className="tr-list__name">{o.name}</div>
                       <div className="muted small">
                         есть {o.stock}
                         {t ? ` · ${to ? "в клубе" : "на складе"} ${t.qty}${t.norm ? ` из ${t.norm}` : ""}` : ""}
                       </div>
                     </div>
-                    <div className="tr-step">
-                      {n > 0 && (
+                    {n > 0 && (
+                      <div className="tr-step">
                         <button type="button" className="btn btn--line" onClick={() => set(o.id, n - 1)} aria-label={`Меньше: ${o.name}`}>
                           −
                         </button>
-                      )}
-                      {n > 0 && (
                         <input
                           className="input"
                           inputMode="numeric"
@@ -228,11 +250,11 @@ export function TransferForm({ locations, from, to, options, there }: { location
                           onFocus={(e) => e.target.select()}
                           aria-label={`Сколько везём: ${o.name}`}
                         />
-                      )}
-                      <button type="button" className={`btn ${n ? "btn--line" : "btn--gold"}`} disabled={n >= o.stock} onClick={() => set(o.id, n + 1)} aria-label={`Больше: ${o.name}`}>
-                        +
-                      </button>
-                    </div>
+                        <button type="button" className="btn btn--line" disabled={n >= o.stock} onClick={() => set(o.id, n + 1)} aria-label={`Больше: ${o.name}`}>
+                          +
+                        </button>
+                      </div>
+                    )}
                   </li>
                 );
               })}

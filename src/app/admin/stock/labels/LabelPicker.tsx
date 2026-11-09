@@ -107,6 +107,20 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
         <table className="table">
           <thead>
             <tr>
+              <th style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  className="labels-check"
+                  checked={shown.some((r) => r.ok) && shown.filter((r) => r.ok).every((r) => n(r.id) > 0)}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    const next = { ...copies };
+                    for (const r of shown) if (r.ok) on ? (next[r.id] = next[r.id] && n(r.id) ? next[r.id] : "1") : delete next[r.id];
+                    setCopies(next);
+                  }}
+                  aria-label="Отметить все в списке"
+                />
+              </th>
               <th>Товар</th>
               <th>Штрихкод</th>
               <th style={{ textAlign: "right" }}>На складе</th>
@@ -115,8 +129,34 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
           </thead>
           <tbody>
             {shown.map((r) => (
-              <tr key={r.id}>
-                <td>{r.name}</td>
+              <tr key={r.id} className={n(r.id) ? "is-on" : undefined}>
+                <td>
+                  <input
+                    type="checkbox"
+                    className="labels-check"
+                    disabled={!r.ok}
+                    checked={n(r.id) > 0}
+                    onChange={(e) => {
+                      const next = { ...copies };
+                      if (e.target.checked) next[r.id] = "1";
+                      else delete next[r.id];
+                      setCopies(next);
+                    }}
+                    aria-label={`Выбрать: ${r.name}`}
+                  />
+                </td>
+                <td
+                  style={{ cursor: r.ok ? "pointer" : undefined }}
+                  onClick={() => {
+                    if (!r.ok) return;
+                    const next = { ...copies };
+                    if (n(r.id)) delete next[r.id];
+                    else next[r.id] = "1";
+                    setCopies(next);
+                  }}
+                >
+                  {r.name}
+                </td>
                 <td className="small">{r.barcode ?? (r.ok ? r.sku : <span className="is-loss">{r.sku ? "русские буквы в артикуле" : "нет артикула"}</span>)}</td>
                 <td style={{ textAlign: "right" }}>{r.stock}</td>
                 <td style={{ textAlign: "right" }}>

@@ -78,8 +78,10 @@ test("перемещение списком: набрать кнопками н�
   const [mel, kiy] = [await variant(E2E.products[0].slug), await variant(E2E.products[1].slug)];
   const clubQty = async (id) => (await q("select qty from club_stock where club_id = $1 and variant_id = $2", [E2E.club.id, id]))[0]?.qty ?? 0;
   const [melClub, kiyClub] = [await clubQty(mel.id), await clubQty(kiy.id)];
-  for (let i = 0; i < 3; i++) await p.getByLabel(`Больше: ${E2E.products[0].name}`).click();
-  await p.getByLabel(`Больше: ${E2E.products[1].name}`).click();
+  // Галочка — 1 шт, дальше «+»
+  await p.getByLabel(`Выбрать: ${E2E.products[0].name}`).check();
+  for (let i = 0; i < 2; i++) await p.getByLabel(`Больше: ${E2E.products[0].name}`).click();
+  await p.getByLabel(`Выбрать: ${E2E.products[1].name}`).check();
   await p.locator("h1").click();
   await wedgeScan(p, kiy.barcode); // сканер тоже +1
   assert.match(await p.locator(".tr-bar").innerText(), /2 поз\. · 5 шт/);
@@ -94,5 +96,19 @@ test("перемещение списком: набрать кнопками н�
   assert.equal(await clubQty(mel.id), melClub + 3);
   assert.equal(await clubQty(kiy.id), kiyClub + 2);
   assert.equal(await p.locator(".tr-bar").count(), 0, "после перемещения выбор сброшен");
+  assert.deepEqual(p.errors, []);
+});
+
+test("этикетки: галочки — по одной, «отметить все», файл для NIIMBOT на отмеченное", async () => {
+  const p = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(p);
+  await p.goto(`${B}/admin/stock/labels`);
+  await p.getByLabel(`Выбрать: ${E2E.products[0].name}`).check();
+  assert.equal(await p.getByLabel(`Сколько этикеток: ${E2E.products[0].name}`).inputValue(), "1");
+  await p.getByLabel("Отметить все в списке").check();
+  const total = await p.locator("button:has-text('Файл для NIIMBOT')").textContent();
+  assert.match(total, /\d+ шт/);
+  await p.getByLabel("Отметить все в списке").uncheck();
+  assert.equal(await p.locator("button:has-text('Файл для NIIMBOT')").isDisabled(), true);
   assert.deepEqual(p.errors, []);
 });
