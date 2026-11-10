@@ -91,7 +91,7 @@ export interface SiteSettings {
     enabled: boolean; // заказы из-за рубежа
     cdekCountries: string; // страны, куда возит СДЭК: «BY Беларусь» — по строке
     robokassaPercent: number; // %, сбор с заказа из-за рубежа при оплате через Робокассу
-    payInCurrency: boolean; // счёт Робокассы в валюте покупателя: тенге, евро или доллары (по курсу ЦБ)
+    payInCurrency: boolean; // счёт Робокассы из-за рубежа в долларах по курсу ЦБ
     fxBuffer: number; // %, запас на разницу курса ЦБ и курса Робокассы
     transferPercent: number; // %, сбор при оплате переводом на карту
     transferDetails: string; // куда переводить: карта, получатель, банк — видят покупатели из-за рубежа

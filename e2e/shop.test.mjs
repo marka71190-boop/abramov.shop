@@ -82,7 +82,7 @@ test("выдача заказа с сайта в клубе: касса нахо
   assert.deepEqual(k.errors, []);
 });
 
-test("оплата из-за рубежа: Казахстан — счёт Робокассы в тенге по курсу ЦБ, уведомление об оплате засчитывается", async () => {
+test("оплата из-за рубежа: Казахстан — счёт Робокассы в долларах по курсу ЦБ, уведомление об оплате засчитывается", async () => {
   // Заказ покупателя превращаем в заказ владельца из Казахстана с оплатой через Робокассу
   const [{ id: owner }] = await q(`select id from "user" where email = $1`, [E2E.owner.email]);
   const [ord] = await q(
@@ -103,17 +103,17 @@ test("оплата из-за рубежа: Казахстан — счёт Ро�
   await p.goto(`${B}/pay/robokassa/${ord.number}`);
   for (let i = 0; i < 50 && !posted; i++) await p.waitForTimeout(200);
   assert.ok(posted, "форма оплаты отправлена");
-  // 18,50 ₽ за 100 тенге → 1 тенге = 0,185 ₽
-  const expected = (Math.ceil(amount / 0.185) / 100).toFixed(2);
-  assert.equal(posted.get("OutSumCurrency"), "KZT");
+  // 90,50 ₽ за доллар, вверх до цента
+  const expected = (Math.ceil(amount / 90.5) / 100).toFixed(2);
+  assert.equal(posted.get("OutSumCurrency"), "USD");
   assert.equal(posted.get("OutSum"), expected);
   const inv = posted.get("InvId");
-  const sig = createHash("md5").update(`e2e:${expected}:${inv}:KZT:${posted.get("Receipt")}:e2e-pass1`).digest("hex");
+  const sig = createHash("md5").update(`e2e:${expected}:${inv}:USD:${posted.get("Receipt")}:e2e-pass1`).digest("hex");
   assert.equal(posted.get("SignatureValue"), sig, "подпись с валютой");
   const [pay] = await q("select currency, currency_amount from payment where external_id = $1", [inv]);
-  assert.equal(pay.currency, "KZT");
+  assert.equal(pay.currency, "USD");
 
-  // Робокасса сообщает об оплате — сумма в тенге
+  // Робокасса сообщает об оплате — сумма в долларах
   const res = await fetch(`${B}/api/payments/robokassa/result`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -132,7 +132,7 @@ test("цены в валюте: переключатель в шапке — т�
   await p.locator(".cur-switch select").selectOption("KZT");
   // 500 ₽ при 18,50 ₽ за 100 тенге → 2 703 ₸ (вверх до тенге)
   await main.getByText("2 703 ₸").first().waitFor();
-  assert.match(await p.locator(".cur-note").textContent(), /тенге/);
+  assert.match(await p.locator(".cur-note").textContent(), /в тенге.*Оплата картой — в долларах/);
   await p.reload();
   await main.getByText("2 703 ₸").first().waitFor();
   await p.locator(".cur-switch select").selectOption("RUB");

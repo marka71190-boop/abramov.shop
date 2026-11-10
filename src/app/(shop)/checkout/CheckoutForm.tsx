@@ -1,5 +1,5 @@
 "use client";
-import { CURRENCY_WORD, fmtCurrency, payCurrency, toCurrencyMinor } from "@/lib/currency";
+import { fmtCurrency, toCurrencyMinor } from "@/lib/currency";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { forgetPromo, storedPromo, useCart } from "@/components/cart/CartProvider";
@@ -759,13 +759,12 @@ export function CheckoutForm({
           <span>{quote ? rub(quote.payable) : "…"}</span>
         </div>
         {pendingShip && <div className="muted small">+ доставка — посчитаем после оформления</div>}
-        {byRobokassa && foreign.fx && !!quote?.payable && (() => {
-          // Робокасса выставит счёт в валюте покупателя по курсу ЦБ
-          const cur = payCurrency(country.code, country.name);
-          const minor = toCurrencyMinor(quote.payable, foreign.fx[cur], foreign.fx.buffer);
+        {byRobokassa && foreign.usd && !!quote?.payable && (() => {
+          // Робокасса выставит счёт в долларах по курсу ЦБ
+          const minor = toCurrencyMinor(quote.payable, foreign.usd.rate, foreign.usd.buffer);
           return minor ? (
-            <div className="muted small" data-testid="pay-currency">
-              ≈ {fmtCurrency(minor, cur)} — оплата {CURRENCY_WORD[cur]} по курсу ЦБ
+            <div className="muted small" data-testid="pay-currency" data-rub>
+              Оплата картой — в долларах: {fmtCurrency(minor, "USD")} по курсу ЦБ
               {pendingShip ? " (без доставки)" : ""}
             </div>
           ) : null;
@@ -784,7 +783,7 @@ export function CheckoutForm({
                   Картой любого банка
                   <span className="muted small">
                     {" "}
-                    · Робокасса, сбор {foreign.robokassaPercent} %{foreign.fx ? `, оплата ${CURRENCY_WORD[payCurrency(country.code, country.name)]}` : ""}
+                    · Робокасса, сбор {foreign.robokassaPercent} %{foreign.usd ? ", оплата в долларах" : ""}
                   </span>
                 </span>
               </label>

@@ -13,6 +13,7 @@ export function Header({
   club = false,
   coach = false,
   cashier = false,
+  currencies = [],
 }: {
   signedIn: boolean;
   admin: boolean;
@@ -24,6 +25,8 @@ export function Header({
   cashier?: boolean;
   cue?: boolean;
   categories: { slug: string; name: string }[];
+  /** Валюты в переключателе цен (пусто — переключателя нет) */
+  currencies?: string[];
 }) {
   return (
     <header className="header">
@@ -58,7 +61,7 @@ export function Header({
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />
-          <CurrencySwitch />
+          {currencies.length > 1 && <CurrencySwitch options={currencies} />}
           {signedIn ? (
             <Link href="/account" className="icon-btn" aria-label="Личный кабинет">
               <IconUser />

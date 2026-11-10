@@ -1,12 +1,15 @@
 /**
- * Курсы ЦБ РФ на сегодня (рублей за 1 доллар, евро, тенге) — для счёта в валюте покупателя из-за рубежа.
+ * Курсы ЦБ РФ на сегодня (рублей за 1 единицу валюты, все ~40 валют ЦБ) — счёт Робокассы в долларах
+ * и цены на сайте в валюте страны покупателя.
  * Берём с cbr.ru раз в 6 часов; ЦБ недоступен — работаем на последних полученных курсах (до 3 суток),
  * а без курсов счёт выставляется в рублях, как раньше.
  */
 import "server-only";
-import type { PayCurrency } from "@/lib/currency";
-
-export type Rates = Record<PayCurrency, number> & { date: string; fetchedAt: number };
+export interface Rates {
+  rates: Record<string, number>; // код → рублей за 1 единицу; RUB = 1
+  date: string;
+  fetchedAt: number;
+}
 
 const URL_CBR = () => process.env.CBR_RATES_URL || "https://www.cbr.ru/scripts/XML_daily.asp";
 const FRESH_MS = 6 * 3600_000;
@@ -16,15 +19,16 @@ const g = globalThis as unknown as { __asFx?: { rates: Rates | null; failedAt: n
 const st = (g.__asFx ??= { rates: null, failedAt: 0 });
 
 function parse(xml: string): Rates | null {
-  const one = (code: string) => {
-    const m = new RegExp(`<CharCode>${code}</CharCode>\\s*<Nominal>(\\d+)</Nominal>[\\s\\S]*?<Value>([\\d,]+)</Value>`).exec(xml);
-    if (!m) return 0;
-    return Number(m[2].replace(",", ".")) / Number(m[1]);
-  };
-  const r = { USD: one("USD"), EUR: one("EUR"), KZT: one("KZT") };
-  if (!(r.USD > 0 && r.EUR > 0 && r.KZT > 0)) return null;
+  const rates: Record<string, number> = { RUB: 1 };
+  for (const v of xml.split("</Valute>")) {
+    const code = /<CharCode>([A-Z]{3})<\/CharCode>/.exec(v)?.[1];
+    const nominal = Number(/<Nominal>(\d+)<\/Nominal>/.exec(v)?.[1]);
+    const value = Number(/<Value>([\d,]+)<\/Value>/.exec(v)?.[1]?.replace(",", "."));
+    if (code && nominal > 0 && value > 0) rates[code] = value / nominal;
+  }
+  if (!(rates.USD > 0)) return null;
   const date = /ValCurs Date="([\d.]+)"/.exec(xml)?.[1] ?? "";
-  return { ...r, date, fetchedAt: Date.now() };
+  return { rates, date, fetchedAt: Date.now() };
 }
 
 /** Курсы ЦБ; null — нет ни свежих, ни недавних */

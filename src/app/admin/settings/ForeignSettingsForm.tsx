@@ -26,8 +26,8 @@ export function ForeignSettingsForm({ s, robokassa }: { s: SiteSettings["foreign
         <label className="check" style={{ gridColumn: "1 / -1" }}>
           <input type="checkbox" name="payInCurrency" defaultChecked={s.payInCurrency} />
           <span>
-            Робокасса — счёт в валюте покупателя: Казахстан — тенге, страны евро — евро, остальные — доллары (по курсу ЦБ на сегодня). Робокасса
-            выставляет счёт только в этих трёх валютах. Выключено — в рублях.
+            Робокасса — счёт покупателю из-за рубежа в долларах по курсу ЦБ на сегодня (выключено — в рублях). Цены на сайте покупатель может
+            смотреть в валюте своей страны — переключатель в шапке, только для удобства.
           </span>
         </label>
         <label className="field">

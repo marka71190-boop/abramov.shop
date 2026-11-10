@@ -16,7 +16,8 @@ import { InstallHint } from "@/components/pwa/InstallHint";
 import { AppTabbar } from "@/components/pwa/AppTabbar";
 import { CurrencyLayer } from "@/components/currency/CurrencyLayer";
 import { COOKIE as CURRENCY_COOKIE, type ShowCurrency } from "@/components/currency/store";
-import { payCurrency } from "@/lib/currency";
+import { countryCurrency } from "@/lib/currency";
+import { parseCountries } from "@/lib/countries";
 import { activeBanners } from "@/lib/banners";
 import { STRIP_COOKIE } from "@/lib/banners-shared";
 import { Footer } from "@/components/Footer";
@@ -75,8 +76,12 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   // Цены в валюте покупателя из-за рубежа: выбрал сам (cookie) или страна в профиле
   const fx = settings.foreign.enabled ? await import("@/lib/fx").then((m) => m.getRates()).catch(() => null) : null;
   const saved = jar.get(CURRENCY_COOKIE)?.value as ShowCurrency | undefined;
-  const showCur: ShowCurrency =
-    saved && ["RUB", "USD", "EUR", "KZT"].includes(saved) ? saved : viewer?.country && viewer.country !== "RU" ? payCurrency(viewer.country, viewer.countryName) : "RUB";
+  const fallback = viewer?.country && viewer.country !== "RU" ? countryCurrency(viewer.country, viewer.countryName) : "RUB";
+  const showCur: ShowCurrency = saved && /^[A-Z]{3}$/.test(saved) ? saved : fx?.rates[fallback] ? fallback : viewer?.country && viewer.country !== "RU" ? "USD" : "RUB";
+  // В переключателе: рубли, доллары, евро и валюты стран, куда возит СДЭК
+  const currencies = fx
+    ? [...new Set(["RUB", "USD", "EUR", ...parseCountries(settings.foreign.cdekCountries).map((c) => countryCurrency(c.code))])].filter((c) => fx.rates[c])
+    : [];
   // Номер счётчика Яндекс Метрики — из переменной YANDEX_METRIKA_ID в Timeweb
   const metrikaId = Number(process.env.YANDEX_METRIKA_ID) || null;
 
@@ -90,7 +95,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       </Suspense>
       <CookieBanner analytics={!!metrikaId} />
       <InstallHint />
-      <CurrencyLayer rates={fx ? { USD: fx.USD, EUR: fx.EUR, KZT: fx.KZT, buffer: settings.foreign.fxBuffer } : null} initial={showCur} />
+      <CurrencyLayer rates={fx ? { rates: fx.rates, buffer: settings.foreign.fxBuffer } : null} initial={showCur} />
       {settings.maintenance && admin && (
         <div className="notice">
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>
@@ -107,7 +112,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       <div className="ban-shell" inert={ban ? true : undefined}>
         {stripItems.length > 0 && <TopStrip items={stripItems} />}
         {!viewer && !settings.pdPause && jar.get(GUEST_BAR_COOKIE)?.value !== "0" && <GuestBar welcome={settings.loyalty.welcomeBonus} />}
-        <Header signedIn={!!viewer} admin={admin || isDirector(viewer)} club={hasRole(viewer, "CLUB")} coach={hasRole(viewer, "COACH")} cashier={hasRole(viewer, "CASHIER") && !admin} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} />
+        <Header signedIn={!!viewer} admin={admin || isDirector(viewer)} club={hasRole(viewer, "CLUB")} coach={hasRole(viewer, "COACH")} cashier={hasRole(viewer, "CASHIER") && !admin} cue={cueOn} categories={categories.map((c) => ({ slug: c.slug, name: c.name }))} currencies={currencies} />
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>

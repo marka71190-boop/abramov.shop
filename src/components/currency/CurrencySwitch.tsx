@@ -1,16 +1,13 @@
 "use client";
-/** Переключатель валюты в шапке: ₽ / $ / € / ₸. Есть, только когда включены заказы из-за рубежа и есть курсы ЦБ */
+/**
+ * Переключатель валюты цен в шапке: рубли, доллары, евро и валюты стран, куда возим.
+ * Есть, только когда включены заказы из-за рубежа и есть курсы ЦБ. Только показ — платят в долларах.
+ */
 import { useEffect, useState } from "react";
+import { currencyName, signOf } from "@/lib/currency";
 import { currencyEnabled, getCurrency, onCurrency, setCurrency, type ShowCurrency } from "./store";
 
-const OPTIONS: [ShowCurrency, string, string][] = [
-  ["RUB", "₽", "Рубли"],
-  ["USD", "$", "Доллары"],
-  ["EUR", "€", "Евро"],
-  ["KZT", "₸", "Тенге"],
-];
-
-export function CurrencySwitch() {
+export function CurrencySwitch({ options }: { options: string[] }) {
   const [on, setOn] = useState(false);
   const [cur, setCur] = useState<ShowCurrency>("RUB");
   useEffect(() => {
@@ -23,14 +20,14 @@ export function CurrencySwitch() {
     <label className="cur-switch" title="Валюта цен">
       <span className="sr-only">Валюта цен</span>
       <select value={cur} onChange={(e) => setCurrency(e.target.value as ShowCurrency)} aria-label="Валюта цен">
-        {OPTIONS.map(([v, sign, name]) => (
+        {[...new Set([...options, cur])].map((v) => (
           <option key={v} value={v}>
-            {sign} {name}
+            {signOf(v)} {currencyName(v)}
           </option>
         ))}
       </select>
       <span className="cur-switch__sign" aria-hidden>
-        {OPTIONS.find((o) => o[0] === cur)?.[1]}
+        {signOf(cur).length > 2 ? cur : signOf(cur)}
       </span>
     </label>
   );

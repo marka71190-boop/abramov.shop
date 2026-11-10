@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db, schema as s } from "@/db";
-import { fmtCurrency, payCurrency, toCurrencyMinor } from "@/lib/currency";
+import { fmtCurrency, PAY_CURRENCY, toCurrencyMinor } from "@/lib/currency";
 import { rub } from "@/lib/format";
 import { getRates } from "@/lib/fx";
 import { getSettings } from "@/lib/settings";
@@ -28,11 +28,11 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
   if (o.shippingPending) redirect(`/order/${o.number}`);
 
   const amount = o.total - o.giftCardAmount;
-  // Из-за рубежа — счёт в валюте покупателя по курсу ЦБ (нет курсов или выключено — в рублях)
+  // Из-за рубежа — счёт в долларах по курсу ЦБ (нет курса или выключено — в рублях)
   const f = (await getSettings()).foreign;
   const rates = o.country !== "RU" && f.payInCurrency ? await getRates() : null;
-  const code = payCurrency(o.country, o.countryName);
-  const curAmount = rates ? toCurrencyMinor(amount, rates[code], f.fxBuffer) : null;
+  const code = PAY_CURRENCY;
+  const curAmount = rates ? toCurrencyMinor(amount, rates.rates[code], f.fxBuffer) : null;
   const currency = curAmount ? { code, amount: curAmount } : null;
 
   // Один счёт на заказ, пока он не оплачен: повторный переход — тот же InvId (курс держим 12 часов)
@@ -71,7 +71,7 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
   return (
     <main className="container page-pad stack" style={{ gap: 16, maxWidth: 560, textAlign: "center", justifyItems: "center", minHeight: "60vh", alignContent: "center" }}>
       <h1 className="h3" style={{ margin: 0 }}>
-        Переходим к оплате {charge ? fmtCurrency(charge.amount, charge.code as Parameters<typeof fmtCurrency>[1]) : rub(amount)}
+        Переходим к оплате {charge ? fmtCurrency(charge.amount, charge.code) : rub(amount)}
       </h1>
       {charge && (
         <p className="muted small" style={{ margin: 0 }}>
