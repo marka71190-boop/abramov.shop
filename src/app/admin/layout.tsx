@@ -30,7 +30,8 @@ async function badges(meId: string): Promise<Partial<Record<BadgeKey, number>>> 
     safe(db.$count(s.coachApplication, eq(s.coachApplication.status, "NEW"))),
     safe(pendingApprovalsCount(meId)),
   ]);
-  return { approvals, orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches };
+  const health = await import("@/lib/watchdog").then((m) => m.watchdogProblems()).catch(() => 0);
+  return { approvals, orders, returns, stock, questions, reviews, service, orgs, turnkey, coaches, health };
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

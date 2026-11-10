@@ -7,6 +7,7 @@
  *   • каждые 30 минут — напоминания о брошенных корзинах;
  *   • каждые 2 минуты — подарочные сертификаты: оплата, письма получателям в выбранный день;
  *   • каждые 5 минут — оплата заявок в мастерскую (в том числе по старым ссылкам);
+ *   • каждые 5 минут — сторож сайта: база, ЮKassa, СДЭК, почта, бот и ошибки на страницах (src/lib/watchdog.ts);
  *   • каждый час — сгорание бонусов, подарки ко дню рождения, напоминания о сгорании,
  *     напоминание админам о заявках на возврат, срок ответа по которым истекает,
  *     проверка «заканчивается товар», письма «оцените покупку».
@@ -18,8 +19,20 @@ export async function register() {
   g.__asJobs = true;
 
   const { expireUnpaidOrders, pollPendingPayments, syncShipments } = await import("@/lib/orders");
+  // Сторож: каждая задача отчитывается — несколько сбоев подряд, и владелец узнаёт в Telegram
+  const { report, watchdogTick } = await import("@/lib/watchdog");
   const safe = (name: string, fn: () => Promise<void>) => () =>
-    fn().catch((e) => console.error(`[jobs] ${name}:`, e instanceof Error ? e.message : e));
+    fn().then(
+      () => report(`job:${name}`, true),
+      (e) => {
+        console.error(`[jobs] ${name}:`, e instanceof Error ? e.message : e);
+        report(`job:${name}`, false, e);
+      },
+    );
+
+  // Сторож сайта: база, ЮKassa, СДЭК, почта, бот, ошибки на страницах — раз в 5 минут
+  setTimeout(() => void watchdogTick().catch(() => {}), 2 * 60_000);
+  setInterval(() => void watchdogTick().catch(() => {}), 5 * 60_000);
 
   // Telegram-бот: получаем сообщения длинным опросом (через 20 секунд — когда сайт уже отвечает)
   if (process.env.TELEGRAM_BOT_TOKEN) {
@@ -91,4 +104,15 @@ export async function register() {
   };
   setTimeout(safe("bonuses", hourly), 3 * 60_000);
   setInterval(safe("bonuses", hourly), 60 * 60_000);
+}
+
+/** Ошибка на странице или в кнопке сайта — сторож считает, много за 10 минут — сообщит */
+export async function onRequestError(err: unknown, request: { path: string }) {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const digest = (err as { digest?: string })?.digest ?? "";
+  if (/^NEXT_(REDIRECT|NOT_FOUND|HTTP_ERROR)/.test(digest)) return;
+  try {
+    const { noteRequestError } = await import("@/lib/watchdog");
+    noteRequestError(request.path ?? "", err);
+  } catch {}
 }

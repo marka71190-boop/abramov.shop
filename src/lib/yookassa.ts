@@ -61,6 +61,11 @@ async function request<T>(path: string, init: { method: string; body?: unknown; 
 
 /** Копейки → «1234.50» */
 const money = (kop: number) => ({ value: (kop / 100).toFixed(2), currency: "RUB" });
+/** Сторож сайта: ЮKassa отвечает и принимает ключи (список из одного платежа — ничего не меняет) */
+export async function pingYookassa() {
+  await request<unknown>("/payments?limit=1", { method: "GET" });
+}
+
 export const fromMoney = (v: { value: string }) => Math.round(Number(v.value) * 100);
 
 export interface ReceiptLine {

@@ -23,6 +23,7 @@ http
         payments.set(id, pay);
         return send(200, pay);
       }
+      if (req.method === "GET" && /\/payments(\?|$)/.test(req.url)) return send(200, { type: "list", items: [...payments.values()].slice(-1) }); // сторож сайта
       const m = /\/payments\/([\w-]+)/.exec(req.url);
       if (req.method === "GET" && m) return payments.has(m[1]) ? send(200, payments.get(m[1])) : send(404, { type: "error", code: "not_found" });
       if (req.method === "GET" && req.url.startsWith("/pay/")) {

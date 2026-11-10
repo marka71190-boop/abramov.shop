@@ -178,3 +178,16 @@ test("рассылка «Новое поступление» уведомлен�
   await q(`delete from push_subscription where endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-test'`);
   assert.deepEqual(p.errors, []);
 });
+
+test("сторож сайта: «Проверить сейчас» — база и ЮKassa работают, проверочное сообщение уходит", async () => {
+  const p = await page(b);
+  await loginOwner(p);
+  await p.goto(`${B}/admin/health`);
+  await p.getByRole("button", { name: "Проверить сейчас" }).click();
+  const row = (name) => p.locator("tr", { hasText: name });
+  await row("База данных").locator(".pill--ok").waitFor({ timeout: 30_000 });
+  assert.match(await row("Оплата через ЮKassa").textContent(), /работает/);
+  await p.getByRole("button", { name: "Прислать проверочное сообщение" }).click();
+  await p.locator(".form-ok", { hasText: /отправили/i }).waitFor();
+  assert.deepEqual(p.errors, []);
+});

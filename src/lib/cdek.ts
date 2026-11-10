@@ -49,6 +49,11 @@ async function api<T>(path: string, init: { method?: string; body?: unknown } = 
   return data;
 }
 
+/** Сторож сайта: СДЭК пускает по ключам и отвечает */
+export async function pingCdek() {
+  await api<unknown>(`/location/cities?${new URLSearchParams({ country_codes: "RU", size: "1" })}`);
+}
+
 // ---------------- Города и пункты выдачи ----------------
 
 export interface CdekCity {

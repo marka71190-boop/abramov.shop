@@ -809,11 +809,17 @@ export async function syncShipments() {
     .from(s.order)
     .where(and(isNotNull(s.order.cdekOrderUuid), inArray(s.order.status, ["PAID", "ASSEMBLING", "SHIPPED"])))
     .limit(200);
+  let failed = 0;
+  let last: unknown;
   for (const { id } of list) {
     try {
       await syncCdek(id);
     } catch (e) {
+      failed++;
+      last = e;
       console.error("[jobs] cdek sync:", e);
     }
   }
+  // Не обновился ни один заказ — значит, сломалась связь со СДЭК, а не один заказ: пусть сторож узнает
+  if (list.length && failed === list.length) throw last;
 }

@@ -44,6 +44,11 @@ async function call<T>(method: string, body: Record<string, unknown>, timeoutMs 
   return data.result as T;
 }
 
+/** Сторож сайта: бот отвечает */
+export async function pingTelegram() {
+  await call<unknown>("getMe", {}, 8000);
+}
+
 /** Состояние связи с Telegram — для админки. */
 export const tgStatus = { lastOk: 0, lastError: "" as string, lastErrorAt: 0 };
 const noteError = (e: unknown) => {
