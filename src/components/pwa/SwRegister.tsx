@@ -31,7 +31,15 @@ export function SwRegister() {
         goal("pwa_open");
       }
     } catch {}
+    // Открыли приложение — число на значке убираем
+    const clearBadge = () => {
+      const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
+      if (document.visibilityState === "visible") nav.clearAppBadge?.().catch(() => {});
+    };
+    clearBadge();
+    document.addEventListener("visibilitychange", clearBadge);
     return () => {
+      document.removeEventListener("visibilitychange", clearBadge);
       window.removeEventListener("beforeinstallprompt", onPrompt);
       window.removeEventListener("appinstalled", onInstalled);
     };

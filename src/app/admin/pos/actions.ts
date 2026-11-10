@@ -26,7 +26,7 @@ const In = z.object({
   method: z.enum(["CASH", "SBP", "CARD"]),
   place: z.string().trim().max(120).nullable(),
   contact: z.string().trim().max(200).nullish(),
-  customerPhone: z.string().trim().max(30).nullish(),
+  customerPhone: z.string().trim().max(120).nullish(), // телефон или код бонусной карты из приложения
   useBonus: z.boolean().optional(),
   giftCode: z.string().trim().max(40).nullish(),
   approvalId: ApprovalId,
@@ -37,7 +37,7 @@ const salePayload = (d: z.infer<typeof In>) => ({
   items: d.items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
   discount: d.discount,
   method: d.method,
-  customerPhone: d.customerPhone?.replace(/\D/g, "") || null,
+  customerPhone: (d.customerPhone?.startsWith("ABC.") ? d.customerPhone : d.customerPhone?.replace(/\D/g, "")) || null,
   useBonus: !!d.useBonus,
 });
 
@@ -195,8 +195,8 @@ export async function posFindCustomer(phone: string): Promise<{ customer?: PosCu
   const { me } = await requireCashier();
   if (!findLimit(me.id)) return { error: "Слишком много поисков — подождите несколько минут" };
   try {
-    const c = await findCustomer(String(phone).slice(0, 30));
-    if (!c) return { error: "Покупатель с таким телефоном не найден. Пусть зарегистрируется на сайте — бонусы начисляются на аккаунт" };
+    const c = await findCustomer(String(phone).slice(0, 120));
+    if (!c) return { error: "Покупатель не найден. Пусть зарегистрируется на сайте — бонусы начисляются на аккаунт" };
     return { customer: c };
   } catch (e) {
     return { error: e instanceof PosError ? e.message : "Не получилось найти покупателя" };

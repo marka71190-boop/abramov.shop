@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CONSENT_COOKIE, findPendingConsent, linkPendingConsents } from "@/lib/consent";
@@ -12,6 +13,9 @@ import { isPlaceholderEmail, SITE } from "@/lib/site";
 // Вход — только по почте и паролю. Вход через VK ID и Google убран: так никто не войдёт в чужой
 // аккаунт через внешний сервис с той же почтой.
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase() || null;
+
+// Адрес сайта для входа по Face ID; PASSKEY_ORIGIN — только для автотестов (по IP вход по Face ID невозможен)
+const siteOrigin = (process.env.PASSKEY_ORIGIN || process.env.BETTER_AUTH_URL || SITE.url).replace(/\/$/, "");
 
 export const auth = betterAuth({
   appName: SITE.name,
@@ -24,7 +28,7 @@ export const auth = betterAuth({
     .filter(Boolean),
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema: { user: s.user, session: s.session, account: s.account, verification: s.verification },
+    schema: { user: s.user, session: s.session, account: s.account, verification: s.verification, passkey: s.passkey },
   }),
   emailAndPassword: {
     enabled: true,
@@ -184,6 +188,12 @@ export const auth = betterAuth({
         ).catch((e) => console.error("[mail] otp:", e instanceof Error ? e.message : e));
       },
     }),
+    /*
+     * Вход по Face ID, Touch ID или отпечатку (passkey). Добавить можно только из своего кабинета,
+     * войдя недавно (сутки) — чужой старой сессией ключ не подменить. В базе — лишь открытый ключ,
+     * отпечаток и лицо не покидают телефон.
+     */
+    passkey({ rpID: new URL(siteOrigin).hostname, rpName: SITE.name, origin: siteOrigin }),
     nextCookies(),
   ],
 });

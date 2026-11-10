@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Заставки приложения на iPhone: меняются редко, телефон берёт их один раз при установке
+        source: "/splash/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=2592000" }],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },

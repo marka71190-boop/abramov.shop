@@ -23,6 +23,7 @@ import { pushPublicKey } from "@/lib/push";
 import { accountTrainings, CANCEL_HOURS, fmtWhen } from "@/lib/trainings";
 import { CancelTraining } from "../trenirovki/CancelTraining";
 import { PushToggle } from "@/components/pwa/PushToggle";
+import { PasskeySection } from "@/components/passkey/Passkey";
 import { isPlaceholderEmail } from "@/lib/site";
 import { ReturnCard } from "@/components/returns/ReturnCard";
 import { listReturns } from "@/lib/returns";
@@ -82,7 +83,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const [orders, pd, mk, referrals, bonusLog, hasPassword] = await Promise.all([
+  const [orders, pd, mk, referrals, bonusLog, hasPassword, passkeys] = await Promise.all([
     db.query.order.findMany({ where: eq(s.order.userId, user.id), orderBy: desc(s.order.createdAt), limit: 10, with: { items: true } }),
     getActiveConsent(user.id, "PERSONAL_DATA"),
     getActiveConsent(user.id, "MARKETING"),
@@ -90,6 +91,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     db.query.bonusTransaction.findMany({ where: eq(s.bonusTransaction.userId, user.id), orderBy: desc(s.bonusTransaction.createdAt), limit: 8 }),
     // Пароль есть? Раньше входили через Google или VK — пароля могло не быть
     db.$count(s.account, and(eq(s.account.userId, user.id), eq(s.account.providerId, "credential"))).then((n) => n > 0),
+    db.select({ id: s.passkey.id, name: s.passkey.name, createdAt: s.passkey.createdAt }).from(s.passkey).where(eq(s.passkey.userId, user.id)),
   ]);
 
   // Без действующего согласия на обработку ПДн кабинетом пользоваться нельзя
@@ -200,6 +202,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <div>
               <div className="bonus-card__balance">{num(user.bonusBalance)}</div>
               <div className="muted small">бонусов на счёте, 1 бонус = 1 ₽</div>
+              <Link href="/account/card" className="btn btn--line btn--sm" style={{ marginTop: 12 }}>
+                QR-карта для кассы в клубе
+              </Link>
               {burning && (
                 <div className="small" style={{ color: "var(--c-danger)", marginTop: 6 }}>
                   {num(burning.amount)} сгорят {fmtDate(burning.date)}
@@ -240,6 +245,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <div className="muted small">Приглашено друзей: {referrals}</div>
           </div>
         </div>
+
+        <PasskeySection items={passkeys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt?.toISOString() ?? null }))} />
 
         <section id="orders" className="panel">
           <h2>Мои заказы</h2>

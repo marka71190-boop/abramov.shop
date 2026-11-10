@@ -12,6 +12,7 @@ import { db } from "@/db";
 export const BACKUP_TABLES = [
   "user",
   "account",
+  "passkey",
   "consent_document",
   "consent",
   "page",

@@ -53,12 +53,25 @@ const floorRub = (kop: number) => Math.floor(kop / 100) * 100;
 
 // ---------------------------------------------------------------- бонусы покупателя
 
-/** Покупатель по телефону: имя для сверки и сколько бонусов можно списать с этого чека */
+/**
+ * Покупатель по телефону или по QR бонусной карты из приложения: имя для сверки
+ * и сколько бонусов можно списать с этого чека
+ */
 export async function findCustomer(phoneRaw: string) {
-  const { normalizePhone } = await import("@/lib/format");
-  const phone = normalizePhone(phoneRaw);
-  if (!phone) throw new PosError("Телефон покупателя: +7 900 123-45-67");
-  const u = await db.query.user.findFirst({ where: and(eq(s.user.phone, phone), eq(s.user.isDevice, false)) });
+  const { looksLikeCard, readCardToken } = await import("@/lib/bonus-card");
+  let phone: string | null = null;
+  let u: typeof s.user.$inferSelect | undefined;
+  if (looksLikeCard(phoneRaw)) {
+    const id = readCardToken(phoneRaw);
+    if (!id) throw new PosError("Код карты устарел — пусть покупатель откроет карту в приложении заново и покажет новый QR");
+    u = await db.query.user.findFirst({ where: and(eq(s.user.id, id), eq(s.user.isDevice, false)) });
+    phone = u?.phone ?? null;
+  } else {
+    const { normalizePhone } = await import("@/lib/format");
+    phone = normalizePhone(phoneRaw);
+    if (!phone) throw new PosError("Телефон покупателя: +7 900 123-45-67");
+    u = await db.query.user.findFirst({ where: and(eq(s.user.phone, phone), eq(s.user.isDevice, false)) });
+  }
   if (!u || (u.bannedAt && (!u.bannedUntil || u.bannedUntil > new Date()))) return null;
   const settings = await getSettings();
   const tier = tierProgress(Math.floor(u.totalSpent / 100), settings.loyalty).current;
@@ -66,7 +79,7 @@ export async function findCustomer(phoneRaw: string) {
   return {
     id: u.id,
     name: first,
-    phone: `+7 ••• •••-${phone.slice(-4, -2)}-${phone.slice(-2)}`,
+    phone: phone ? `+7 ••• •••-${phone.slice(-4, -2)}-${phone.slice(-2)}` : "по карте",
     balance: u.bonusBalance,
     tierPercent: settings.loyalty.tiers[tier].percent,
     maxSpendPercent: settings.loyalty.maxSpendPercent,
@@ -116,7 +129,7 @@ export interface NewSale {
   contact?: string | null;
   shiftId?: string | null;
   clubId?: string | null;
-  customerPhone?: string | null; // бонусная программа
+  customerPhone?: string | null; // бонусная программа: телефон или код карты из приложения (ABC.…)
   useBonus?: boolean;
   giftCode?: string | null; // подарочный сертификат: часть или всё оплатить им
 }
@@ -160,7 +173,7 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
 
   // Бонусная программа: покупатель назвал телефон
   const customer = input.customerPhone?.trim() ? await findCustomer(input.customerPhone) : null;
-  if (input.customerPhone?.trim() && !customer) throw new PosError("Покупатель с таким телефоном не найден — продайте без бонусов или пусть зарегистрируется на сайте");
+  if (input.customerPhone?.trim() && !customer) throw new PosError("Покупатель не найден — продайте без бонусов или пусть зарегистрируется на сайте");
   const bonusSpent = customer && input.useBonus ? bonusAvailable(afterDiscount, customer.balance, customer.maxSpendPercent) : 0;
   const afterBonus = afterDiscount - bonusSpent;
 

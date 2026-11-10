@@ -13,6 +13,7 @@ import { TopStrip } from "@/components/banners/TopStrip";
 import { GuestBar } from "@/components/GuestBar";
 import { GUEST_BAR_COOKIE } from "@/lib/guest-bar";
 import { InstallHint } from "@/components/pwa/InstallHint";
+import { AppTabbar } from "@/components/pwa/AppTabbar";
 import { activeBanners } from "@/lib/banners";
 import { STRIP_COOKIE } from "@/lib/banners-shared";
 import { Footer } from "@/components/Footer";
@@ -100,6 +101,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>
+      <AppTabbar />
       {ban && <BanModal reason={ban.reason} until={ban.until} ticket={ban.ticket} telegram={settings.supportTelegram} />}
     </CartProvider>
   );

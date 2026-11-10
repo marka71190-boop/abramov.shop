@@ -4,7 +4,7 @@
  * в них бывают личные данные (заказы, адреса). Без сети показываем страницу «Нет соединения».
  * Принимает уведомления о заказах (Web Push).
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC = `static-${VERSION}`;
 const MEDIA = `media-${VERSION}`;
 const OFFLINE = "/offline.html";
@@ -88,20 +88,34 @@ self.addEventListener("push", (event) => {
   }
   const title = data.title || "Abramov Shop";
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/badge-96.png",
-      tag: data.tag || undefined,
-      renotify: !!data.tag,
-      data: { url: typeof data.url === "string" ? data.url : "/" },
-      lang: "ru",
-    }),
+    self.registration
+      .showNotification(title, {
+        body: data.body || "",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png",
+        tag: data.tag || undefined,
+        renotify: !!data.tag,
+        data: { url: typeof data.url === "string" ? data.url : "/" },
+        lang: "ru",
+      })
+      .then(syncBadge),
   );
 });
 
+// Число на значке приложения = сколько непрочитанных уведомлений; открыли приложение — значок чистый
+function syncBadge() {
+  const nav = self.navigator;
+  if (!nav || !("setAppBadge" in nav)) return;
+  return self.registration
+    .getNotifications()
+    .then((list) => (list.length ? nav.setAppBadge(list.length) : nav.clearAppBadge()))
+    .catch(() => {});
+}
+self.addEventListener("notificationclose", (event) => event.waitUntil(Promise.resolve(syncBadge())));
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  syncBadge();
   let target = "/";
   try {
     const u = new URL(event.notification.data && event.notification.data.url ? event.notification.data.url : "/", self.location.origin);

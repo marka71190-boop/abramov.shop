@@ -156,6 +156,27 @@ export const verification = pgTable(
   (t) => [index("verification_identifier_idx").on(t.identifier)],
 );
 
+/** Вход по Face ID / Touch ID / отпечатку (passkey): открытый ключ устройства, секрет остаётся в телефоне */
+export const passkey = pgTable(
+  "passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: ts("created_at"),
+    aaguid: text("aaguid"),
+  },
+  (t) => [index("passkey_user_idx").on(t.userId), index("passkey_credential_idx").on(t.credentialID)],
+);
+
 // ============================================================
 // Журнал согласий (152-ФЗ). Записи никогда не удаляются:
 // отзыв согласия — отметка revokedAt, а не удаление строки.

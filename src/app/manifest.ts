@@ -24,6 +24,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Каталог", url: "/catalog?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Корзина", url: "/cart?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Бонусная карта", url: "/account/card?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Мои заказы", url: "/account?utm_source=pwa#orders", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Подбор кия", url: "/podbor-kiya?utm_source=pwa", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],

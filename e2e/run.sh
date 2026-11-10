@@ -15,6 +15,8 @@ export E2E_BASE=$NEXT_PUBLIC_SITE_URL
 export SMTP_HOST=127.0.0.1 SMTP_PORT=2525 SMTP_USER=shop@abramov.shop SMTP_PASS=e2e
 export YOOKASSA_SHOP_ID=e2e YOOKASSA_SECRET_KEY=e2e YOOKASSA_API_URL=http://127.0.0.1:4010/v3
 export OWNER_EMAIL=owner@e2e.test
+# Вход по Face ID не работает на адресе-IP: в тесте passkey сайт открывается как localhost
+export PASSKEY_ORIGIN=http://localhost:3000 TRUSTED_ORIGINS=http://localhost:3000
 export NODE_ENV=production
 
 pids=()

@@ -5,6 +5,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
+import { PasskeyLogin } from "@/components/passkey/Passkey";
 
 export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [busy, setBusy] = useState(false);
@@ -38,6 +39,8 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
       </nav>
 
       {notice && <div className="auth-context">{notice}</div>}
+
+      <PasskeyLogin next={next} />
 
       <div className="login-mode" role="group" aria-label="Как войти">
         <button type="button" aria-pressed={mode === "password"} onClick={() => setMode("password")}>

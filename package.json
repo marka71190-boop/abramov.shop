@@ -16,9 +16,14 @@
     "db:local": "node scripts/dev-db.mjs"
   },
   "dependencies": {
+    "@better-auth/core": "^1.7.7",
+    "@better-auth/passkey": "^1.7.7",
+    "@better-auth/utils": "^0.4.2",
+    "@better-fetch/fetch": "^1.3.2",
     "@types/qrcode": "^1.5.5",
     "barcode-detector": "^3.2.3",
     "better-auth": "1.7.7",
+    "better-call": "^1.4.0",
     "drizzle-orm": "0.45.4",
     "exceljs": "4.4.0",
     "heic-decode": "^2.1.0",

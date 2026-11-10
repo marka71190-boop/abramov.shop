@@ -51,6 +51,7 @@ export function PosTerminal({
   // Бонусная программа: телефон покупателя
   const [phone, setPhone] = useState("");
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
+  const [cardScan, setCardScan] = useState(false);
   const [custError, setCustError] = useState("");
   const [useBonus, setUseBonus] = useState(false);
   const [finding, startFind] = useTransition();
@@ -95,6 +96,12 @@ export function PosTerminal({
   };
   /** Код со сканера: штрихкод или артикул товара. Нашли — добавили, вернули название */
   const onCode = (code: string) => {
+    if (code.startsWith("ABC.")) {
+      // Сканером товаров навели на карту покупателя — тоже поймём
+      setScan(false);
+      findCustomer(code);
+      return "Карта покупателя";
+    }
     const o = options.find((x) => x.stock > 0 && codeMatches(x, code));
     if (!o) return null;
     const inCart = lines.find((l) => l.o.id === o.id)?.qty ?? 0;
@@ -108,23 +115,37 @@ export function PosTerminal({
   useScanWedge(
     (code) => {
       if (/AS-\d{6}-/i.test(code)) return false; // номер заказа с сайта — это для выдачи заказов
+      if (code.startsWith("ABC.")) return void findCustomer(code); // QR бонусной карты из приложения
       const name = onCode(code);
       signal(!!name);
       setScanMsg(name ? { text: `+ ${name}`, ok: true } : { text: `Не нашли товар в наличии с кодом ${code}`, ok: false });
     },
-    !scan && !sale && !waiting,
+    !scan && !cardScan && !sale && !waiting,
   );
 
-  function findCustomer() {
+  function findCustomer(raw = phone) {
     setCustError("");
+    const card = raw.startsWith("ABC.");
+    if (card) setPhone(raw);
     startFind(async () => {
-      const r = await posFindCustomer(phone);
+      const r = await posFindCustomer(raw);
       if (r.customer) {
         setCustomer(r.customer);
         setUseBonus(false);
-      } else setCustError(r.error ?? "Не нашли");
+        if (card) signal(true);
+      } else {
+        setCustError(r.error ?? "Не нашли");
+        if (card) (setPhone(""), signal(false));
+      }
     });
   }
+  // Камера: QR бонусной карты из приложения покупателя
+  const onCardCode = (code: string) => {
+    if (!code.startsWith("ABC.")) return null;
+    setCardScan(false);
+    findCustomer(code);
+    return "Карта покупателя";
+  };
   const upd = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
 
   function reset() {
@@ -364,11 +385,18 @@ export function PosTerminal({
               Бонусы покупателя — телефон
               <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" autoComplete="off" />
             </label>
-            <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} disabled={finding || phone.replace(/\D/g, "").length < 10} onClick={findCustomer}>
+            <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} disabled={finding || phone.replace(/\D/g, "").length < 10} onClick={() => findCustomer()}>
               {finding ? "…" : "Найти"}
+            </button>
+            <button type="button" className="btn btn--line btn--sm" style={{ minHeight: 48 }} disabled={finding} onClick={() => setCardScan(true)} aria-label="Сканировать QR бонусной карты" title="QR карты из приложения">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 8h3v3H8zM13 13h3v3h-3zM13 8h3M8 13v3" />
+              </svg>
             </button>
           </div>
         )}
+        {cardScan && <BarcodeScanner onCode={onCardCode} onClose={() => setCardScan(false)} />}
+        {!customer && !cardScan && <div className="muted small">Или сканируйте QR бонусной карты из приложения покупателя</div>}
         {custError && <div className="small is-loss">{custError}</div>}
       </div>
 
