@@ -124,3 +124,20 @@ test("оплата из-за рубежа: Казахстан — счёт Ро�
   assert.equal(after.status, "PAID");
   assert.deepEqual(p.errors, []);
 });
+
+test("цены в валюте: переключатель в шапке — тенге по курсу ЦБ, после перезагрузки остаётся, назад в рубли", async () => {
+  const p = await page(b);
+  await p.goto(`${B}/product/${E2E.products[0].slug}`);
+  const main = p.locator("main");
+  await p.locator(".cur-switch select").selectOption("KZT");
+  // 500 ₽ при 18,50 ₽ за 100 тенге → 2 703 ₸ (вверх до тенге)
+  await main.getByText("2 703 ₸").first().waitFor();
+  assert.match(await p.locator(".cur-note").textContent(), /тенге/);
+  await p.reload();
+  await main.getByText("2 703 ₸").first().waitFor();
+  await p.locator(".cur-switch select").selectOption("RUB");
+  await main.getByText("500 ₽").first().waitFor();
+  assert.equal(await p.locator(".cur-note").count(), 0);
+  assert.doesNotMatch(await main.innerText(), /₸/);
+  assert.deepEqual(p.errors, []);
+});

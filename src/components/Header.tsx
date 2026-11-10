@@ -3,6 +3,7 @@ import { CartBadge } from "@/components/cart/CartProvider";
 import { IconBag, IconUser } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
 import { HeaderSearch } from "@/components/search/HeaderSearch";
+import { CurrencySwitch } from "@/components/currency/CurrencySwitch";
 
 export function Header({
   signedIn,
@@ -57,6 +58,7 @@ export function Header({
         </nav>
         <div className="header__actions">
           <HeaderSearch categories={categories} />
+          <CurrencySwitch />
           {signedIn ? (
             <Link href="/account" className="icon-btn" aria-label="Личный кабинет">
               <IconUser />

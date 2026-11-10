@@ -14,6 +14,9 @@ import { GuestBar } from "@/components/GuestBar";
 import { GUEST_BAR_COOKIE } from "@/lib/guest-bar";
 import { InstallHint } from "@/components/pwa/InstallHint";
 import { AppTabbar } from "@/components/pwa/AppTabbar";
+import { CurrencyLayer } from "@/components/currency/CurrencyLayer";
+import { COOKIE as CURRENCY_COOKIE, type ShowCurrency } from "@/components/currency/store";
+import { payCurrency } from "@/lib/currency";
 import { activeBanners } from "@/lib/banners";
 import { STRIP_COOKIE } from "@/lib/banners-shared";
 import { Footer } from "@/components/Footer";
@@ -68,6 +71,12 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const stripItems = strip.filter((b) => !hidden.has(b.id));
 
   const ban = admin ? null : getActiveBan(viewer);
+
+  // Цены в валюте покупателя из-за рубежа: выбрал сам (cookie) или страна в профиле
+  const fx = settings.foreign.enabled ? await import("@/lib/fx").then((m) => m.getRates()).catch(() => null) : null;
+  const saved = jar.get(CURRENCY_COOKIE)?.value as ShowCurrency | undefined;
+  const showCur: ShowCurrency =
+    saved && ["RUB", "USD", "EUR", "KZT"].includes(saved) ? saved : viewer?.country && viewer.country !== "RU" ? payCurrency(viewer.country, viewer.countryName) : "RUB";
   // Номер счётчика Яндекс Метрики — из переменной YANDEX_METRIKA_ID в Timeweb
   const metrikaId = Number(process.env.YANDEX_METRIKA_ID) || null;
 
@@ -81,6 +90,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       </Suspense>
       <CookieBanner analytics={!!metrikaId} />
       <InstallHint />
+      <CurrencyLayer rates={fx ? { USD: fx.USD, EUR: fx.EUR, KZT: fx.KZT, buffer: settings.foreign.fxBuffer } : null} initial={showCur} />
       {settings.maintenance && admin && (
         <div className="notice">
           Включён режим техработ — покупатели видят заглушку. <a href="/admin/settings">Выключить</a>

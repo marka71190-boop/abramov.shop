@@ -1,6 +1,7 @@
 "use client";
 /** Страна доставки: Россия, страны СДЭК из списка или «моей страны нет» — вписать самому. */
 import { MANUAL_CODE, tinRule, type Country } from "@/lib/countries";
+import { setCurrencyForCountry } from "@/components/currency/store";
 
 export interface CountryValue {
   code: string;
@@ -34,7 +35,7 @@ export function CountryField({
       {!manual && (
         <label className="field">
           {label}
-          <select className="input" name="country" value={value.code} onChange={(e) => onChange({ code: e.target.value, name: "" })}>
+          <select className="input" name="country" value={value.code} onChange={(e) => (onChange({ code: e.target.value, name: "" }), setCurrencyForCountry(e.target.value))}>
             <option value="RU">Россия</option>
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
@@ -56,6 +57,7 @@ export function CountryField({
             autoComplete="country-name"
             placeholder="Например: Германия"
             onChange={(e) => onChange({ code: MANUAL_CODE, name: e.target.value })}
+            onBlur={(e) => setCurrencyForCountry(MANUAL_CODE, e.target.value)}
           />
         </label>
       )}
