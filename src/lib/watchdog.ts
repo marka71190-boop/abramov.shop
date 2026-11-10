@@ -33,6 +33,7 @@ const CHECKS: Record<string, { title: string; threshold: number }> = {
   mail: { title: "Почта (письма покупателям)", threshold: 2 },
   telegram: { title: "Telegram-бот", threshold: 3 },
   errors: { title: "Ошибки на страницах сайта", threshold: 1 },
+  fx: { title: "Курсы валют ЦБ (оплата из-за рубежа)", threshold: 3 },
   "job:payments": { title: "Проверка оплат заказов", threshold: 5 },
   "job:pos": { title: "Оплаты в кассе по QR", threshold: 5 },
   "job:expire": { title: "Отмена неоплаченных заказов", threshold: 3 },

@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db, schema as s } from "@/db";
+import { fmtCurrency, payCurrency, toCurrencyMinor } from "@/lib/currency";
 import { rub } from "@/lib/format";
+import { getRates } from "@/lib/fx";
+import { getSettings } from "@/lib/settings";
 import { splitGift } from "@/lib/giftcards";
 import { paymentForm, robokassaEnabled } from "@/lib/robokassa";
 import { getViewer } from "@/lib/viewer";
@@ -25,21 +28,38 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
   if (o.shippingPending) redirect(`/order/${o.number}`);
 
   const amount = o.total - o.giftCardAmount;
-  // Один счёт на заказ, пока он не оплачен: повторный переход — тот же InvId
+  // Из-за рубежа — счёт в валюте покупателя по курсу ЦБ (нет курсов или выключено — в рублях)
+  const f = (await getSettings()).foreign;
+  const rates = o.country !== "RU" && f.payInCurrency ? await getRates() : null;
+  const code = payCurrency(o.country, o.countryName);
+  const curAmount = rates ? toCurrencyMinor(amount, rates[code], f.fxBuffer) : null;
+  const currency = curAmount ? { code, amount: curAmount } : null;
+
+  // Один счёт на заказ, пока он не оплачен: повторный переход — тот же InvId (курс держим 12 часов)
   let pay = await db.query.payment.findFirst({
     where: and(eq(s.payment.orderId, o.id), eq(s.payment.provider, "robokassa"), eq(s.payment.status, "PENDING")),
     orderBy: desc(s.payment.createdAt),
   });
-  if (!pay || pay.amount !== amount) {
+  const same =
+    pay &&
+    pay.amount === amount &&
+    (pay.currency ?? null) === (currency?.code ?? null) &&
+    (!pay.currency || Date.now() - pay.createdAt.getTime() < 12 * 3600_000);
+  if (!pay || !same) {
     const [{ id }] = (await db.execute<{ id: string }>(sql`select nextval('robokassa_inv_seq')::text as id`)).rows;
-    [pay] = await db.insert(s.payment).values({ orderId: o.id, provider: "robokassa", externalId: id, status: "PENDING", amount }).returning();
+    [pay] = await db
+      .insert(s.payment)
+      .values({ orderId: o.id, provider: "robokassa", externalId: id, status: "PENDING", amount, currency: currency?.code ?? null, currencyAmount: currency?.amount ?? null })
+      .returning();
   }
+  const charge = pay.currency && pay.currencyAmount ? { code: pay.currency, amount: pay.currencyAmount } : null;
   const cash = splitGift(o);
   const form = paymentForm({
     invId: Number(pay.externalId),
     amount,
     description: `Заказ ${o.number} в Abramov Shop`,
     email: o.email,
+    currency: charge,
     receipt: receiptLines(
       o.items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
       cash.cashGoods,
@@ -51,8 +71,13 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
   return (
     <main className="container page-pad stack" style={{ gap: 16, maxWidth: 560, textAlign: "center", justifyItems: "center", minHeight: "60vh", alignContent: "center" }}>
       <h1 className="h3" style={{ margin: 0 }}>
-        Переходим к оплате {rub(amount)}
+        Переходим к оплате {charge ? fmtCurrency(charge.amount, charge.code as Parameters<typeof fmtCurrency>[1]) : rub(amount)}
       </h1>
+      {charge && (
+        <p className="muted small" style={{ margin: 0 }}>
+          Сумма заказа {rub(amount)} — по курсу ЦБ на сегодня. Банк может списать с вашей карты в своей валюте по своему курсу.
+        </p>
+      )}
       <p className="muted" style={{ margin: 0 }}>
         Сейчас откроется страница Робокассы: там можно оплатить картой, частями, через «Сплит» или картой зарубежного банка.
       </p>

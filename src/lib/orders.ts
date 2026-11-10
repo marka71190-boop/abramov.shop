@@ -512,7 +512,16 @@ export async function syncPayment(orderId: string) {
 export async function applyRobokassaPaid(invId: string, paidKop: number, source: string) {
   const row = await db.query.payment.findFirst({ where: and(eq(s.payment.provider, "robokassa"), eq(s.payment.externalId, invId)) });
   if (!row) return null;
-  if (paidKop < row.amount) {
+  // Счёт в валюте: Робокасса может прислать сумму и в валюте счёта, и пересчитанную в рубли по своему курсу.
+  // Подпись уведомления проверена Паролем #2 — здесь только защита от явной недоплаты.
+  // Что пришло — валюта или рубли — видно по величине: рубль от доллара, евро и тенге отличается в разы.
+  let enough = paidKop >= row.amount;
+  if (row.currency && row.currencyAmount) {
+    const cur = row.currencyAmount;
+    const inCurrency = paidKop >= cur * 0.67 && paidKop <= cur * 1.5;
+    enough = inCurrency ? paidKop >= cur - 1 : paidKop >= Math.floor(row.amount * 0.95);
+  }
+  if (!enough) {
     console.error(`[robokassa] счёт ${invId}: оплачено ${paidKop} из ${row.amount}`);
     const { notifyAdmins } = await import("@/lib/telegram");
     await notifyAdmins(`⚠️ Робокасса: по счёту ${invId} пришло меньше суммы заказа. Проверьте в кабинете Робокассы.`).catch(() => {});

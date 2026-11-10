@@ -91,6 +91,8 @@ export interface SiteSettings {
     enabled: boolean; // заказы из-за рубежа
     cdekCountries: string; // страны, куда возит СДЭК: «BY Беларусь» — по строке
     robokassaPercent: number; // %, сбор с заказа из-за рубежа при оплате через Робокассу
+    payInCurrency: boolean; // счёт Робокассы в валюте покупателя: тенге, евро или доллары (по курсу ЦБ)
+    fxBuffer: number; // %, запас на разницу курса ЦБ и курса Робокассы
     transferPercent: number; // %, сбор при оплате переводом на карту
     transferDetails: string; // куда переводить: карта, получатель, банк — видят покупатели из-за рубежа
     paymentDays: number; // сколько дней ждём перевод, потом заказ отменяется
@@ -193,6 +195,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     enabled: true,
     cdekCountries: "BY Беларусь\nKZ Казахстан\nAM Армения\nKG Киргизия",
     robokassaPercent: 10,
+    payInCurrency: true,
+    fxBuffer: 0,
     transferPercent: 10,
     transferDetails: "",
     paymentDays: 5,

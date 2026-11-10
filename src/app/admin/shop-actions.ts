@@ -779,6 +779,7 @@ export async function disconnectDriveAction() {
 const ForeignIn = z.object({
   cdekCountries: z.string().max(2000).default(""),
   robokassaPercent: z.coerce.number().int("Сбор — целое число процентов").min(0).max(50),
+  fxBuffer: z.coerce.number().min(0, "Запас на курс — от 0 %").max(10, "Запас на курс — до 10 %").default(0),
   transferPercent: z.coerce.number().int("Сбор — целое число процентов").min(0).max(50),
   paymentDays: z.coerce.number().int().min(1, "Срок перевода — от 1 дня").max(30),
   transferDetails: z.string().trim().max(1000).default(""),
@@ -794,7 +795,7 @@ export async function saveForeignSettings(_: ActionState, form: FormData): Promi
   const cur = await getSettings();
   await saveSettings({
     ...cur,
-    foreign: { ...cur.foreign, ...p.data, cdekCountries: list.map((c) => `${c.code} ${c.name}`).join("\n"), enabled: form.get("enabled") === "on" },
+    foreign: { ...cur.foreign, ...p.data, cdekCountries: list.map((c) => `${c.code} ${c.name}`).join("\n"), enabled: form.get("enabled") === "on", payInCurrency: form.get("payInCurrency") === "on" },
   });
   // Реквизиты — не секрет, но в журнал пишем только факт изменения
   await audit(me.id, "settings.foreign", "setting", "site", { countries: list.map((c) => c.code), robokassaPercent: p.data.robokassaPercent, transferPercent: p.data.transferPercent });

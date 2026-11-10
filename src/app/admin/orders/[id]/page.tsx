@@ -1,3 +1,4 @@
+import { fmtCurrency, type PayCurrency } from "@/lib/currency";
 import { and, asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -297,6 +298,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
         {o.payments.map((p) => (
           <div key={p.id} className="muted small">
             {p.provider === "robokassa" ? "Робокасса, счёт №" : "ЮKassa"} {p.externalId}: {PAY[p.status]}, {rub(p.amount)}
+            {p.currency && p.currencyAmount ? ` (счёт ${fmtCurrency(p.currencyAmount, p.currency as PayCurrency)} по курсу ЦБ)` : ""}
             {p.refundedAmount ? `, возвращено ${rub(p.refundedAmount)}` : ""} · {fmtDateTime(p.createdAt)}
           </div>
         ))}

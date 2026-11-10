@@ -456,6 +456,13 @@
       "when": 1794329409889,
       "tag": "0064_campaign_push",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794336398981,
+      "tag": "0065_payment_currency",
+      "breakpoints": true
     }
   ]
 }

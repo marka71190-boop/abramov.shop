@@ -604,6 +604,8 @@ export const payment = pgTable("payment", {
   status: paymentStatusEnum("status").default("PENDING").notNull(),
   amount: integer("amount").notNull(),
   confirmationUrl: text("confirmation_url"), // страница оплаты ЮKassa
+  currency: text("currency"), // счёт Робокассы в валюте покупателя: USD, EUR, KZT; пусто — рубли
+  currencyAmount: integer("currency_amount"), // сумма счёта в валюте, центы / тиыны
   refundedAmount: integer("refunded_amount").default(0).notNull(),
   raw: jsonb("raw"),
   createdAt: createdAt(),

@@ -23,6 +23,16 @@ http
         payments.set(id, pay);
         return send(200, pay);
       }
+      // Курсы ЦБ для счёта в валюте (как https://www.cbr.ru/scripts/XML_daily.asp)
+      if (req.method === "GET" && req.url.startsWith("/cbr")) {
+        res.writeHead(200, { "Content-Type": "application/xml" });
+        return res.end(
+          '<?xml version="1.0" encoding="windows-1251"?><ValCurs Date="10.11.2026" name="Foreign Currency Market">' +
+            '<Valute ID="R01235"><NumCode>840</NumCode><CharCode>USD</CharCode><Nominal>1</Nominal><Name>Dollar</Name><Value>90,5000</Value></Valute>' +
+            '<Valute ID="R01239"><NumCode>978</NumCode><CharCode>EUR</CharCode><Nominal>1</Nominal><Name>Euro</Name><Value>98,1000</Value></Valute>' +
+            '<Valute ID="R01335"><NumCode>398</NumCode><CharCode>KZT</CharCode><Nominal>100</Nominal><Name>Tenge</Name><Value>18,5000</Value></Valute></ValCurs>',
+        );
+      }
       if (req.method === "GET" && /\/payments(\?|$)/.test(req.url)) return send(200, { type: "list", items: [...payments.values()].slice(-1) }); // сторож сайта
       const m = /\/payments\/([\w-]+)/.exec(req.url);
       if (req.method === "GET" && m) return payments.has(m[1]) ? send(200, payments.get(m[1])) : send(404, { type: "error", code: "not_found" });

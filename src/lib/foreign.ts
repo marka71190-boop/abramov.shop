@@ -17,6 +17,8 @@ export async function foreignConfig() {
     enabled: f.enabled,
     countries: f.enabled ? parseCountries(f.cdekCountries) : [],
     robokassaPercent: f.robokassaPercent,
+    // Курсы ЦБ для подсказки «≈ 60 000 ₸» на оформлении; null — счёт будет в рублях
+    fx: f.payInCurrency ? await import("@/lib/fx").then((m) => m.getRates()).then((r) => (r ? { USD: r.USD, EUR: r.EUR, KZT: r.KZT, buffer: f.fxBuffer } : null)) : null,
     transferPercent: f.transferPercent,
     transferReady: !!f.transferDetails.trim(),
     paymentDays: f.paymentDays,

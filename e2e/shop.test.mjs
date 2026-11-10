@@ -1,7 +1,8 @@
 /** Магазин: главная, каталог, товар, корзина и оформление заказа с оплатой (ЮKassa — заглушка) */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, browser, closeDb, loginKassa, page, q, wedgeScanKeys } from "./helpers.mjs";
+import { createHash } from "node:crypto";
+import { B, browser, closeDb, loginKassa, loginOwner, page, q, wedgeScanKeys } from "./helpers.mjs";
 import { E2E } from "./data.mjs";
 
 let b;
@@ -79,4 +80,47 @@ test("выдача заказа с сайта в клубе: касса нахо
   await k.waitForSelector("text=выдан");
   assert.equal((await q("select status from \"order\" where id = $1", [ord.id]))[0].status, "DELIVERED");
   assert.deepEqual(k.errors, []);
+});
+
+test("оплата из-за рубежа: Казахстан — счёт Робокассы в тенге по курсу ЦБ, уведомление об оплате засчитывается", async () => {
+  // Заказ покупателя превращаем в заказ владельца из Казахстана с оплатой через Робокассу
+  const [{ id: owner }] = await q(`select id from "user" where email = $1`, [E2E.owner.email]);
+  const [ord] = await q(
+    `update "order" set country = 'KZ', payment_method = 'ROBOKASSA', status = 'AWAITING_PAYMENT', user_id = $2, expires_at = null, shipping_pending = false
+     where id = (select id from "order" where email = $1 order by created_at desc limit 1) returning id, number, total, gift_card_amount`,
+    ["buyer@e2e.test", owner],
+  );
+  const amount = ord.total - ord.gift_card_amount;
+
+  const p = await page(b);
+  await loginOwner(p);
+  // Форма сама уходит на Робокассу — перехватываем и читаем, что отправили бы
+  let posted = null;
+  await p.route("https://auth.robokassa.ru/**", async (r) => {
+    posted = new URLSearchParams(r.request().postData() ?? "");
+    await r.fulfill({ status: 200, contentType: "text/html", body: "<p>robokassa</p>" });
+  });
+  await p.goto(`${B}/pay/robokassa/${ord.number}`);
+  for (let i = 0; i < 50 && !posted; i++) await p.waitForTimeout(200);
+  assert.ok(posted, "форма оплаты отправлена");
+  // 18,50 ₽ за 100 тенге → 1 тенге = 0,185 ₽
+  const expected = (Math.ceil(amount / 0.185) / 100).toFixed(2);
+  assert.equal(posted.get("OutSumCurrency"), "KZT");
+  assert.equal(posted.get("OutSum"), expected);
+  const inv = posted.get("InvId");
+  const sig = createHash("md5").update(`e2e:${expected}:${inv}:KZT:${posted.get("Receipt")}:e2e-pass1`).digest("hex");
+  assert.equal(posted.get("SignatureValue"), sig, "подпись с валютой");
+  const [pay] = await q("select currency, currency_amount from payment where external_id = $1", [inv]);
+  assert.equal(pay.currency, "KZT");
+
+  // Робокасса сообщает об оплате — сумма в тенге
+  const res = await fetch(`${B}/api/payments/robokassa/result`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ OutSum: `${expected}0000`, InvId: inv, SignatureValue: createHash("md5").update(`${expected}0000:${inv}:e2e-pass2`).digest("hex") }),
+  });
+  assert.equal(await res.text(), `OK${inv}`);
+  const [after] = await q(`select status from "order" where id = $1`, [ord.id]);
+  assert.equal(after.status, "PAID");
+  assert.deepEqual(p.errors, []);
 });

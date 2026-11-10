@@ -23,9 +23,20 @@ export function ForeignSettingsForm({ s, robokassa }: { s: SiteSettings["foreign
         <span className="muted small">Код — две латинские буквы, как в СДЭК: BY, KZ, AM, KG, UZ…</span>
       </label>
       <div className="form-grid">
+        <label className="check" style={{ gridColumn: "1 / -1" }}>
+          <input type="checkbox" name="payInCurrency" defaultChecked={s.payInCurrency} />
+          <span>
+            Робокасса — счёт в валюте покупателя: Казахстан — тенге, страны евро — евро, остальные — доллары (по курсу ЦБ на сегодня). Робокасса
+            выставляет счёт только в этих трёх валютах. Выключено — в рублях.
+          </span>
+        </label>
         <label className="field">
           Сбор при оплате через Робокассу, %
           <input className="input" name="robokassaPercent" type="number" min={0} max={50} defaultValue={s.robokassaPercent} />
+        </label>
+        <label className="field">
+          Запас на курс валюты, %
+          <input className="input" name="fxBuffer" type="number" min={0} max={10} step={0.5} defaultValue={s.fxBuffer} />
         </label>
         <label className="field">
           Сбор при оплате переводом, %

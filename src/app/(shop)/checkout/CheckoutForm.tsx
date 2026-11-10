@@ -1,4 +1,5 @@
 "use client";
+import { CURRENCY_WORD, fmtCurrency, payCurrency, toCurrencyMinor } from "@/lib/currency";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { forgetPromo, storedPromo, useCart } from "@/components/cart/CartProvider";
@@ -758,6 +759,17 @@ export function CheckoutForm({
           <span>{quote ? rub(quote.payable) : "…"}</span>
         </div>
         {pendingShip && <div className="muted small">+ доставка — посчитаем после оформления</div>}
+        {byRobokassa && foreign.fx && !!quote?.payable && (() => {
+          // Робокасса выставит счёт в валюте покупателя по курсу ЦБ
+          const cur = payCurrency(country.code, country.name);
+          const minor = toCurrencyMinor(quote.payable, foreign.fx[cur], foreign.fx.buffer);
+          return minor ? (
+            <div className="muted small" data-testid="pay-currency">
+              ≈ {fmtCurrency(minor, cur)} — оплата {CURRENCY_WORD[cur]} по курсу ЦБ
+              {pendingShip ? " (без доставки)" : ""}
+            </div>
+          ) : null;
+        })()}
         {!!quote?.accrue && (
           <div className="summary__bonus">
             +{num(quote.accrue / 100)} бонусов после получения · {quote.tierPercent}%
@@ -770,7 +782,10 @@ export function CheckoutForm({
                 <input type="radio" name="payMethod" checked={foreignPay === "ROBOKASSA"} onChange={() => setForeignPay("ROBOKASSA")} />
                 <span>
                   Картой любого банка
-                  <span className="muted small"> · Робокасса, сбор {foreign.robokassaPercent} %</span>
+                  <span className="muted small">
+                    {" "}
+                    · Робокасса, сбор {foreign.robokassaPercent} %{foreign.fx ? `, оплата ${CURRENCY_WORD[payCurrency(country.code, country.name)]}` : ""}
+                  </span>
                 </span>
               </label>
             )}

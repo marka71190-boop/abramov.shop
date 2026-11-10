@@ -100,19 +100,23 @@ function receiptJson(lines: ReceiptLine[]) {
 
 /**
  * Поля формы оплаты (отправляются методом POST — чек может быть длинным).
- * Подпись: MerchantLogin:OutSum:InvId:Receipt:Пароль#1, Receipt — URL-кодированный JSON.
+ * Подпись: MerchantLogin:OutSum:InvId[:OutSumCurrency]:Receipt:Пароль#1, Receipt — URL-кодированный JSON.
+ * currency — счёт в валюте покупателя из-за рубежа: OutSum в долларах, евро или тенге (OutSumCurrency),
+ * Робокасса сама пересчитывает в рубли; чек по 54-ФЗ остаётся в рублях.
  */
-export function paymentForm(p: { invId: number; amount: number; description: string; email: string; receipt: ReceiptLine[] }) {
-  const sum = outSum(p.amount);
+export function paymentForm(p: { invId: number; amount: number; description: string; email: string; receipt: ReceiptLine[]; currency?: { code: string; amount: number } | null }) {
+  const sum = p.currency ? (p.currency.amount / 100).toFixed(2) : outSum(p.amount);
+  const cur = p.currency ? `:${p.currency.code}` : "";
   const receipt = phpUrlencode(receiptJson(p.receipt));
-  const signature = hash(`${login()}:${sum}:${p.invId}:${receipt}:${pass1()}`);
+  const signature = hash(`${login()}:${sum}:${p.invId}${cur}:${receipt}:${pass1()}`);
   // Для разбора ошибок 29/«Оплата недоступна»: только несекретное — без паролей, почты и состава заказа
-  console.info(`[robokassa] счёт InvId=${p.invId} OutSum=${sum} login=${login()} test=${isTest() ? 1 : 0} hash=${(process.env.ROBOKASSA_HASH || "md5").toLowerCase()} pass1=${pass1() ? "задан" : "ПУСТО"}`);
+  console.info(`[robokassa] счёт InvId=${p.invId} OutSum=${sum}${p.currency ? ` ${p.currency.code}` : ""} login=${login()} test=${isTest() ? 1 : 0} hash=${(process.env.ROBOKASSA_HASH || "md5").toLowerCase()} pass1=${pass1() ? "задан" : "ПУСТО"}`);
   return {
     action: PAY_URL,
     fields: {
       MerchantLogin: login(),
       OutSum: sum,
+      ...(p.currency ? { OutSumCurrency: p.currency.code } : {}),
       InvId: String(p.invId),
       Description: p.description.slice(0, 100),
       Receipt: receipt,
