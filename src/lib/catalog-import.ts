@@ -17,6 +17,7 @@ import { SITE } from "@/lib/site";
 import { slugify } from "@/lib/slug";
 import { listAttributes, normalizeAttr, type Attr } from "@/lib/attributes";
 import { parseVideoLines } from "@/lib/video";
+import { isPlaceholderVariant } from "@/lib/variant-names";
 
 export const COLUMNS = [
   { key: "productSku", title: "Артикул товара", width: 20, note: "Обязательно. Строки с одинаковым артикулом — варианты одного товара (цвет, размер)." },
@@ -380,8 +381,8 @@ export async function buildPlan(rows: RawRow[]): Promise<Plan> {
       if (ph) changes.push(`фото: ${ph}`);
     } else {
       if (input.name && input.name !== prod.name) changes.push("название");
-      for (const v of variants) {
-        const ev = matchVariant(prod.variants, v, variants.length);
+      for (const [vi, v] of variants.entries()) {
+        const ev = matchVariant(prod.variants, v, variants.length) ?? adoptPlaceholder(prod.variants, variants, vi);
         const label = v.name ? `«${v.name}»: ` : "";
         if (!ev) {
           changes.push(`${label}новый вариант`);
@@ -437,6 +438,13 @@ function matchVariant(list: VariantRow[], v: { name: string | null; sku: string 
   // Товар с одним вариантом — строка относится к нему
   if (inputCount === 1 && list.length === 1) return list[0];
   return undefined;
+}
+
+/** Товару, у которого был только «Основной», в файле дали варианты — «Основной» превращаем в первый из них */
+function adoptPlaceholder(list: VariantRow[], inputs: { name: string | null; sku: string | null }[], i: number) {
+  if (list.length !== 1 || !isPlaceholderVariant(list[0].name) || inputs.length < 2) return undefined;
+  const firstUnmatched = inputs.findIndex((v) => !matchVariant(list, v, inputs.length));
+  return firstUnmatched === i ? list[0] : undefined;
 }
 
 // ---------- Фото по ссылке
@@ -640,8 +648,8 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
       const current = prod?.variants ?? [];
       let order = current.length;
       const variantIds: (string | null)[] = [];
-      for (const v of input.variants) {
-        const ev = matchVariant(current, v, input.variants.length);
+      for (const [vi, v] of input.variants.entries()) {
+        const ev = matchVariant(current, v, input.variants.length) ?? adoptPlaceholder(current, input.variants, vi);
         const row = {
           price: v.price === basePrice ? null : v.price,
           stock: v.stock,
@@ -675,7 +683,7 @@ export async function applyProduct(input: ProductImportT, userId: string): Promi
       }
 
       // Фото: один вариант — фото товара целиком; несколько — фото своего варианта
-      const totalVariants = Math.max(current.length, 0) + input.variants.filter((v) => !matchVariant(current, v, input.variants.length)).length;
+      const totalVariants = Math.max(current.length, 0) + input.variants.filter((v, vi) => !matchVariant(current, v, input.variants.length) && !adoptPlaceholder(current, input.variants, vi)).length;
       const single = totalVariants <= 1;
       for (const [i, urls] of photos) {
         const vid = single ? null : variantIds[i];

@@ -428,6 +428,13 @@
       "when": 1794075747974,
       "tag": "0060_sku_is_barcode",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794314950052,
+      "tag": "0061_hide_placeholder_variant",
+      "breakpoints": true
     }
   ]
 }

@@ -45,3 +45,18 @@ test("покупка: товар в корзину → оформление → 
   assert.equal(rows.length, 1, "заказ создан");
   assert.deepEqual(p.errors, []);
 });
+
+test("«Основной» вариант не показывается покупателю, если у товара есть настоящие варианты", async () => {
+  const [{ id: pid }] = await q(
+    "insert into product (id, name, slug, price, visibility, weight_grams, preview_token, category_id) values (gen_random_uuid()::text, 'Наклейки E2E', 'naklejki-e2e', 70000, 'PUBLISHED', 50, 'e2e-naklejki-token', (select id from category where slug = 'e2e')) returning id",
+  );
+  await q("insert into product_variant (id, product_id, name, stock, is_active, sort_order) values (gen_random_uuid()::text, $1, 'Основной', 0, true, 0), (gen_random_uuid()::text, $1, 'JOS PM', 5, true, 1), (gen_random_uuid()::text, $1, 'JOS H+', 4, true, 2)", [pid]);
+  const p = await page(b);
+  await p.goto(`${B}/product/naklejki-e2e`);
+  const text = await p.locator("main").innerText();
+  assert.match(text, /JOS PM/);
+  assert.doesNotMatch(text, /Основной/);
+  await p.goto(`${B}/catalog`);
+  assert.doesNotMatch(await p.locator("main").innerText(), /Основной/);
+  assert.deepEqual(p.errors, []);
+});

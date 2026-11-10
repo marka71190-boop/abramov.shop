@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { publicWhere, retailWhere } from "@/lib/visibility";
+import { shopVariants } from "@/lib/variant-names";
 
 export async function getPublicCategories() {
   return db.select().from(s.category).where(publicWhere(s.category)).orderBy(asc(s.category.sortOrder), asc(s.category.name));
@@ -20,7 +21,8 @@ export async function decorate(products: (typeof s.product.$inferSelect)[]) {
       .orderBy(asc(s.productVariant.sortOrder)),
   ]);
   return products.map((p) => {
-    const own = variants.filter((v) => v.productId === p.id);
+    // «Основной» рядом с настоящими вариантами покупателю не показываем
+    const own = shopVariants(variants.filter((v) => v.productId === p.id));
     return {
       ...p,
       image: images.find((i) => i.productId === p.id && !i.variantId) ?? images.find((i) => i.productId === p.id) ?? null,
@@ -66,7 +68,7 @@ export async function getProductBySlug(slug: string) {
       category: true,
     },
   });
-  return p ?? null;
+  return p ? { ...p, variants: shopVariants(p.variants) } : null;
 }
 
 /** Открытые товары по списку id (для избранного), в том же порядке. */
