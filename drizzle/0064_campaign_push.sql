@@ -1,0 +1,1 @@
+ALTER TABLE "campaign" ADD COLUMN "channel_push" boolean DEFAULT false NOT NULL;

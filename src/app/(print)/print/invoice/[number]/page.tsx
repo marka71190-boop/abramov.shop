@@ -219,7 +219,7 @@ export default async function InvoicePage({ params, searchParams }: Props) {
             В назначении платежа укажите: «{invoicePurpose(o, b.vatNote)}».
             {o.expiresAt && o.status === "AWAITING_PAYMENT" && <> Счёт действителен до {fmtDate(o.expiresAt)} — до этой даты товар зарезервирован.</>}
           </div>
-          <div>Товар отгружается после поступления денег на расчётный счёт Поставщика: доставкой СДЭК или самовывозом из клуба.</div>
+          <div>Отгрузка — на следующий день после поступления денег на расчётный счёт Поставщика: доставкой СДЭК или самовывозом из клуба.</div>
         </div>
         <div className="invoice__sign">
           <div className="invoice__signrow">

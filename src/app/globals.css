@@ -7977,3 +7977,26 @@ html.is-app .bcard__install {
   padding: 8px 0;
   border-bottom: 1px solid var(--c-line);
 }
+
+/* Предпросмотр push-уведомления в рассылке */
+.push-preview {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 380px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(60, 60, 64, 0.9);
+  color: #f3f2ef;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.push-preview img {
+  flex: none;
+  border-radius: 9px;
+}
+.push-preview__app {
+  font-size: 11px;
+  color: #b8b8bd;
+  margin-bottom: 2px;
+}

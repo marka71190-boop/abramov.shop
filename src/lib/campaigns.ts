@@ -1,5 +1,5 @@
 /**
- * Рассылки: промокоды и новости на почту и в Telegram.
+ * Рассылки: промокоды и новости на почту, в Telegram и уведомлением в приложение (push).
  *
  * Закон о рекламе (38-ФЗ, ст. 18): рекламу можно присылать только тем, кто заранее согласился.
  * Поэтому получатели — только пользователи с действующим согласием на рассылку (журнал согласий),
@@ -20,6 +20,7 @@ import { isPlaceholderEmail, PLACEHOLDER_DOMAIN, SITE } from "@/lib/site";
 import { send as tgSend, esc as tgEsc, notifyAdmins, telegramEnabled } from "@/lib/telegram";
 import { mskUntil } from "@/lib/promo-timer";
 import { serverSecret } from "@/lib/secret";
+import { pushToUser, sitePath, vapidKeys } from "@/lib/push";
 
 /** Акция по таймеру: до какого момента промокод действует для того, кому письмо уходит прямо сейчас */
 const timerUntil = (p: Promo | null) => (p?.personalHours ? new Date(Date.now() + p.personalHours * 3600_000) : null);
@@ -27,6 +28,8 @@ const timerUntil = (p: Promo | null) => (p?.personalHours ? new Date(Date.now() 
 export const MAIL_PER_MINUTE = Math.max(1, Number(process.env.MAIL_PER_MINUTE) || 20);
 export const MAIL_DAILY_LIMIT = Math.max(1, Number(process.env.MAIL_DAILY_LIMIT) || 450);
 const TG_PER_MINUTE = 60;
+const PUSH_PER_MINUTE = 300;
+export const pushEnabled = () => !!vapidKeys();
 
 type Campaign = typeof s.campaign.$inferSelect;
 type Promo = typeof s.promoCode.$inferSelect;
@@ -87,6 +90,7 @@ export function promoProblem(p: Promo | null | undefined) {
 interface AudienceOpts {
   channelEmail: boolean;
   channelTelegram: boolean;
+  channelPush: boolean;
   onlyVerified: boolean;
 }
 
@@ -102,23 +106,48 @@ function audienceWhere(extra: SQL[]) {
 const emailWhere = (onlyVerified: boolean) =>
   audienceWhere([sql`${s.user.email} not like ${"%@" + PLACEHOLDER_DOMAIN}`, ...(onlyVerified ? [eq(s.user.emailVerified, true)] : [])]);
 const tgWhere = () => audienceWhere([isNotNull(s.user.telegramChatId)]);
+/** Включил уведомления в приложении или браузере (и дал согласие на рекламу) */
+const pushWhere = () => audienceWhere([sql`exists (select 1 from ${s.pushSubscription} ps where ps.user_id = ${s.user.id})`]);
 
 export async function audienceCount(o: AudienceOpts) {
-  const [email, telegram] = await Promise.all([
+  const [email, telegram, push] = await Promise.all([
     o.channelEmail && mailEnabled() ? db.$count(s.user, emailWhere(o.onlyVerified)) : 0,
     o.channelTelegram && telegramEnabled() ? db.$count(s.user, tgWhere()) : 0,
+    o.channelPush && pushEnabled() ? db.$count(s.user, pushWhere()) : 0,
   ]);
-  return { email, telegram };
+  return { email, telegram, push };
 }
 
 /** Сколько всего подписчиков (для подсказки в админке). */
 export async function subscriberStats() {
-  const [all, verified, telegram] = await Promise.all([
+  const [all, verified, telegram, push] = await Promise.all([
     db.$count(s.user, emailWhere(false)),
     db.$count(s.user, emailWhere(true)),
     db.$count(s.user, tgWhere()),
+    db.$count(s.user, pushWhere()),
   ]);
-  return { all, verified, telegram };
+  return { all, verified, telegram, push };
+}
+
+// ---------- «Новое поступление»
+
+/** Что пришло на склад за 2 недели (видимые покупателям товары); если приходов не было — новые товары в каталоге */
+export async function recentArrivals(limit = 6) {
+  const since = new Date(Date.now() - 14 * 86400_000);
+  const rows = await db
+    .selectDistinctOn([s.product.id], { id: s.product.id, name: s.product.name, at: s.stockMove.createdAt })
+    .from(s.stockMove)
+    .innerJoin(s.product, eq(s.product.id, s.stockMove.productId))
+    .where(and(eq(s.stockMove.type, "RECEIPT"), gte(s.stockMove.createdAt, since), eq(s.product.visibility, "PUBLISHED")))
+    .orderBy(s.product.id, sql`${s.stockMove.createdAt} desc`);
+  if (rows.length) return rows.sort((a, b) => +b.at - +a.at).slice(0, limit).map((r) => r.name);
+  const fresh = await db.query.product.findMany({
+    where: and(eq(s.product.visibility, "PUBLISHED"), gte(s.product.createdAt, since)),
+    orderBy: sql`${s.product.createdAt} desc`,
+    limit,
+    columns: { name: true },
+  });
+  return fresh.map((p) => p.name);
 }
 
 // ---------- Содержимое
@@ -128,7 +157,7 @@ function absolute(url: string) {
 }
 
 /** Ссылка кнопки: на сайт добавляем промокод (применится в корзине сам) и метки для Метрики. */
-function buttonLink(c: Campaign, promo: Promo | null, channel: "email" | "telegram") {
+function buttonLink(c: Campaign, promo: Promo | null, channel: "email" | "telegram" | "push") {
   const raw = absolute(c.buttonUrl || "/catalog");
   try {
     const u = new URL(raw);
@@ -193,6 +222,21 @@ function renderTelegram(c: Campaign, promo: Promo | null, categoryName: string |
   return { html: lines.join("\n"), buttons };
 }
 
+/**
+ * Уведомление в приложении: заголовок, начало текста и промокод. По нажатию открывается сайт
+ * с подставленным промокодом. Без имени — уведомление видно на заблокированном экране.
+ */
+export function renderPush(c: Campaign, promo: Promo | null) {
+  const until = timerUntil(promo);
+  const text = c.body.trim().replace(/\s+/g, " ");
+  const promoLine = promo ? `Промокод ${promo.code} — ${promoHeadline(promo).toLowerCase()}${until ? `, до ${mskUntil(until)}` : ""}` : "";
+  const room = 230 - promoLine.length;
+  const short = text.length > room ? `${text.slice(0, Math.max(0, room - 1)).replace(/\s\S*$/, "")}…` : text;
+  // Внешняя ссылка в уведомлении не откроется — ведём на главную
+  const url = sitePath(buttonLink(c, promo, "push")) ?? "/";
+  return { title: c.title, body: [short, promoLine].filter(Boolean).join("\n"), url, tag: `campaign-${c.id.slice(0, 8)}`, ttl: 3 * 24 * 3600 };
+}
+
 // ---------- Действия
 
 /** Тестовое письмо (и сообщение в Telegram) самому админу — без проверки согласия. */
@@ -208,6 +252,10 @@ export async function sendTest(c: Campaign, admin: { id: string; name: string | 
     const t = renderTelegram(c, promo, categoryName, admin);
     await tgSend(admin.telegramChatId, `🧪 Тест рассылки\n\n${t.html}`, t.buttons);
     done.push("сообщение в Telegram");
+  }
+  if (c.channelPush && pushEnabled()) {
+    const n = await pushToUser(admin.id, renderPush(c, promo));
+    if (n) done.push(`уведомление в приложение (${n} устр.)`);
   }
   return done;
 }
@@ -234,6 +282,14 @@ export async function startCampaign(c: Campaign) {
         insert into ${s.campaignRecipient} (id, campaign_id, user_id, channel, address)
         select gen_random_uuid()::text, ${c.id}, ${s.user.id}, 'telegram', ${s.user.telegramChatId} from ${s.user}
         where ${tgWhere()}
+        on conflict do nothing`);
+      total += r.rowCount ?? 0;
+    }
+    if (c.channelPush && pushEnabled()) {
+      const r = await tx.execute(sql`
+        insert into ${s.campaignRecipient} (id, campaign_id, user_id, channel, address)
+        select gen_random_uuid()::text, ${c.id}, ${s.user.id}, 'push', 'push' from ${s.user}
+        where ${pushWhere()}
         on conflict do nothing`);
       total += r.rowCount ?? 0;
     }
@@ -283,18 +339,20 @@ export async function processCampaigns() {
     if (!active.length) return;
     let emailBudget = Math.min(MAIL_PER_MINUTE, MAIL_DAILY_LIMIT - (await emailsLast24h()));
     let tgBudget = TG_PER_MINUTE;
+    let pushBudget = PUSH_PER_MINUTE;
 
     for (const c of active) {
       const { promo, categoryName } = await loadPromo(c);
       const channels = [
         ...(emailBudget > 0 ? (["email"] as const) : []),
         ...(tgBudget > 0 ? (["telegram"] as const) : []),
+        ...(pushBudget > 0 ? (["push"] as const) : []),
       ];
       if (!channels.length) break;
       const batch = await db.query.campaignRecipient.findMany({
         where: and(eq(s.campaignRecipient.campaignId, c.id), eq(s.campaignRecipient.status, "PENDING"), inArray(s.campaignRecipient.channel, [...channels])),
         with: { user: { columns: { id: true, name: true, callName: true, bannedAt: true, bannedUntil: true } } },
-        limit: Math.max(emailBudget, tgBudget),
+        limit: Math.max(emailBudget, tgBudget, pushBudget),
       });
 
       // Перед отправкой ещё раз проверяем согласие: человек мог отписаться после запуска
@@ -312,7 +370,8 @@ export async function processCampaigns() {
 
       for (const r of batch) {
         const isEmail = r.channel === "email";
-        if (isEmail ? emailBudget <= 0 : tgBudget <= 0) continue;
+        const isPush = r.channel === "push";
+        if (isEmail ? emailBudget <= 0 : isPush ? pushBudget <= 0 : tgBudget <= 0) continue;
         let status: "SENT" | "FAILED" | "SKIPPED" = "SENT";
         let error: string | null = null;
         const banned = r.user.bannedAt && (!r.user.bannedUntil || r.user.bannedUntil > new Date());
@@ -325,6 +384,10 @@ export async function processCampaigns() {
               emailBudget--;
               const m = renderEmail(c, promo, categoryName, r.user);
               await sendMail(r.address, m.subject, m.title, m.body, m.button, m.extra);
+            } else if (isPush) {
+              pushBudget--;
+              const n = await pushToUser(r.userId, renderPush(c, promo));
+              if (!n) throw new Error("Уведомления выключены на всех устройствах");
             } else {
               tgBudget--;
               const t = renderTelegram(c, promo, categoryName, r.user);

@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db, schema as s } from "@/db";
-import { audienceCount, loadPromo, promoProblem, renderEmail } from "@/lib/campaigns";
+import { audienceCount, loadPromo, promoProblem, pushEnabled, recentArrivals, renderEmail, renderPush } from "@/lib/campaigns";
 import { fmtDate, fmtDateTime, num } from "@/lib/format";
 import { mailEnabled, renderMail } from "@/lib/mail";
 import { telegramEnabled } from "@/lib/telegram";
@@ -18,7 +18,10 @@ export default async function CampaignPage({ params, searchParams }: Props) {
   const c = id === "new" ? null : await db.query.campaign.findFirst({ where: eq(s.campaign.id, id) });
   if (id !== "new" && !c) notFound();
 
-  const promoRows = await db.query.promoCode.findMany({ orderBy: desc(s.promoCode.createdAt), limit: 200 });
+  const [promoRows, arrivals] = await Promise.all([
+    db.query.promoCode.findMany({ orderBy: desc(s.promoCode.createdAt), limit: 200 }),
+    !c || c.status === "DRAFT" ? recentArrivals() : [],
+  ]);
   const promos: PromoOption[] = promoRows.map((p) => ({
     id: p.id,
     code: p.code,
@@ -41,7 +44,7 @@ export default async function CampaignPage({ params, searchParams }: Props) {
       <>
         {back}
         <h1>Новая рассылка</h1>
-        <MailingForm campaign={null} promos={promos} saved={false} mail={mailEnabled()} telegram={telegramEnabled()} />
+        <MailingForm campaign={null} promos={promos} saved={false} mail={mailEnabled()} telegram={telegramEnabled()} push={pushEnabled()} arrivals={arrivals} />
       </>
     );
   }
@@ -54,7 +57,8 @@ export default async function CampaignPage({ params, searchParams }: Props) {
 
   if (c.status === "DRAFT") {
     const aud = await audienceCount(c);
-    const recipients = aud.email + aud.telegram;
+    const recipients = aud.email + aud.telegram + aud.push;
+    const pushView = c.channelPush ? renderPush(c, promo) : null;
     return (
       <>
         {back}
@@ -68,6 +72,8 @@ export default async function CampaignPage({ params, searchParams }: Props) {
             saved={saved === "1"}
             mail={mailEnabled()}
             telegram={telegramEnabled()}
+            push={pushEnabled()}
+            arrivals={arrivals}
           />
           <div className="stack">
             <div className="panel stack">
@@ -75,10 +81,24 @@ export default async function CampaignPage({ params, searchParams }: Props) {
               <div className="muted small">
                 {c.channelEmail && <div>На почту: {num(aud.email)}</div>}
                 {c.channelTelegram && <div>В Telegram: {num(aud.telegram)}</div>}
+                {c.channelPush && <div>В приложение: {num(aud.push)}</div>}
                 {recipients === 0 && <div style={{ color: "var(--c-danger)" }}>Пока некому: никто не дал согласие на рассылку.</div>}
               </div>
               <DraftControls id={c.id} recipients={recipients} />
             </div>
+            {pushView && (
+              <>
+                <div className="label">Так выглядит уведомление</div>
+                <div className="push-preview" aria-label="Предпросмотр уведомления">
+                  <img src="/icons/icon-192.png" alt="" width={38} height={38} />
+                  <div>
+                    <div className="push-preview__app">ABRAMOV · сейчас</div>
+                    <b>{pushView.title}</b>
+                    <div style={{ whiteSpace: "pre-line" }}>{pushView.body}</div>
+                  </div>
+                </div>
+              </>
+            )}
             <div className="label">Так выглядит письмо</div>
             <iframe title="Предпросмотр письма" srcDoc={preview} className="mail-preview" sandbox="" />
           </div>

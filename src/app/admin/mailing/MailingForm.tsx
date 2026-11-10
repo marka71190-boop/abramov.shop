@@ -24,6 +24,7 @@ export interface CampaignData {
   buttonUrl: string | null;
   channelEmail: boolean;
   channelTelegram: boolean;
+  channelPush: boolean;
   onlyVerified: boolean;
 }
 
@@ -47,24 +48,42 @@ function template(p: PromoOption) {
   };
 }
 
+/** Шаблон «Новое поступление»: товары из последних приходов */
+function arrivalTemplate(names: string[]) {
+  const list = names.length ? `\n\n${names.map((n) => `• ${n}`).join("\n")}` : "";
+  return {
+    subject: "Новое поступление в Abramov Shop",
+    title: "Новое поступление",
+    body: `Привезли свежую партию — уже на складе и в клубах.${list}\n\nПопулярное разбирают быстро — успейте выбрать.`,
+    buttonText: "Смотреть новинки",
+    buttonUrl: "/catalog?sort=new",
+  };
+}
+
 export function MailingForm({
   campaign,
   promos,
   saved,
   mail,
   telegram,
+  push,
+  arrivals = [],
 }: {
   campaign: CampaignData | null;
   promos: PromoOption[];
   saved: boolean;
   mail: boolean;
   telegram: boolean;
+  push: boolean;
+  arrivals?: string[];
 }) {
   const [state, action, pending] = useActionState(saveCampaign, saved ? { ok: "Сохранено. Отправьте тест себе и запускайте." } : {});
   const [promoId, setPromoId] = useState(campaign?.promoCodeId ?? "");
   const [subject, setSubject] = useState(campaign?.subject ?? "");
   const [title, setTitle] = useState(campaign?.title ?? "");
   const [body, setBody] = useState(campaign?.body ?? "");
+  const [buttonText, setButtonText] = useState(campaign?.buttonText ?? "");
+  const [buttonUrl, setButtonUrl] = useState(campaign?.buttonUrl ?? "");
   // Пока админ не правил текст руками — при смене промокода подставляем новый шаблон
   const touched = useRef(!!campaign);
   const promo = promos.find((p) => p.id === promoId);
@@ -87,6 +106,24 @@ export function MailingForm({
   return (
     <form action={action} className="panel stack">
       {campaign && <input type="hidden" name="id" value={campaign.id} />}
+      <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <span className="muted small">Шаблон:</span>
+        <button
+          type="button"
+          className="chip"
+          onClick={() => {
+            const t = arrivalTemplate(arrivals);
+            touched.current = true;
+            setSubject(t.subject);
+            setTitle(t.title);
+            setBody(t.body);
+            setButtonText(t.buttonText);
+            setButtonUrl(t.buttonUrl);
+          }}
+        >
+          📦 Новое поступление{arrivals.length ? ` · ${arrivals.length} тов.` : ""}
+        </button>
+      </div>
       <label className="field">
         Промокод
         <select className="select" name="promoCodeId" value={promoId} onChange={(e) => pickPromo(e.target.value)}>
@@ -124,11 +161,11 @@ export function MailingForm({
       <div className="form-grid">
         <label className="field">
           Текст кнопки
-          <input className="input" name="buttonText" defaultValue={campaign?.buttonText ?? ""} maxLength={40} placeholder="Выбрать товары" />
+          <input className="input" name="buttonText" value={buttonText} onChange={edit(setButtonText)} maxLength={40} placeholder="Выбрать товары" />
         </label>
         <label className="field">
           Куда ведёт кнопка
-          <input className="input" name="buttonUrl" defaultValue={campaign?.buttonUrl ?? ""} maxLength={300} placeholder="/catalog" />
+          <input className="input" name="buttonUrl" value={buttonUrl} onChange={edit(setButtonUrl)} maxLength={300} placeholder="/catalog" />
         </label>
       </div>
       <div className="stack" style={{ gap: 8 }}>
@@ -139,6 +176,12 @@ export function MailingForm({
         <label className={`check${telegram ? "" : " check--off"}`}>
           <input type="checkbox" name="channelTelegram" defaultChecked={campaign?.channelTelegram ?? false} disabled={!telegram} />
           <span>В Telegram — тем, кто подключил бота{telegram ? "" : " (бот не подключён)"}</span>
+        </label>
+        <label className={`check${push ? "" : " check--off"}`}>
+          <input type="checkbox" name="channelPush" defaultChecked={campaign ? campaign.channelPush : push} disabled={!push} />
+          <span>
+            Уведомлением в приложение — тем, кто включил уведомления на телефоне{push ? "" : " (уведомления на сайте не настроены)"}
+          </span>
         </label>
         <label className="check">
           <input type="checkbox" name="onlyVerified" defaultChecked={campaign?.onlyVerified ?? false} />

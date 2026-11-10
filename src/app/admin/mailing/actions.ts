@@ -32,7 +32,8 @@ export async function saveCampaign(_: MailingState, form: FormData): Promise<Mai
   const d = p.data;
   const channelEmail = form.get("channelEmail") === "on";
   const channelTelegram = form.get("channelTelegram") === "on";
-  if (!channelEmail && !channelTelegram) return { error: "Выберите, куда отправлять: почта или Telegram" };
+  const channelPush = form.get("channelPush") === "on";
+  if (!channelEmail && !channelTelegram && !channelPush) return { error: "Выберите, куда отправлять: почта, Telegram или приложение" };
   const values = {
     subject: d.subject,
     title: d.title,
@@ -42,6 +43,7 @@ export async function saveCampaign(_: MailingState, form: FormData): Promise<Mai
     buttonUrl: d.buttonUrl || null,
     channelEmail,
     channelTelegram,
+    channelPush,
     onlyVerified: form.get("onlyVerified") === "on",
   };
   let id = d.id;
@@ -74,7 +76,7 @@ export async function testCampaign(id: string): Promise<MailingState> {
   const me = await requireAdmin("OWNER");
   try {
     const done = await sendTest(await draft(id), me);
-    if (!done.length) return { error: "Некуда отправить тест: у вас не указана почта или не подключён Telegram" };
+    if (!done.length) return { error: "Некуда отправить тест: у вас не указана почта, не подключён Telegram и не включены уведомления в приложении" };
     return { ok: `Отправлено: ${done.join(" и ")}. Проверьте, как выглядит.` };
   } catch (e) {
     return { error: `Не удалось отправить: ${e instanceof Error ? e.message : e}` };
@@ -128,6 +130,7 @@ export async function copyCampaign(id: string) {
       buttonUrl: c.buttonUrl,
       channelEmail: c.channelEmail,
       channelTelegram: c.channelTelegram,
+      channelPush: c.channelPush,
       onlyVerified: c.onlyVerified,
       createdById: me.id,
     })
@@ -210,6 +213,7 @@ export async function createFlashAction(_: MailingState, form: FormData): Promis
       buttonUrl: "/catalog",
       channelEmail: true,
       channelTelegram: form.get("channelTelegram") === "on",
+      channelPush: form.get("channelPush") === "on",
       createdById: me.id,
     })
     .returning({ id: s.campaign.id });

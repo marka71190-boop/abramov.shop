@@ -907,6 +907,7 @@ export const campaign = pgTable("campaign", {
   buttonUrl: text("button_url"),
   channelEmail: boolean("channel_email").default(true).notNull(),
   channelTelegram: boolean("channel_telegram").default(false).notNull(),
+  channelPush: boolean("channel_push").default(false).notNull(), // уведомлением в приложение (push)
   onlyVerified: boolean("only_verified").default(false).notNull(),
   status: campaignStatusEnum("status").default("DRAFT").notNull(),
   total: integer("total").default(0).notNull(),
@@ -929,7 +930,7 @@ export const campaignRecipient = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    channel: text("channel").notNull(), // email | telegram
+    channel: text("channel").notNull(), // email | telegram | push
     address: text("address").notNull(), // почта или Telegram ID на момент запуска
     status: deliveryStatusEnum("status").default("PENDING").notNull(),
     error: text("error"),

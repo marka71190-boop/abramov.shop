@@ -2,7 +2,7 @@ import { desc } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema as s } from "@/db";
 import { abandonedStats } from "@/lib/abandoned";
-import { sendingQuota, subscriberStats } from "@/lib/campaigns";
+import { pushEnabled, sendingQuota, subscriberStats } from "@/lib/campaigns";
 import { getSettings } from "@/lib/settings";
 import { fmtDateTime, num } from "@/lib/format";
 import { mailEnabled } from "@/lib/mail";
@@ -43,6 +43,11 @@ export default async function MailingPage() {
             <div style={{ fontSize: 28, fontFamily: "var(--font-display)" }}>{num(subs.telegram)}</div>
           </div>
           <div>
+            <div className="label">В приложении</div>
+            <div style={{ fontSize: 28, fontFamily: "var(--font-display)" }}>{num(subs.push)}</div>
+            <div className="muted small">включили уведомления</div>
+          </div>
+          <div>
             <div className="label">Писем рассылок за сутки</div>
             <div style={{ fontSize: 28, fontFamily: "var(--font-display)" }}>
               {num(quota.used)} <span className="muted" style={{ fontSize: 16 }}>из {num(quota.limit)}</span>
@@ -73,10 +78,10 @@ export default async function MailingPage() {
           <Link href="/admin/settings">Настроить</Link>
         </div>
         {!mailEnabled() && <div className="form-error">Почта на сайте не настроена — можно отправлять только в Telegram.</div>}
-        {!telegramEnabled() && !mailEnabled() && <div className="form-error">Ни почта, ни Telegram-бот не подключены — отправлять некуда.</div>}
+        {!telegramEnabled() && !mailEnabled() && !pushEnabled() && <div className="form-error">Ни почта, ни Telegram-бот не подключены — отправлять некуда.</div>}
       </div>
 
-      {(mailEnabled() || telegramEnabled()) && <FlashForm telegram={telegramEnabled()} />}
+      {(mailEnabled() || telegramEnabled() || pushEnabled()) && <FlashForm telegram={telegramEnabled()} push={pushEnabled()} />}
 
       {campaigns.length === 0 ? (
         <p className="muted">Рассылок пока не было.</p>

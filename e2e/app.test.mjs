@@ -137,3 +137,44 @@ test("вход по Face ID: включить в кабинете → выйти
   assert.equal(s?.user?.email, E2E.owner.email);
   assert.deepEqual(p.errors, []);
 });
+
+test("рассылка «Новое поступление» уведомлением в приложение: шаблон, кому уйдёт, предпросмотр, запуск", async () => {
+  const id = await ownerId();
+  // Владелец согласился на рекламу и включил уведомления на телефоне
+  await q(
+    `insert into consent (id, kind, document_id, source, user_id)
+     select gen_random_uuid()::text, 'MARKETING', d.id, 'REGISTRATION', $1 from consent_document d
+     where d.kind = 'MARKETING' and d.is_current and not exists (select 1 from consent c where c.user_id = $1 and c.kind = 'MARKETING' and c.revoked_at is null)
+     limit 1`,
+    [id],
+  );
+  await q(
+    `insert into push_subscription (id, user_id, endpoint, p256dh, auth, device) values (gen_random_uuid()::text, $1, 'https://fcm.googleapis.com/fcm/send/e2e-test', 'x', 'y', 'e2e')
+     on conflict (endpoint) do nothing`,
+    [id],
+  );
+
+  const p = await page(b);
+  await loginOwner(p);
+  await p.goto(`${B}/admin/mailing/new`);
+  await p.getByRole("button", { name: /Новое поступление/ }).click();
+  assert.equal(await p.inputValue("input[name=subject]"), "Новое поступление в Abramov Shop");
+  assert.match(await p.inputValue("textarea[name=body]"), /• /); // товары из последних поступлений
+  assert.equal(await p.inputValue("input[name=buttonUrl]"), "/catalog?sort=new");
+  await p.uncheck("input[name=channelEmail]").catch(() => {});
+  await p.check("input[name=channelPush]");
+  await p.click("form.panel button.btn--gold");
+  await p.waitForURL(/\/admin\/mailing\/[\w-]{20,}/);
+  await p.getByText("В приложение: 1").waitFor();
+  assert.match(await p.locator(".push-preview").textContent(), /Новое поступление/);
+
+  await p.getByRole("button", { name: /Запустить — 1/ }).click();
+  await p.getByRole("button", { name: "Сделать копию" }).waitFor({ timeout: 15_000 }); // рассылка ушла в работу
+  const rows = await q(`select r.channel from campaign_recipient r join campaign c on c.id = r.campaign_id where c.channel_push and r.user_id = $1`, [id]);
+  assert.deepEqual(
+    rows.map((r) => r.channel),
+    ["push"],
+  );
+  await q(`delete from push_subscription where endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-test'`);
+  assert.deepEqual(p.errors, []);
+});

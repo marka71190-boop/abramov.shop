@@ -3,7 +3,7 @@ import { useActionState, useState } from "react";
 import { createFlashAction } from "./actions";
 
 /** «Акция по таймеру»: промокод на N часов + готовый черновик рассылки */
-export function FlashForm({ telegram }: { telegram: boolean }) {
+export function FlashForm({ telegram, push }: { telegram: boolean; push: boolean }) {
   const [state, action, pending] = useActionState(createFlashAction, {});
   const [type, setType] = useState("FREE_SHIPPING");
   return (
@@ -49,6 +49,12 @@ export function FlashForm({ telegram }: { telegram: boolean }) {
         <label className="check">
           <input type="checkbox" name="channelTelegram" />
           <span>Ещё и в Telegram подписчикам, у которых подключён бот</span>
+        </label>
+      )}
+      {push && (
+        <label className="check">
+          <input type="checkbox" name="channelPush" defaultChecked />
+          <span>Ещё и уведомлением в приложение — тем, кто включил уведомления</span>
         </label>
       )}
       {state.error && <div className="form-error">{state.error}</div>}
