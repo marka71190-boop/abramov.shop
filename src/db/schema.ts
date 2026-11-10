@@ -937,7 +937,8 @@ export const giftCard = pgTable(
     code: text("code").notNull().unique(), // XXXX-XXXX-XXXX — вводят при оформлении
     token: text("token").notNull().unique(), // адрес страницы сертификата /gift/<token>
     status: giftCardStatusEnum("status").default("PENDING").notNull(),
-    source: text("source").notNull(), // SITE — куплен на сайте, ADMIN — выпущен в админке
+    source: text("source").notNull(), // SITE — куплен на сайте, ADMIN — выпущен в админке, POS — продан в кассе клуба
+    posSaleId: text("pos_sale_id"), // продан в кассе: чек продажи (оплата наличными или по QR)
     initialAmount: integer("initial_amount").notNull(), // копейки
     balance: integer("balance").notNull(), // копейки
     expiresAt: ts("expires_at"), // null — бессрочно (или ещё не оплачен)
@@ -975,9 +976,9 @@ export const giftCardUse = pgTable(
     giftCardId: text("gift_card_id")
       .notNull()
       .references(() => giftCard.id, { onDelete: "cascade" }),
-    orderId: text("order_id")
-      .notNull()
-      .references(() => order.id, { onDelete: "cascade" }),
+    // Чем оплачено сертификатом: заказ на сайте или покупка в кассе клуба (одно из двух)
+    orderId: text("order_id").references(() => order.id, { onDelete: "cascade" }),
+    posSaleId: text("pos_sale_id").references(() => posSale.id, { onDelete: "cascade" }),
     amount: integer("amount").notNull(),
     reversedAt: ts("reversed_at"),
     // Чек зачёта аванса в ЮKassa (для сертификатов, купленных на сайте)
@@ -985,7 +986,7 @@ export const giftCardUse = pgTable(
     receiptError: text("receipt_error"),
     createdAt: createdAt(),
   },
-  (t) => [index("gift_card_use_card_idx").on(t.giftCardId), index("gift_card_use_order_idx").on(t.orderId)],
+  (t) => [index("gift_card_use_card_idx").on(t.giftCardId), index("gift_card_use_order_idx").on(t.orderId), index("gift_card_use_pos_idx").on(t.posSaleId)],
 );
 
 export const auditLog = pgTable(
@@ -1179,6 +1180,7 @@ export const giftCardRelations = relations(giftCard, ({ one, many }) => ({
 export const giftCardUseRelations = relations(giftCardUse, ({ one }) => ({
   giftCard: one(giftCard, { fields: [giftCardUse.giftCardId], references: [giftCard.id] }),
   order: one(order, { fields: [giftCardUse.orderId], references: [order.id] }),
+  posSale: one(posSale, { fields: [giftCardUse.posSaleId], references: [posSale.id] }),
 }));
 
 
@@ -1578,7 +1580,9 @@ export const posSale = pgTable(
     id: id(),
     number: text("number").notNull().unique(), // K-261106-7QX4
     status: text("status").default("PENDING").notNull(), // PENDING — ждём оплату по QR, PAID, CANCELLED
-    method: text("method").notNull(), // CASH — наличные, SBP — QR СБП (ЮKassa), CARD — карта по QR-ссылке (ЮKassa)
+    method: text("method").notNull(), // CASH — наличные, SBP — QR СБП (ЮKassa), CARD — карта по QR-ссылке (ЮKassa), GIFT — целиком сертификатом
+    kind: text("kind").default("SALE").notNull(), // SALE — товары, GIFT — продажа подарочного сертификата
+    giftCardAmount: integer("gift_card_amount").default(0).notNull(), // оплачено сертификатом, копейки (не входит в total)
     subtotal: integer("subtotal").notNull(), // по ценам товаров, копейки
     discount: integer("discount").default(0).notNull(),
     total: integer("total").notNull(),
@@ -1665,6 +1669,7 @@ export const posReturn = pgTable(
     amount: integer("amount").notNull(), // вернули деньгами, копейки
     cost: integer("cost").default(0).notNull(), // себестоимость вернувшегося товара
     bonusBack: integer("bonus_back").default(0).notNull(), // вернули на бонусный счёт (копейки)
+    giftBack: integer("gift_back").default(0).notNull(), // вернули на подарочный сертификат (копейки)
     accruedBack: integer("accrued_back").default(0).notNull(), // списали начисленных за покупку (копейки)
     refundId: text("refund_id"), // ЮKassa
     reason: text("reason"),

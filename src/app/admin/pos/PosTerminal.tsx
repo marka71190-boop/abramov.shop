@@ -6,7 +6,7 @@ import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
 import { useScanWedge } from "@/components/pos/useScanWedge";
 import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
 import type { PosCustomer } from "@/lib/pos";
-import { cashMoveAction, posCancel, posCreate, posFindCustomer, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
+import { cashMoveAction, posCancel, posCreate, posFindCustomer, posGiftCheck, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
 import { codeMatches } from "@/lib/code-match";
 
 type Method = "CASH" | "SBP" | "CARD";
@@ -54,6 +54,11 @@ export function PosTerminal({
   const [custError, setCustError] = useState("");
   const [useBonus, setUseBonus] = useState(false);
   const [finding, startFind] = useTransition();
+  // Подарочный сертификат покупателя
+  const [giftInput, setGiftInput] = useState("");
+  const [gift, setGift] = useState<{ code: string; balance: number } | null>(null);
+  const [giftErr, setGiftErr] = useState("");
+  const [giftOpen, setGiftOpen] = useState(false);
   // Скидка сверх лимита кассира — подтверждение менеджера (письмо + его PIN)
   const [approverId, setApproverId] = useState("");
   const [waiting, setWaiting] = useState<{ req: WaitRequest; payload: Record<string, unknown> } | null>(null);
@@ -69,7 +74,11 @@ export function PosTerminal({
   const afterDisc = subtotal - disc;
   const bonusMax = customer ? bonusAvailable(afterDisc, customer.balance, customer.maxSpendPercent) : 0;
   const bonusSpent = customer && useBonus ? bonusMax : 0;
-  const total = afterDisc - bonusSpent;
+  const afterBonus = afterDisc - bonusSpent;
+  // Сертификат покрывает сколько есть на нём; по QR остаток меньше 1 ₽ банк не примет
+  let giftUse = gift ? Math.min(gift.balance, afterBonus) : 0;
+  if (gift && method !== "CASH" && afterBonus - giftUse > 0 && afterBonus - giftUse < 100) giftUse = Math.max(0, afterBonus - 100);
+  const total = afterBonus - giftUse;
   const accrue = customer ? floorRub((total * customer.tierPercent) / 100) / 100 : 0;
   const discTooBig = maxDiscountPct != null && disc > Math.round((subtotal * maxDiscountPct) / 100);
   const needPin = discTooBig && !!approvers;
@@ -98,6 +107,7 @@ export function PosTerminal({
   const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
   useScanWedge(
     (code) => {
+      if (/AS-\d{6}-/i.test(code)) return false; // номер заказа с сайта — это для выдачи заказов
       const name = onCode(code);
       signal(!!name);
       setScanMsg(name ? { text: `+ ${name}`, ok: true } : { text: `Не нашли товар в наличии с кодом ${code}`, ok: false });
@@ -132,6 +142,10 @@ export function PosTerminal({
     setApproverId("");
     setWaiting(null);
     setScanMsg(null);
+    setGift(null);
+    setGiftInput("");
+    setGiftErr("");
+    setGiftOpen(false);
   }
 
   function submit() {
@@ -149,6 +163,7 @@ export function PosTerminal({
       contact: method === "CASH" ? null : contact.trim() || null,
       customerPhone: customer ? phone : null,
       useBonus: !!customer && useBonus,
+      giftCode: gift?.code ?? null,
     };
     start(async () => {
       // Скидка сверх лимита: сначала запрос менеджеру — окно «Ждём подтверждения», продажа — после него
@@ -207,11 +222,12 @@ export function PosTerminal({
         <div className="muted small">Продажа {sale.number}</div>
         <div className="pos-pay__sum">{fmt(sale.total)}</div>
         {sale.bonusSpent > 0 && <div className="small">и {Math.floor(sale.bonusSpent / 100)} бонусами</div>}
+        {sale.giftCardAmount > 0 && <div className="small">и {fmt(sale.giftCardAmount)} сертификатом</div>}
         {sale.bonusAccrued > 0 && sale.status === "PAID" && <div className="small form-ok-text">Покупателю начислено {Math.floor(sale.bonusAccrued / 100)} бонусов</div>}
         {paid && (
           <>
             <div className="pos-pay__ok" role="status">
-              ✓ {sale.method === "CASH" ? "Продано за наличные" : "Оплачено"}
+              ✓ {sale.method === "CASH" ? "Продано за наличные" : sale.method === "GIFT" ? "Оплачено сертификатом" : "Оплачено"}
             </div>
             {sale.method === "CASH" && change != null && change > 0 && <p style={{ margin: 0 }}>Сдача: <b>{fmt(change)}</b></p>}
           </>
@@ -356,6 +372,47 @@ export function PosTerminal({
         {custError && <div className="small is-loss">{custError}</div>}
       </div>
 
+      <div className="stack" style={{ gap: 8 }}>
+        {gift ? (
+          <div className="row" style={{ justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+            <span className="small">
+              🎁 Сертификат <b>{gift.code}</b>: на нём {fmt(gift.balance)}, спишем <b>{fmt(giftUse)}</b>
+            </span>
+            <button type="button" className="linklike small" onClick={() => (setGift(null), setGiftInput(""))}>
+              Убрать
+            </button>
+          </div>
+        ) : giftOpen ? (
+          <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "nowrap" }}>
+            <label className="field" style={{ margin: 0, flex: 1 }}>
+              Подарочный сертификат — код
+              <input className="input" value={giftInput} onChange={(e) => setGiftInput(e.target.value)} placeholder="ABCD-EFGH-2345" autoComplete="off" autoCapitalize="characters" />
+            </label>
+            <button
+              type="button"
+              className="btn btn--line btn--sm"
+              style={{ minHeight: 48 }}
+              disabled={finding || giftInput.replace(/[^0-9a-zа-я]/gi, "").length < 12}
+              onClick={() =>
+                startFind(async () => {
+                  setGiftErr("");
+                  const r = await posGiftCheck(giftInput);
+                  if (r.error) return setGiftErr(r.error);
+                  setGift({ code: r.code!, balance: r.balance! });
+                })
+              }
+            >
+              {finding ? "…" : "Проверить"}
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="linklike small" style={{ alignSelf: "flex-start" }} onClick={() => setGiftOpen(true)}>
+            🎁 Оплата подарочным сертификатом
+          </button>
+        )}
+        {giftErr && <div className="small is-loss">{giftErr}</div>}
+      </div>
+
       <div className="pos-methods" role="radiogroup" aria-label="Оплата">
         {(
           [
@@ -389,13 +446,15 @@ export function PosTerminal({
       <div className="pos-total">
         <div>
           <div className="muted small">
-            {disc > 0 || bonusSpent > 0 ? `${fmt(subtotal)}${disc ? ` − скидка ${fmt(disc)}` : ""}${bonusSpent ? ` − бонусы ${fmt(bonusSpent)}` : ""}` : "К оплате"}
+            {disc > 0 || bonusSpent > 0 || giftUse > 0
+              ? `${fmt(subtotal)}${disc ? ` − скидка ${fmt(disc)}` : ""}${bonusSpent ? ` − бонусы ${fmt(bonusSpent)}` : ""}${giftUse ? ` − сертификат ${fmt(giftUse)}` : ""}`
+              : "К оплате"}
             {customer && accrue > 0 ? ` · +${accrue} бонусов` : ""}
           </div>
           <div className="pos-total__sum">{fmt(total)}</div>
         </div>
-        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (discTooBig && !(needPin && !!approverId)) || (method !== "CASH" && total <= 0)} onClick={submit}>
-          {pending ? "Проводим…" : method === "CASH" ? "Продать за наличные" : "Показать QR"}
+        <button type="button" className="btn btn--gold" disabled={pending || !lines.length || (discTooBig && !(needPin && !!approverId)) || (method !== "CASH" && total <= 0 && !giftUse)} onClick={submit}>
+          {pending ? "Проводим…" : total === 0 && giftUse > 0 ? "Оплатить сертификатом" : method === "CASH" ? "Продать за наличные" : "Показать QR"}
         </button>
       </div>
     </div>

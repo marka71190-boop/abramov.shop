@@ -4,7 +4,7 @@ import { db, schema as s } from "@/db";
 import { clubTitle } from "@/lib/club-label";
 import { listClubs } from "@/lib/clubs";
 import { fmtDateTime, rub } from "@/lib/format";
-import { POS_METHODS, type PosMethod } from "@/lib/pos";
+import { methodLabel, type PosMethod } from "@/lib/pos";
 import { variantOptions } from "@/lib/stock-moves";
 import { getSettings } from "@/lib/settings";
 import { seesMoney, type UserRow } from "@/lib/viewer";
@@ -16,6 +16,9 @@ import { pendingApprovalsCount } from "@/lib/pos-approval";
 import { countClubs } from "@/lib/stock-count";
 import { CancelSale, PosTerminal, ShiftPanel } from "./PosTerminal";
 import { ReturnPanel } from "./ReturnPanel";
+import { GiftSell } from "./GiftSell";
+import { PickupPanel } from "./PickupPanel";
+import { pickupQueue } from "@/lib/pickup";
 
 const STATUS: Record<string, string> = {
   PAID: "оплачено",
@@ -71,6 +74,9 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
     .where(and(gte(s.posSale.createdAt, from), eq(s.posSale.status, "PAID"), sql`${s.posSaleItem.unitCost} is null`));
 
   const waiting = admin ? await pendingApprovalsCount(me.id).catch(() => 0) : 0;
+  // Заказы с сайта к выдаче: кассиру — его клубов (или клуба смены), админу — все
+  const pickupClubIds = admin ? null : me.clubIds.length ? me.clubIds : shift?.clubId ? [shift.clubId] : [];
+  const pickups = readonly ? [] : await pickupQueue(pickupClubIds).catch(() => []);
   // Ревизия с телефона кассы — в клубах со своим учётом остатков
   const canCount = !admin && !readonly && (await countClubs(me.clubIds.length ? me.clubIds : null).catch(() => [])).length > 0;
 
@@ -92,6 +98,7 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
           <span className="row small" style={{ gap: 16 }}>
             <Link href="/admin/pos/approvals">Ждут подтверждения →</Link>
             <Link href="/admin/pos/report">Скидки и возвраты →</Link>
+            {seesMoney(me) && <Link href="/admin/pos/staff">Продажи сотрудников →</Link>}
             <Link href="/admin/pos/pin">Мой PIN →</Link>
             {me.role === "OWNER" && <Link href="/admin/pos/devices">Телефоны кассы →</Link>}
             <Link href="/admin/pos/shifts">Смены и сверка наличных →</Link>
@@ -106,7 +113,6 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
         ) : (
           "Продажа вживую — товар сразу списывается с остатка."
         )}{" "}
-        Наличные: сайт только учитывает продажу, чек пробивайте на своей кассе.
       </p>
       <div className="pos-wrap">
         {!readonly && (
@@ -155,7 +161,13 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
               />
             )}
             {loc && shift && <p className="muted small" style={{ margin: 0 }}>Остатки — товара этого клуба. Привезти со склада — «Склад» → «Перемещение».</p>}
-            {!readonly && <ReturnPanel key={returnNumber} approvers={approvers} initialNumber={returnNumber} />}
+            {!readonly && (
+              <div className="pos-tools">
+                <ReturnPanel key={returnNumber} approvers={approvers} initialNumber={returnNumber} />
+                {shift && <GiftSell nominals={settings.giftCards.nominals} ykEnabled={yookassaEnabled()} />}
+                <PickupPanel queue={pickups} />
+              </div>
+            )}
           </section>
         )}
 
@@ -205,7 +217,7 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
                     <td className="small">
                       {x.items.map((i) => `${i.name}${i.quantity > 1 ? ` × ${i.quantity}` : ""}`).join(", ")}
                       <div className="muted">
-                        {POS_METHODS[x.method as PosMethod] ?? x.method}
+                        {x.kind === "GIFT" ? `🎁 сертификат · ${methodLabel(x.method)}` : methodLabel(x.method)}
                         {x.place ? ` · ${x.place}` : ""}
                       </div>
                     </td>

@@ -47,6 +47,7 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
   // Примерно, как посчитает сервер: доля оплаченного деньгами
   const estimate = sale ? (left === 0 ? sale.total - sale.refunded : Math.min(sale.total - sale.refunded, Math.round((sale.total * value) / Math.max(1, subtotal)))) : 0;
   const any = Object.values(qty).some((q) => q > 0);
+  const giftEst = sale?.giftCardAmount ? (left === 0 ? sale.giftCardAmount : Math.round((sale.giftCardAmount * value) / Math.max(1, subtotal))) : 0;
 
   const doReturn = async (payload: Record<string, unknown>, approvalId?: string) => {
     const r = await posReturn({ ...payload, approvalId: approvalId ?? null });
@@ -163,6 +164,7 @@ export function ReturnPanel({ approvers, initialNumber = "" }: { approvers: { id
           {any && (
             <div className="small">
               Вернуть покупателю: <b>{fmt(estimate)}</b> {sale.method === "CASH" ? "наличными из кассы" : "через ЮKassa на карту или счёт"}
+              {giftEst > 0 ? ` и ${fmt(giftEst)} — обратно на подарочный сертификат` : ""}
               {sale.customer ? " · бонусы пересчитаем" : ""}
             </div>
           )}

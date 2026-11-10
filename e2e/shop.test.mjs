@@ -1,7 +1,7 @@
 /** Магазин: главная, каталог, товар, корзина и оформление заказа с оплатой (ЮKassa — заглушка) */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, browser, closeDb, page, q } from "./helpers.mjs";
+import { B, browser, closeDb, loginKassa, page, q, wedgeScanKeys } from "./helpers.mjs";
 import { E2E } from "./data.mjs";
 
 let b;
@@ -59,4 +59,24 @@ test("«Основной» вариант не показывается поку
   await p.goto(`${B}/catalog`);
   assert.doesNotMatch(await p.locator("main").innerText(), /Основной/);
   assert.deepEqual(p.errors, []);
+});
+
+test("выдача заказа с сайта в клубе: касса находит заказ сканером и отмечает «Выдано»", async () => {
+  const [ord] = await q("select id, number from \"order\" where email = $1 order by created_at desc limit 1", ["buyer@e2e.test"]);
+  await q("update \"order\" set status = 'SHIPPED', shipped_at = now() where id = $1", [ord.id]);
+  const k = await page(b);
+  await loginKassa(k);
+  await k.locator("h1").click();
+  // Сканер-пистолет при русской раскладке печатает буквы кириллицей — касса всё равно понимает
+  const EN = "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>";
+  const RU = "йцукенгшщзхъфывапролджэячсмитьбю.ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ";
+  const ru = [...`https://abramov.shop/order/${ord.number}`].map((c) => (EN.includes(c) ? RU[EN.indexOf(c)] : c)).join("");
+  await wedgeScanKeys(k, ru);
+  await k.waitForSelector(".pickup--found");
+  assert.match(await k.locator(".pickup--found").innerText(), new RegExp(ord.number));
+  await k.click(".pickup--found button:has-text('Выдать заказ')");
+  await k.click(".pickup--found button:has-text('Да, выдал')");
+  await k.waitForSelector("text=выдан");
+  assert.equal((await q("select status from \"order\" where id = $1", [ord.id]))[0].status, "DELIVERED");
+  assert.deepEqual(k.errors, []);
 });

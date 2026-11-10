@@ -18,16 +18,16 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
   const uses = await db.query.giftCardUse.findMany({
     where: eq(s.giftCardUse.giftCardId, c.id),
     orderBy: desc(s.giftCardUse.createdAt),
-    with: { order: { columns: { id: true, number: true, status: true, deliveryType: true } } },
+    with: { order: { columns: { id: true, number: true, status: true, deliveryType: true } }, posSale: { columns: { id: true, number: true, place: true } } },
   });
   const st = STATUS_PILL(c);
   const active = c.status === "ACTIVE";
-  const pendingUse = uses.some((u) => !u.reversedAt && u.order.status === "AWAITING_PAYMENT");
+  const pendingUse = uses.some((u) => !u.reversedAt && u.order?.status === "AWAITING_PAYMENT");
 
   const rows: [string, React.ReactNode][] = [
     ["Статус", <span key="s" className={`pill ${st.tone}`}>{st.text}</span>],
     ["Остаток", rub(c.balance)],
-    ["Откуда", c.source === "SITE" ? "куплен на сайте" : "выпущен в админке"],
+    ["Откуда", c.source === "SITE" ? "куплен на сайте" : c.source === "POS" ? "продан в кассе клуба" : "выпущен в админке"],
     ["Действует до", c.expiresAt ? fmtDate(c.expiresAt) : active ? "бессрочно" : "—"],
     ["Покупатель", c.buyer ? <Link key="b" href={`/admin/customers/${c.buyer.id}`}>{c.buyer.name}</Link> : c.buyerEmail ?? "—"],
     ["Почта для чека", c.buyerEmail ?? "—"],
@@ -100,8 +100,19 @@ export default async function GiftCardAdmin({ params, searchParams }: { params: 
                 {uses.map((u) => (
                   <tr key={u.id}>
                     <td>
-                      <Link href={`/admin/orders/${u.order.id}`}>{u.order.number}</Link>
-                      <div className="muted small">{orderStatus(u.order.status, u.order.deliveryType).text}</div>
+                      {u.order ? (
+                        <>
+                          <Link href={`/admin/orders/${u.order.id}`}>{u.order.number}</Link>
+                          <div className="muted small">{orderStatus(u.order.status, u.order.deliveryType).text}</div>
+                        </>
+                      ) : u.posSale ? (
+                        <>
+                          <Link href={`/admin/pos?return=${encodeURIComponent(u.posSale.number)}`}>{u.posSale.number}</Link>
+                          <div className="muted small">покупка в кассе{u.posSale.place ? ` · ${u.posSale.place}` : ""}</div>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       {rub(u.amount)}

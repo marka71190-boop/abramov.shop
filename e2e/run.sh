@@ -49,7 +49,7 @@ for _ in $(seq 1 60); do curl -sf -o /dev/null "$E2E_BASE/robots.txt" && break; 
 
 echo "== тесты"
 # E2E_TESTS="e2e/stock.test.mjs" — прогнать только часть
-if ! node --test --test-concurrency=1 --test-reporter=spec ${E2E_TESTS:-e2e/*.test.mjs}; then
+if ! node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=spec ${E2E_TESTS:-e2e/*.test.mjs}; then
   echo "== последние строки лога сайта"; tail -60 "$RUN/next.log"
   exit 1
 fi

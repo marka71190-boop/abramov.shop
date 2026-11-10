@@ -23,6 +23,7 @@ import { clubMapUrl, getClub } from "@/lib/clubs";
 import { fmtDate } from "@/lib/format";
 import { countryText } from "@/lib/foreign";
 import { sized } from "@/lib/img";
+import { qrSvg } from "@/lib/qr";
 
 export const metadata: Metadata = { title: "Заказ", robots: { index: false } };
 
@@ -56,6 +57,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
   const st = orderStatus(o.status, o.deliveryType);
   const pickupClub = o.deliveryType === "PICKUP" ? await getClub(o.pickupClubId) : null;
+  // QR с номером заказа — кассир клуба сканирует его и выдаёт заказ
+  const pickupQr = o.deliveryType === "PICKUP" && ["PAID", "ASSEMBLING", "SHIPPED"].includes(o.status) ? await qrSvg(o.number) : null;
   const stepIdx = stepsFor(o.deliveryType).findIndex((x) => x.key === o.status);
   const awaiting = o.status === "AWAITING_PAYMENT";
   const minutesLeft = o.expiresAt ? Math.max(0, Math.round((+o.expiresAt - Date.now()) / 60000)) : null;
@@ -388,10 +391,16 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 </div>
               )}
               {pickupClub?.note && <div className="muted small">{pickupClub.note}</div>}
+              {pickupQr && (
+                <div className="pickup-qr" aria-label={`QR для выдачи заказа ${o.number}`}>
+                  <div dangerouslySetInnerHTML={{ __html: pickupQr }} />
+                  <span className="muted small">QR для выдачи в клубе · {o.number}</span>
+                </div>
+              )}
               {o.status === "SHIPPED" && (
                 <div className="notice" style={{ margin: "8px 0 0" }}>
                   Заказ ждёт вас{o.shippedAt ? ` до ${fmtDate(new Date(+new Date(o.shippedAt) + settings.delivery.pickupStorageDays * 86400_000))}` : ""}. Назовите номер заказа{" "}
-                  <b>{o.number}</b> администратору.
+                  <b>{o.number}</b> администратору или покажите этот QR — его отсканируют на кассе.
                 </div>
               )}
               {pickupClub && (

@@ -85,6 +85,7 @@ export interface SiteSettings {
     dailyReport: boolean; // вечерняя сводка владельцу в Telegram
     reportHour: number; // во сколько (по Москве) присылать сводку
     cashierMaxDiscount: number; // %, какую скидку на чек может дать кассир
+    staffPercent: number; // %, процент сотруднику с продаж в кассе (отчёт «Продажи сотрудников»); 0 — не считать
   };
   foreign: {
     enabled: boolean; // заказы из-за рубежа
@@ -186,6 +187,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     dailyReport: true,
     reportHour: 21,
     cashierMaxDiscount: 10,
+    staffPercent: 0,
   },
   foreign: {
     enabled: true,

@@ -194,6 +194,94 @@ export async function rechargeGift(tx: Tx, orderId: string) {
   return true;
 }
 
+// ---------- Касса клуба: оплата сертификатом и продажа сертификата
+
+/** Списать с сертификата в оплату покупки в кассе */
+export async function chargeGiftPos(tx: Tx, code: string, saleId: string, amount: number) {
+  const r = await tx
+    .update(s.giftCard)
+    .set({ balance: sql`${s.giftCard.balance} - ${amount}`, updatedAt: new Date() })
+    .where(and(eq(s.giftCard.code, code), eq(s.giftCard.status, "ACTIVE"), gte(s.giftCard.balance, amount), or(isNull(s.giftCard.expiresAt), gt(s.giftCard.expiresAt, new Date()))))
+    .returning({ id: s.giftCard.id });
+  if (!r.length) return false;
+  await tx.insert(s.giftCardUse).values({ giftCardId: r[0].id, posSaleId: saleId, amount });
+  return true;
+}
+
+/** Покупку в кассе отменили (QR не оплатили) — сумма возвращается на сертификат */
+export async function releaseGiftPos(tx: Tx, saleId: string) {
+  const uses = await tx.select().from(s.giftCardUse).where(and(eq(s.giftCardUse.posSaleId, saleId), isNull(s.giftCardUse.reversedAt)));
+  for (const u of uses) {
+    await creditGift(tx, u.giftCardId, u.amount);
+    await tx.update(s.giftCardUse).set({ reversedAt: new Date() }).where(eq(s.giftCardUse.id, u.id));
+  }
+  return uses.reduce((a, u) => a + u.amount, 0);
+}
+
+/** Возврат товара из покупки в кассе: часть, оплаченная сертификатом, — обратно на сертификат */
+export async function returnToGiftPos(tx: Tx, saleId: string, amount: number) {
+  if (amount <= 0) return 0;
+  const [u] = await tx.select().from(s.giftCardUse).where(and(eq(s.giftCardUse.posSaleId, saleId), isNull(s.giftCardUse.reversedAt))).limit(1);
+  if (!u) return 0;
+  const back = Math.min(amount, u.amount);
+  await creditGift(tx, u.giftCardId, back);
+  if (back === u.amount) await tx.update(s.giftCardUse).set({ reversedAt: new Date() }).where(eq(s.giftCardUse.id, u.id));
+  else await tx.update(s.giftCardUse).set({ amount: u.amount - back }).where(eq(s.giftCardUse.id, u.id));
+  return back;
+}
+
+/**
+ * Сертификат, проданный в кассе: создаём вместе с чеком; действует, когда чек оплачен.
+ * validityDays читаем до транзакции: внутри неё — только tx (у базы в разработке одно соединение)
+ */
+export async function createPosGiftCard(tx: Tx, input: { saleId: string; amount: number; sellerId: string; recipientEmail?: string | null; paid: boolean; validityDays: number }) {
+  const days = input.validityDays;
+  const now = new Date();
+  for (let i = 0; i < 5; i++) {
+    try {
+      const [c] = await tx
+        .insert(s.giftCard)
+        .values({
+          code: newCode(),
+          token: newToken(),
+          status: input.paid ? "ACTIVE" : "PENDING",
+          source: "POS",
+          posSaleId: input.saleId,
+          initialAmount: input.amount,
+          balance: input.amount,
+          recipientEmail: input.recipientEmail?.trim().toLowerCase() || null,
+          paidAt: input.paid ? now : null,
+          expiresAt: input.paid && days > 0 ? new Date(now.getTime() + days * 86400_000) : null,
+          createdById: input.sellerId,
+        })
+        .returning();
+      return c;
+    } catch (e) {
+      if (i === 4) throw e;
+    }
+  }
+  throw new Error("unreachable");
+}
+
+/** Чек с сертификатом оплатили по QR — сертификат начинает действовать (и уходит письмом, если указали почту) */
+export async function activatePosGift(saleId: string) {
+  const days = (await getSettings()).giftCards.validityDays;
+  const now = new Date();
+  const [card] = await db
+    .update(s.giftCard)
+    .set({ status: "ACTIVE", paidAt: now, expiresAt: days > 0 ? new Date(now.getTime() + days * 86400_000) : null })
+    .where(and(eq(s.giftCard.posSaleId, saleId), eq(s.giftCard.status, "PENDING")))
+    .returning();
+  if (card?.recipientEmail) await mailRecipient(card).catch((e) => console.error("[gift] письмо получателю:", e));
+  return card ?? null;
+}
+
+/** Чек с сертификатом не оплатили — сертификат недействителен */
+export async function voidPosGift(saleId: string) {
+  await db.update(s.giftCard).set({ status: "VOID" }).where(and(eq(s.giftCard.posSaleId, saleId), eq(s.giftCard.status, "PENDING")));
+}
+
+
 // ---------- Покупка на сайте
 
 export interface BuyInput {
@@ -214,7 +302,7 @@ export async function allowedAmount(amount: number) {
 }
 
 /** Чек продажи сертификата: полный расчёт, «иной предмет расчёта» (так решил бухгалтер). При оплате заказа сертификат — скидка. */
-const certificateLine = (amount: number): ReceiptLine => ({
+export const certificateLine = (amount: number): ReceiptLine => ({
   name: `Подарочный сертификат Abramov Shop на ${rub(amount)}`,
   quantity: 1,
   price: amount,

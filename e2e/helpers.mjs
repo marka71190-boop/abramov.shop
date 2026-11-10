@@ -66,6 +66,18 @@ export async function wedgeScan(p, code) {
   await p.waitForTimeout(300);
 }
 
+/** Сканер при русской раскладке: шлёт нажатия клавиш с кириллицей (keyboard.type такие символы вставляет без нажатий) */
+export async function wedgeScanKeys(p, text) {
+  await p.evaluate(async (s) => {
+    const target = document.activeElement ?? document.body;
+    for (const ch of [...s, "Enter"]) {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 4));
+    }
+  }, text);
+  await p.waitForTimeout(300);
+}
+
 let pool;
 export async function q(sql, params = []) {
   pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });

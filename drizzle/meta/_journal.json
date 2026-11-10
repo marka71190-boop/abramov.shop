@@ -435,6 +435,13 @@
       "when": 1794314950052,
       "tag": "0061_hide_placeholder_variant",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794315695263,
+      "tag": "0062_pos_gift",
+      "breakpoints": true
     }
   ]
 }

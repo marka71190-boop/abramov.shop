@@ -57,3 +57,59 @@ test("скидка сверх лимита: окно «Ждём подтверж
   assert.match(await o.locator(".stats").innerText(), /Сверх лимита/);
   assert.deepEqual([...k.errors, ...o.errors], []);
 });
+
+test("сертификат: продать в кассе за наличные → оплатить им часть покупки → возврат вернул деньги на сертификат", async () => {
+  const k = await page(b);
+  await loginKassa(k);
+  await k.click("button:has-text('Продать сертификат')");
+  await k.getByLabel("Номинал, ₽").fill("300");
+  await k.click("button:has-text('Продать за 300 ₽ наличными')");
+  await k.waitForSelector(".gift-code");
+  const code = (await k.locator(".gift-code").innerText()).trim();
+  assert.match(code, /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  const [card] = await q("select status, balance, source from gift_card where code = $1", [code]);
+  assert.deepEqual({ ...card }, { status: "ACTIVE", balance: 30000, source: "POS" });
+  await k.click("section:has(.gift-code) button:has-text('Готово')");
+  await k.click("section:has-text('Подарочный сертификат') button:has-text('Закрыть')");
+
+  // Покупка 500 ₽: 300 сертификатом, 200 наличными
+  const v = await variant(E2E.products[0].slug);
+  await k.locator("h1").click();
+  await wedgeScan(k, v.barcode);
+  await k.waitForSelector(".pos-lines li");
+  await k.click("button:has-text('Оплата подарочным сертификатом')");
+  await k.getByLabel("Подарочный сертификат — код").fill(code.toLowerCase().replace(/-/g, " "));
+  await k.click("button:has-text('Проверить')");
+  await k.waitForSelector("text=спишем");
+  assert.match(await k.locator(".pos-total").innerText(), /200/);
+  await k.click(".pos-total button.btn--gold");
+  await k.waitForSelector(".pos-pay__ok");
+  const [sale] = await q("select number, total, gift_card_amount from pos_sale where kind = 'SALE' order by created_at desc limit 1");
+  assert.equal(sale.total, 20000);
+  assert.equal(sale.gift_card_amount, 30000);
+  assert.equal((await q("select balance from gift_card where code = $1", [code]))[0].balance, 0);
+
+  // Возврат всей покупки (кассиру нужен менеджер — делает владелец в админке)
+  const o = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(o);
+  await o.goto(`${B}/admin/pos?return=${sale.number}`);
+  await o.waitForSelector(".pos-return .pos-lines");
+  await o.click(".pos-return button:has-text('Вернуть всё')");
+  assert.match(await o.locator(".pos-return").innerText(), /обратно на подарочный сертификат/);
+  await o.click(".pos-return button:has-text('Оформить возврат')");
+  await o.waitForSelector(".pos-return .form-ok, .form-ok", { timeout: 15_000 });
+  assert.equal((await q("select balance from gift_card where code = $1", [code]))[0].balance, 30000, "300 ₽ вернулись на сертификат");
+  const [ret] = await q("select amount, gift_back from pos_return order by created_at desc limit 1");
+  assert.deepEqual({ ...ret }, { amount: 20000, gift_back: 30000 });
+  assert.deepEqual([...k.errors, ...o.errors], []);
+});
+
+test("продажи сотрудников: месяц, чеки и выручка кассира", async () => {
+  const o = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(o);
+  await o.goto(`${B}/admin/pos/staff`);
+  const text = await o.locator("main").innerText();
+  assert.match(text, /Тестовый кассир/);
+  assert.match(text, /сертификаты/i);
+  assert.deepEqual(o.errors, []);
+});

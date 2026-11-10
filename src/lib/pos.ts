@@ -7,7 +7,8 @@
  * Товар списывается из остатка клуба, если у клуба включён свой учёт, иначе — со склада.
  * Покупатель по желанию называет телефон: тогда покупка идёт в бонусную программу (списание и начисление).
  * Контакт для чека ЮKassa в базе не хранится.
- * total — сколько заплатили деньгами (после скидки и бонусов); bonusSpent — сколько бонусами.
+ * total — сколько заплатили деньгами (после скидки, бонусов и сертификата); bonusSpent — бонусами; giftCardAmount — сертификатом.
+ * kind GIFT — продажа подарочного сертификата (без товаров): сертификат начинает действовать, когда чек оплачен.
  */
 import "server-only";
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
@@ -20,6 +21,8 @@ import { createPaymentFor, createRefund, fromMoney, getPayment, receiptLines, yo
 
 export type PosMethod = "CASH" | "SBP" | "CARD";
 export const POS_METHODS: Record<PosMethod, string> = { CASH: "Наличные", SBP: "СБП (QR)", CARD: "Карта (QR-ссылка)" };
+/** Подписи для списков: GIFT — покупку целиком оплатили сертификатом */
+export const methodLabel = (m: string) => (m === "GIFT" ? "Сертификат" : (POS_METHODS as Record<string, string>)[m] ?? m);
 export type SaleRow = typeof s.posSale.$inferSelect;
 
 export class PosError extends Error {}
@@ -115,6 +118,7 @@ export interface NewSale {
   clubId?: string | null;
   customerPhone?: string | null; // бонусная программа
   useBonus?: boolean;
+  giftCode?: string | null; // подарочный сертификат: часть или всё оплатить им
 }
 
 /** Кассир: цены — как в каталоге, скидка на чек — не больше maxDiscountPct % (сверх — по PIN менеджера) */
@@ -158,11 +162,26 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
   const customer = input.customerPhone?.trim() ? await findCustomer(input.customerPhone) : null;
   if (input.customerPhone?.trim() && !customer) throw new PosError("Покупатель с таким телефоном не найден — продайте без бонусов или пусть зарегистрируется на сайте");
   const bonusSpent = customer && input.useBonus ? bonusAvailable(afterDiscount, customer.balance, customer.maxSpendPercent) : 0;
-  const total = afterDiscount - bonusSpent;
-  if (total <= 0 && input.method !== "CASH") throw new PosError("Сумма к оплате — больше 0 ₽");
+  const afterBonus = afterDiscount - bonusSpent;
+
+  // Подарочный сертификат: списываем, сколько есть на нём (не больше чека)
+  let giftAmount = 0;
+  let giftCode: string | null = null;
+  if (input.giftCode?.trim()) {
+    const { checkGiftCode } = await import("@/lib/giftcards");
+    const chk = await checkGiftCode(input.giftCode, { ip: null, userId: sellerId });
+    if ("error" in chk) throw new PosError(chk.error);
+    giftCode = chk.card.code;
+    giftAmount = Math.min(chk.card.balance, afterBonus);
+    // Остаток по QR меньше 1 ₽ ЮKassa не примет — сертификат покрывает всё, кроме 1 ₽
+    if (input.method !== "CASH" && afterBonus - giftAmount > 0 && afterBonus - giftAmount < 100) giftAmount = Math.max(0, afterBonus - 100);
+  }
+  const total = afterBonus - giftAmount;
+  const method: string = total === 0 && giftAmount > 0 ? "GIFT" : input.method;
+  if (total <= 0 && method !== "CASH" && method !== "GIFT") throw new PosError("Сумма к оплате — больше 0 ₽");
   const bonusAccrued = customer ? floorRub((total * customer.tierPercent) / 100) : 0;
   const cost = lines.reduce((a, l) => a + (l.v.cost ?? 0) * l.qty, 0);
-  const paidNow = input.method === "CASH";
+  const paidNow = method === "CASH" || method === "GIFT";
   const loc = await saleLocation(input.clubId);
 
   const sale = await db.transaction(async (tx) => {
@@ -171,10 +190,11 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
       .values({
         number: code("K"),
         status: paidNow ? "PAID" : "PENDING",
-        method: input.method,
+        method,
         subtotal,
         discount,
         total,
+        giftCardAmount: giftAmount,
         cost,
         place: input.place,
         sellerId,
@@ -203,6 +223,10 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
         .returning({ id: s.user.id });
       if (!r.length) throw new PosError("Бонусов у покупателя стало меньше — проверьте ещё раз");
       await tx.insert(s.bonusTransaction).values({ userId: customer.id, amount: -n, reason: "ORDER_SPEND", posSaleId: sale.id, comment: `Оплата покупки в клубе ${sale.number}` });
+    }
+    if (giftCode && giftAmount > 0) {
+      const { chargeGiftPos } = await import("@/lib/giftcards");
+      if (!(await chargeGiftPos(tx, giftCode, sale.id, giftAmount))) throw new PosError("На сертификате стало меньше денег — проверьте ещё раз");
     }
     if (paidNow) await creditSaleBonuses(tx, sale.id, settings);
     return sale;
@@ -238,6 +262,77 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
         ? "ЮKassa не приняла оплату по СБП — проверьте, что СБП подключён в личном кабинете ЮKassa"
         : "ЮKassa не создала платёж. Попробуйте ещё раз или примите наличными",
     );
+  }
+}
+
+// ---------------------------------------------------------------- продажа подарочного сертификата
+
+export interface GiftSaleInput {
+  amount: number; // номинал, копейки
+  method: PosMethod;
+  contact?: string | null; // для чека ЮKassa (QR)
+  recipientEmail?: string | null; // прислать сертификат письмом
+  place: string | null;
+  shiftId?: string | null;
+  clubId?: string | null;
+}
+
+/**
+ * Продать сертификат в кассе: чек без товаров (kind GIFT). Наличными — сертификат действует сразу;
+ * по QR — когда покупатель оплатит (чек ЮKassa: «иной предмет расчёта», как при покупке на сайте).
+ */
+export async function createGiftSale(sellerId: string, input: GiftSaleInput) {
+  const amount = Math.trunc(input.amount);
+  if (!(amount >= 100_00) || amount > 500_000_00 || amount % 100) throw new PosError("Номинал — целые рубли, от 100 ₽");
+  if (input.method !== "CASH" && !yookassaEnabled()) throw new PosError("ЮKassa не подключена — принимайте наличными");
+  const email = input.recipientEmail?.trim() || null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new PosError("Почта получателя — например name@mail.ru");
+  const settings = await getSettings();
+  const contact = input.method === "CASH" ? null : receiptContact(input.contact || email, settings.supportEmail);
+  const paidNow = input.method === "CASH";
+  const { createPosGiftCard, certificateLine, mailRecipient } = await import("@/lib/giftcards");
+  const { sale, card } = await db.transaction(async (tx) => {
+    const [sale] = await tx
+      .insert(s.posSale)
+      .values({
+        number: code("K"),
+        kind: "GIFT",
+        status: paidNow ? "PAID" : "PENDING",
+        method: input.method,
+        subtotal: amount,
+        total: amount,
+        place: input.place,
+        sellerId,
+        shiftId: input.shiftId ?? null,
+        clubId: input.clubId ?? null,
+        paidAt: paidNow ? new Date() : null,
+      })
+      .returning();
+    const card = await createPosGiftCard(tx, { saleId: sale.id, amount, sellerId, recipientEmail: email, paid: paidNow, validityDays: settings.giftCards.validityDays });
+    return { sale, card };
+  });
+  if (paidNow) {
+    if (card.recipientEmail) await mailRecipient(card).catch((e) => console.error("[pos] сертификат письмом:", e));
+    return { sale, card };
+  }
+  try {
+    const p = await createPaymentFor({
+      key: `pos-${sale.id}`,
+      amount,
+      returnUrl: `${SITE.url}/`,
+      description: `Подарочный сертификат ${sale.number} — Abramov Shop`,
+      metadata: { shop: "abramov.shop", posSaleId: sale.id, number: sale.number },
+      customer: contact!,
+      receipt: [certificateLine(amount)],
+      method: input.method === "SBP" ? "sbp" : undefined,
+    });
+    const qrUrl = p.confirmation?.confirmation_data ?? p.confirmation?.confirmation_url ?? null;
+    const [row] = await db.update(s.posSale).set({ paymentId: p.id, qrUrl }).where(eq(s.posSale.id, sale.id)).returning();
+    return { sale: row, card };
+  } catch (e) {
+    await cancelSale(sale.id, sellerId, { silent: true }).catch(() => {});
+    console.error("[pos] ЮKassa (сертификат):", e instanceof Error ? e.message : e);
+    throw new PosError("ЮKassa не создала платёж. Попробуйте ещё раз или примите наличными");
   }
 }
 
@@ -281,6 +376,11 @@ export async function refreshSale(id: string): Promise<SaleRow | null> {
         await creditSaleBonuses(tx, sale.id, settings);
       });
     }
+    // Продажа сертификата: оплачен — сертификат действует (в т. ч. если оплатили после отмены)
+    if (sale.kind === "GIFT") {
+      if (sale.status === "CANCELLED") await db.update(s.giftCard).set({ status: "PENDING" }).where(and(eq(s.giftCard.posSaleId, sale.id), eq(s.giftCard.status, "VOID")));
+      await import("@/lib/giftcards").then((m) => m.activatePosGift(sale.id));
+    }
   } else if (p.status === "canceled" && sale.status === "PENDING") {
     await cancelSale(sale.id, null, { silent: true });
   }
@@ -308,7 +408,9 @@ export async function cancelSale(id: string, userId: string | null, opts: { sile
       await tx.insert(s.stockMove).values({ variantId: i.variantId, productId: i.productId, name: i.name, type: "POS_CANCEL", qty: i.quantity, unitCost: i.unitCost, stockAfter: after, posSaleId: sale.id, clubId: sale.stockClubId, note: opts.silent ? `${sale.number}: не оплатили` : `${sale.number}: отмена`, userId });
     }
     await refundSpentBonuses(tx, sale);
+    if (sale.giftCardAmount > 0) await import("@/lib/giftcards").then((m) => m.releaseGiftPos(tx, sale.id));
   });
+  if (sale.kind === "GIFT") await import("@/lib/giftcards").then((m) => m.voidPosGift(sale.id));
   return db.query.posSale.findFirst({ where: eq(s.posSale.id, id) });
 }
 
@@ -324,10 +426,10 @@ export interface ReturnInput {
 
 /** Сколько вернуть: деньгами, бонусами на счёт и сколько начисленных бонусов списать — по доле позиций */
 export function returnShares(
-  sale: Pick<SaleRow, "subtotal" | "total" | "refunded" | "bonusSpent" | "bonusAccrued" | "bonusCredited">,
+  sale: Pick<SaleRow, "subtotal" | "total" | "refunded" | "bonusSpent" | "bonusAccrued" | "bonusCredited"> & { giftCardAmount?: number },
   items: { price: number; quantity: number; returnedQty: number }[],
   take: number[],
-  already: { bonusBack: number; accruedBack: number },
+  already: { bonusBack: number; accruedBack: number; giftBack?: number },
 ) {
   const value = items.reduce((a, it, i) => a + it.price * take[i], 0);
   const left = items.reduce((a, it, i) => a + it.price * (it.quantity - it.returnedQty - take[i]), 0);
@@ -337,13 +439,16 @@ export function returnShares(
   const money = all ? sale.total - sale.refunded : Math.min(sale.total - sale.refunded, Math.round(sale.total * share));
   const bonusBack = all ? sale.bonusSpent - already.bonusBack : floorRub(sale.bonusSpent * share);
   const accruedBack = sale.bonusCredited ? (all ? sale.bonusAccrued - already.accruedBack : floorRub(sale.bonusAccrued * share)) : 0;
-  return { value, money: Math.max(0, money), bonusBack: Math.max(0, bonusBack), accruedBack: Math.max(0, accruedBack) };
+  const gift = sale.giftCardAmount ?? 0;
+  const giftBack = all ? gift - (already.giftBack ?? 0) : Math.round(gift * share);
+  return { value, money: Math.max(0, money), bonusBack: Math.max(0, bonusBack), accruedBack: Math.max(0, accruedBack), giftBack: Math.max(0, giftBack) };
 }
 
 export async function returnSale(saleId: string, input: ReturnInput) {
   const sale = await db.query.posSale.findFirst({ where: eq(s.posSale.id, saleId), with: { items: true, returns: true } });
   if (!sale) throw new PosError("Продажа не найдена");
   if (sale.status !== "PAID") throw new PosError(sale.status === "PENDING" ? "Продажа ещё не оплачена — её можно просто отменить" : "Продажа отменена");
+  if (sale.kind === "GIFT") throw new PosError("Это продажа подарочного сертификата — вернуть деньги за него можно у менеджера");
   const items = sale.items;
   const take = items.map((it) => {
     const q = Math.trunc(input.items.find((x) => x.saleItemId === it.id)?.qty ?? 0);
@@ -351,7 +456,11 @@ export async function returnSale(saleId: string, input: ReturnInput) {
     return q;
   });
   if (!take.some((q) => q > 0)) throw new PosError("Отметьте, что возвращают");
-  const already = { bonusBack: sale.returns.reduce((a, r) => a + r.bonusBack, 0), accruedBack: sale.returns.reduce((a, r) => a + r.accruedBack, 0) };
+  const already = {
+    bonusBack: sale.returns.reduce((a, r) => a + r.bonusBack, 0),
+    accruedBack: sale.returns.reduce((a, r) => a + r.accruedBack, 0),
+    giftBack: sale.returns.reduce((a, r) => a + r.giftBack, 0),
+  };
   const sh = returnShares(sale, items, take, already);
   // Наличными часть чека — до целого рубля (копейки не отдать); весь остаток чека — точно
   const leftAfter = items.some((it, i) => it.quantity - it.returnedQty - take[i] > 0);
@@ -384,7 +493,7 @@ export async function returnSale(saleId: string, input: ReturnInput) {
   const ret = await db.transaction(async (tx) => {
     const [ret] = await tx
       .insert(s.posReturn)
-      .values({ number, saleId: sale.id, shiftId: method === "CASH" ? input.shiftId : null, sellerId: input.sellerId, approverId: input.approverId, method, amount: sh.money, cost, bonusBack: sh.bonusBack, accruedBack: sh.accruedBack, refundId, reason: input.reason?.trim().slice(0, 300) || null })
+      .values({ number, saleId: sale.id, shiftId: method === "CASH" ? input.shiftId : null, sellerId: input.sellerId, approverId: input.approverId, method, amount: sh.money, cost, bonusBack: sh.bonusBack, giftBack: sh.giftBack, accruedBack: sh.accruedBack, refundId, reason: input.reason?.trim().slice(0, 300) || null })
       .returning();
     let rest = sh.money;
     const lastIdx = take.map((q, i) => (q > 0 ? i : -1)).filter((i) => i >= 0).pop()!;
@@ -403,6 +512,8 @@ export async function returnSale(saleId: string, input: ReturnInput) {
       }
     }
     await tx.update(s.posSale).set({ refunded: sql`${s.posSale.refunded} + ${sh.money}` }).where(eq(s.posSale.id, sale.id));
+    // Часть, оплаченная сертификатом, — обратно на сертификат
+    if (sh.giftBack > 0) await import("@/lib/giftcards").then((m) => m.returnToGiftPos(tx, sale.id, sh.giftBack));
     // Бонусы: списанные — обратно на счёт, начисленные за возвращённое — списываем; сумма покупок уменьшается
     if (sale.customerId) {
       const back = Math.floor(sh.bonusBack / 100);

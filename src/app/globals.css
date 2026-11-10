@@ -7638,3 +7638,40 @@ tr.is-muted td {
   padding: 0;
   justify-content: center;
 }
+
+/* Касса: возврат, сертификат, выдача заказов — кнопки в ряд, открытая панель — на всю ширину */
+.pos-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+.pos-tools > section,
+.pos-tools > .row {
+  flex: 1 1 100%;
+}
+.gift-code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--c-gold);
+  user-select: all;
+}
+.pickup--found {
+  border-color: var(--c-gold);
+}
+
+.pickup-qr {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  margin-top: 10px;
+}
+.pickup-qr svg {
+  width: 150px;
+  height: 150px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 8px;
+}

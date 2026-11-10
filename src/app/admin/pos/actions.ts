@@ -28,6 +28,7 @@ const In = z.object({
   contact: z.string().trim().max(200).nullish(),
   customerPhone: z.string().trim().max(30).nullish(),
   useBonus: z.boolean().optional(),
+  giftCode: z.string().trim().max(40).nullish(),
   approvalId: ApprovalId,
 });
 
@@ -67,8 +68,11 @@ export interface SaleView {
   total: number;
   bonusSpent: number;
   bonusAccrued: number;
+  giftCardAmount: number; // оплачено сертификатом
   qr: string | null; // SVG
   qrUrl: string | null;
+  /** Продали сертификат: код и QR страницы сертификата — показать покупателю (когда оплачен) */
+  gift?: { code: string; amount: number; expiresAt: string | null; url: string; qr: string; emailed: boolean } | null;
 }
 
 async function view(sale: SaleRow): Promise<SaleView> {
@@ -80,9 +84,19 @@ async function view(sale: SaleRow): Promise<SaleView> {
     total: sale.total,
     bonusSpent: sale.bonusSpent,
     bonusAccrued: sale.bonusAccrued,
+    giftCardAmount: sale.giftCardAmount,
     qr: sale.status === "PENDING" && sale.qrUrl ? await qrSvg(sale.qrUrl) : null,
     qrUrl: sale.status === "PENDING" ? sale.qrUrl : null,
+    gift: sale.kind === "GIFT" && sale.status === "PAID" ? await giftView(sale.id) : null,
   };
+}
+
+async function giftView(saleId: string) {
+  const c = await db.query.giftCard.findFirst({ where: eq(s.giftCard.posSaleId, saleId) });
+  if (!c || c.status !== "ACTIVE") return null;
+  const { giftUrl } = await import("@/lib/giftcards");
+  const url = giftUrl(c.token);
+  return { code: c.code, amount: c.initialAmount, expiresAt: c.expiresAt?.toISOString() ?? null, url, qr: await qrSvg(url), emailed: !!c.sentAt };
 }
 
 const refresh = () => {
@@ -199,6 +213,7 @@ export interface ReturnView {
   total: number;
   refunded: number;
   bonusSpent: number;
+  giftCardAmount: number; // оплачено сертификатом — при возврате вернётся на сертификат
   place: string | null;
   customer: boolean;
   items: { id: string; name: string; price: number; left: number; quantity: number }[];
@@ -222,6 +237,7 @@ export async function posFindSale(number: string): Promise<{ sale?: ReturnView; 
       total: sale.total,
       refunded: sale.refunded,
       bonusSpent: sale.bonusSpent,
+      giftCardAmount: sale.giftCardAmount,
       place: sale.place,
       customer: !!sale.customerId,
       items,
@@ -437,4 +453,75 @@ export async function posApprovalStatus(id: string): Promise<{ status: string }>
 export async function posApprovalCancel(id: string): Promise<void> {
   const { me } = await requireCashier();
   await cancelApproval(String(id).slice(0, 64), me.id);
+}
+
+// ---------- Подарочные сертификаты в кассе
+
+/** Проверить сертификат покупателя: сколько на нём денег */
+export async function posGiftCheck(code: string): Promise<{ balance?: number; expiresAt?: string | null; code?: string; error?: string }> {
+  const { me } = await requireCashier();
+  const { checkGiftCode } = await import("@/lib/giftcards");
+  const r = await checkGiftCode(String(code ?? "").slice(0, 40), { ip: null, userId: me.id });
+  if ("error" in r) return { error: r.error };
+  return { balance: r.card.balance, expiresAt: r.card.expiresAt?.toISOString() ?? null, code: r.card.code };
+}
+
+const GiftSellIn = z.object({
+  amount: z.number().int().min(100_00, "Номинал — от 100 ₽").max(500_000_00),
+  method: z.enum(["CASH", "SBP", "CARD"]),
+  contact: z.string().trim().max(200).nullish(),
+  recipientEmail: z.string().trim().max(200).nullish(),
+});
+
+/** Продать сертификат в кассе */
+export async function posGiftSell(raw: unknown): Promise<{ sale?: SaleView; error?: string }> {
+  const { me } = await requireCashier();
+  const p = GiftSellIn.safeParse(raw);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Проверьте сертификат" };
+  try {
+    const shift = await currentShift(me.id);
+    if (!shift) return { error: "Сначала откройте смену" };
+    const { createGiftSale } = await import("@/lib/pos");
+    const { sale } = await createGiftSale(me.id, { ...p.data, place: shift.place, shiftId: shift.id, clubId: shift.clubId });
+    await audit(me.id, "pos.gift_sale", "pos_sale", sale.id, { number: sale.number, method: sale.method, amount: sale.total });
+    revalidatePath("/", "layout");
+    return { sale: await view(sale) };
+  } catch (e) {
+    if (e instanceof PosError) return { error: e.message };
+    console.error("[pos] сертификат:", e);
+    return { error: "Не получилось продать сертификат. Попробуйте ещё раз" };
+  }
+}
+
+// ---------- Выдача заказов с сайта (самовывоз из клуба)
+
+/** Клубы кассира: из его аккаунта, а если не закреплён — клуб открытой смены. Админ — все клубы */
+async function pickupClubs(me: { id: string; clubIds: string[] }, admin: boolean) {
+  if (admin) return null;
+  if (me.clubIds.length) return me.clubIds;
+  const shift = await currentShift(me.id);
+  return shift?.clubId ? [shift.clubId] : [];
+}
+
+export async function posPickupFind(number: string): Promise<{ order?: import("@/lib/pickup").PickupView; error?: string }> {
+  const { me, admin } = await requireCashier();
+  const { findPickup, PickupError } = await import("@/lib/pickup");
+  try {
+    return { order: await findPickup(number, await pickupClubs(me, admin)) };
+  } catch (e) {
+    return { error: e instanceof PickupError ? e.message : "Не получилось найти заказ" };
+  }
+}
+
+export async function posPickupIssue(orderId: string): Promise<{ ok?: string; error?: string }> {
+  const { me, admin } = await requireCashier();
+  const { issuePickup, PickupError } = await import("@/lib/pickup");
+  try {
+    const shift = await currentShift(me.id);
+    const number = await issuePickup(orderId, me.id, shift?.staffName ?? null, await pickupClubs(me, admin));
+    revalidatePath("/", "layout");
+    return { ok: `Заказ ${number} выдан — покупателю ушло письмо` };
+  } catch (e) {
+    return { error: e instanceof PickupError ? e.message : "Не получилось отметить выдачу" };
+  }
 }
