@@ -151,6 +151,24 @@ export function MoveForm({
 
   return (
     <div className="stack" style={{ gap: 14 }}>
+      {kind === "INVENTORY" && (
+        <div className="panel stack" style={{ gap: 8, borderColor: "var(--c-gold)" }}>
+          <b>Первая инвентаризация — всем товарам сразу</b>
+          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            <input className="input" inputMode="numeric" style={{ width: 80 }} value={fillN} onChange={(e) => setFillN(e.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Сколько штук всем" />
+            <span>шт</span>
+            <button type="button" className="btn btn--gold btn--sm" onClick={fillAll}>
+              Заполнить все ({options.length})
+            </button>
+          </div>
+          <details className="small muted">
+            <summary>Как это работает</summary>
+            У всех товаров сразу {fillN || 0} шт — дальше поправляете, где на самом деле другое количество. Список сохраняется в браузере: можно прерваться и
+            продолжить. На сайте ничего не меняется, пока не нажмёте «{t.btn}». Нажимайте, когда всё поправлено: что останется в остатке, сайт покажет «в наличии» и
+            напишет тем, кто ждал товар.
+          </details>
+        </div>
+      )}
       {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
       <div className="pos-find">
         <VariantPicker
@@ -181,23 +199,6 @@ export function MoveForm({
       )}
       {unknown && <UnknownCode code={unknown} options={options} clubId={clubId} categories={categories} onDone={adopt} onCancel={() => setUnknown(null)} />}
 
-      {kind === "INVENTORY" && (
-        <div className="panel stack" style={{ gap: 8 }}>
-          <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span>Всем товарам ({options.length}) поставить</span>
-            <input className="input" inputMode="numeric" style={{ width: 80 }} value={fillN} onChange={(e) => setFillN(e.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Сколько штук всем" />
-            <span>шт</span>
-            <button type="button" className="btn btn--line btn--sm" onClick={fillAll}>
-              Заполнить
-            </button>
-          </div>
-          <p className="muted small" style={{ margin: 0 }}>
-            Удобно для первой инвентаризации: у всех сразу {fillN || 0} шт, дальше поправляете, где на самом деле другое количество. Список сохраняется в
-            браузере — можно прерваться и продолжить. На сайте ничего не меняется, пока не нажмёте «{t.btn}». Нажимайте, когда всё поправлено: что останется
-            в остатке, сайт покажет «в наличии» и напишет тем, кто ждал товар.
-          </p>
-        </div>
-      )}
       {kind === "INVENTORY" && lines.length > 15 && (
         <input className="input" type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Найти в списке: название, артикул, штрихкод" aria-label="Найти в списке" />
       )}

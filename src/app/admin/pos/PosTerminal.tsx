@@ -213,7 +213,6 @@ export function PosTerminal({
             <div className="pos-pay__ok" role="status">
               ✓ {sale.method === "CASH" ? "Продано за наличные" : "Оплачено"}
             </div>
-            {sale.method === "CASH" && <p className="muted small" style={{ margin: 0 }}>Не забудьте пробить чек на кассе.</p>}
             {sale.method === "CASH" && change != null && change > 0 && <p style={{ margin: 0 }}>Сдача: <b>{fmt(change)}</b></p>}
           </>
         )}

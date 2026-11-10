@@ -117,27 +117,25 @@ export function TransferForm({ locations, from, to, options, there }: { location
 
   return (
     <div className="stack" style={{ gap: 12 }}>
-      <div className="form-grid">
-        <label className="field">
-          Откуда
-          <select className="input" value={from} onChange={(e) => (setQty({}), go(e.target.value, to === e.target.value ? from : to))}>
-            {locations.map((l) => (
-              <option key={l.id || "wh"} value={l.id}>
-                {l.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          Куда
-          <select className="input" value={to} onChange={(e) => go(from === e.target.value ? to : from, e.target.value)}>
-            {locations.map((l) => (
-              <option key={l.id || "wh"} value={l.id}>
-                {l.title}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* Маршрут одной строкой: откуда → куда, ⇄ — поменять местами */}
+      <div className="tr-route">
+        <select className="input" value={from} onChange={(e) => (setQty({}), go(e.target.value, to === e.target.value ? from : to))} aria-label="Откуда">
+          {locations.map((l) => (
+            <option key={l.id || "wh"} value={l.id}>
+              {l.title}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="tr-route__swap" onClick={() => (setQty({}), go(to, from))} aria-label="Поменять местами: откуда и куда" title="Поменять местами">
+          ⇄
+        </button>
+        <select className="input" value={to} onChange={(e) => go(from === e.target.value ? to : from, e.target.value)} aria-label="Куда">
+          {locations.map((l) => (
+            <option key={l.id || "wh"} value={l.id}>
+              {l.title}
+            </option>
+          ))}
+        </select>
       </div>
 
       {res.ok && <div className="form-ok">{res.ok}</div>}
@@ -149,14 +147,13 @@ export function TransferForm({ locations, from, to, options, there }: { location
       ) : (
         <>
           {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
-          <div className="pos-find">
+          <div className="tr-find">
             <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Найти товар" aria-label="Поиск товара" />
             {!scan && (
-              <button type="button" className="btn btn--line pos-scan-btn" onClick={() => setScan(true)} aria-label="Сканировать штрихкод камерой">
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+              <button type="button" className="btn btn--line tr-scan" onClick={() => setScan(true)} aria-label="Сканировать штрихкод камерой" title="Сканер">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M16 8v8" />
                 </svg>
-                <span>Сканер</span>
               </button>
             )}
           </div>
@@ -214,7 +211,7 @@ export function TransferForm({ locations, from, to, options, there }: { location
                   });
                 }}
               />
-              <span>{shown.every((o) => qty[o.id]) ? "Снять все" : `Отметить все${shown.length < avail.length ? " в списке" : ""} (${shown.length}) — по 1 шт`}</span>
+              <span>{shown.every((o) => qty[o.id]) ? "Снять все" : `Отметить все (${shown.length})`}</span>
             </label>
           )}
 
@@ -230,7 +227,7 @@ export function TransferForm({ locations, from, to, options, there }: { location
                   <li key={o.id} className={n ? "is-on" : undefined}>
                     <input type="checkbox" className="tr-list__check" checked={n > 0} onChange={toggle} aria-label={`Выбрать: ${o.name}`} />
                     {o.image ? <img src={sized(o.image, 160)} alt="" loading="lazy" onClick={toggle} /> : <span className="tr-list__noimg" aria-hidden onClick={toggle} />}
-                    <div className="tr-list__info" onClick={toggle}>
+                    <div className="tr-list__info" onClick={toggle} role="presentation">
                       <div className="tr-list__name">{o.name}</div>
                       <div className="muted small">
                         есть {o.stock}

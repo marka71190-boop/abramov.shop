@@ -7605,3 +7605,36 @@ tr.is-muted td {
 .table tr.is-on td {
   background: rgba(220, 191, 131, 0.08);
 }
+
+/* Перемещение: маршрут «откуда ⇄ куда» одной строкой, поиск с кнопкой сканера */
+.tr-route {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
+  align-items: center;
+}
+.tr-route .input {
+  min-width: 0;
+  padding-inline: 10px;
+  text-overflow: ellipsis;
+}
+.tr-route__swap {
+  width: 40px;
+  height: 44px;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  background: none;
+  color: var(--c-gold);
+  font-size: 20px;
+  cursor: pointer;
+}
+.tr-find {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+.tr-scan {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+}

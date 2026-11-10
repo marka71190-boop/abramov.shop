@@ -25,10 +25,7 @@ export default async function TransferPage({ searchParams }: { searchParams: Pro
   for (const d of dest) there["variantId" in d ? d.variantId : d.id] = { qty: "qty" in d ? d.qty : d.stock, norm: "minQty" in d ? d.minQty : null };
   return (
     <>
-      <p className="small" style={{ margin: 0 }}>
-        <Link href="/admin/stock">← Остатки</Link>
-      </p>
-      <h1>Перемещение товара</h1>
+      <h1 style={{ marginBottom: 0 }}>Перемещение</h1>
       {!clubs.length ? (
         <div className="notice">
           Ни у одного клуба не включён свой учёт остатков. Включите его в <Link href="/admin/stock/clubs">«По клубам»</Link> — тогда касса клуба будет продавать
@@ -36,10 +33,6 @@ export default async function TransferPage({ searchParams }: { searchParams: Pro
         </div>
       ) : (
         <>
-          <p className="muted" style={{ margin: 0 }}>
-            Отметьте галочками, что везёте, — сразу всё, — количество поправьте кнопками − / +, и переместите одной кнопкой внизу. Остаток уменьшится там, откуда забрали, и увеличится там,
-            куда привезли. На сайте продаётся только товар со склада.
-          </p>
           <TransferForm key={`${from}-${to}`} locations={locations} from={from} to={to} options={options} there={there} />
         </>
       )}
