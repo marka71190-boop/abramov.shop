@@ -10,6 +10,7 @@ import { db, schema as s } from "@/db";
 import { shareImage } from "@/lib/seo";
 import { SELLER, SITE } from "@/lib/site";
 import { isPublic, isRetail } from "@/lib/visibility";
+import { isEan13 } from "@/lib/barcode";
 
 const xml = (v: string) =>
   v
@@ -86,6 +87,8 @@ export async function yandexFeed() {
           ...attrDefs
             .filter((a) => a.key !== "brand" && attrVals.get(p.id)?.has(a.id))
             .map((a) => `<param name="${xml(a.name)}"${a.unit ? ` unit="${xml(a.unit)}"` : ""}>${xml(attrVals.get(p.id)!.get(a.id)!)}</param>`),
+          // Заводской штрихкод (EAN-13): Яндекс по нему узнаёт товар. Свои магазинные коды (начинаются с 2) — не отправляем
+          v.barcode && isEan13(v.barcode) && !v.barcode.startsWith("2") ? `<barcode>${v.barcode}</barcode>` : "",
           `<count>${Math.max(0, v.stock)}</count>`,
           `<weight>${(p.weightGrams / 1000).toFixed(3)}</weight>`,
           `<dimensions>${p.lengthCm}/${p.widthCm}/${p.heightCm}</dimensions>`,

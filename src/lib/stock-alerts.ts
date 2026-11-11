@@ -12,7 +12,7 @@ export async function productStock(productId: string) {
   return r?.n ?? 0;
 }
 
-/** Товар снова в наличии — пишем подписчикам в Telegram, а у кого его нет — на почту. */
+/** Товар снова в наличии — уведомление в приложение и в Telegram, а у кого нет ни того ни другого — на почту. */
 export async function notifyBackInStock(productId: string) {
   const p = await db.query.product.findFirst({ where: eq(s.product.id, productId), columns: { name: true, slug: true } });
   if (!p) return 0;
@@ -21,10 +21,15 @@ export async function notifyBackInStock(productId: string) {
   });
   if (!subs.length) return 0;
   const url = `${SITE.url}/product/${p.slug}`;
-  const [{ notifyUser, esc }, { sendMail }] = await Promise.all([import("@/lib/telegram"), import("@/lib/mail")]);
+  const [{ notifyUser, esc }, { sendMail }, { pushToUser }] = await Promise.all([import("@/lib/telegram"), import("@/lib/mail"), import("@/lib/push")]);
   for (const sub of subs) {
     let sent = false;
-    if (sub.userId) sent = await notifyUser(sub.userId, `🔥 «${esc(p.name)}» снова в наличии! Успейте заказать.`, { text: "Открыть товар", url });
+    if (sub.userId) {
+      // Просил сам — это не реклама: шлём всем, кто включил уведомления в приложении
+      const pushed = await pushToUser(sub.userId, { title: "Снова в наличии", body: `«${p.name}» можно заказать — успейте`, url: `/product/${p.slug}`, tag: `stock-${productId.slice(0, 8)}` }).catch(() => 0);
+      sent = pushed > 0;
+    }
+    if (sub.userId) sent = (await notifyUser(sub.userId, `🔥 «${esc(p.name)}» снова в наличии! Успейте заказать.`, { text: "Открыть товар", url })) || sent;
     if (!sent && sub.email) {
       await sendMail(sub.email, `«${p.name}» снова в наличии`, "Товар снова в наличии", `«${esc(p.name)}», который вы ждали, снова можно заказать.`, {
         text: "Открыть товар",

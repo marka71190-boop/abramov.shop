@@ -144,6 +144,18 @@ export async function dailyFinanceReport() {
     .from(s.user)
     .where(and(userHasAnyRole(["OWNER", "DIRECTOR"]), isNotNull(s.user.telegramChatId), sql`(${s.user.bannedAt} is null or (${s.user.bannedUntil} is not null and ${s.user.bannedUntil} <= now()))`));
   if (!owners.length) return;
-  const html = `${await periodText("today", true)}\n\n/week — за неделю · /month — за месяц · /stock — склад`;
+  // Что заканчивается на складе — коротко, подробности по /stock
+  let stockLine = "";
+  try {
+    const [rows, limit] = await Promise.all([stockReport(), lowStockThreshold()]);
+    const sellable = rows.filter((r) => r.visibility !== "DRAFT");
+    const out = sellable.filter((r) => r.stock <= 0).length;
+    const low = sellable.filter((r) => r.stock > 0 && r.stock <= Math.max(limit, 0));
+    if (out || low.length) {
+      const names = low.slice(0, 5).map((r) => `${esc(r.multi ? `${r.product}, ${r.variant}` : r.product)} — ${r.stock} шт`);
+      stockLine = `\n\n📦 Склад: закончилось ${num(out)} поз., заканчивается ${num(low.length)}${names.length ? `\n${names.map((n) => `• ${n}`).join("\n")}${low.length > 5 ? `\n…и ещё ${low.length - 5}` : ""}` : ""}`;
+    }
+  } catch {}
+  const html = `${await periodText("today", true)}${stockLine}\n\n/week — за неделю · /month — за месяц · /stock — склад`;
   for (const o of owners) if (o.chatId) await send(o.chatId, html, [{ text: "Финансы на сайте", url: `${SITE.url}/admin/finance?p=today` }]).catch(() => {});
 }

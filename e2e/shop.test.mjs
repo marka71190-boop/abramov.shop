@@ -141,3 +141,14 @@ test("цены в валюте: переключатель в шапке — т�
   assert.doesNotMatch(await main.innerText(), /₸/);
   assert.deepEqual(p.errors, []);
 });
+
+test("товарный фид для Яндекса: товары с ценой, наличием и ссылкой", async () => {
+  const res = await fetch(`${B}/feed/yandex.xml`);
+  assert.equal(res.status, 200);
+  const xml = await res.text();
+  assert.match(xml, /<yml_catalog/);
+  assert.match(xml, new RegExp(`<url>[^<]*/product/${E2E.products[1].slug}</url>`));
+  assert.match(xml, /<currencyId>RUR<\/currencyId>/);
+  assert.doesNotMatch(xml, /<barcode>2\d{12}<\/barcode>/); // магазинные коды не отправляем
+  assert.doesNotMatch(xml, /@e2e\.test/); // без данных покупателей
+});

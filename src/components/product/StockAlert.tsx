@@ -23,7 +23,7 @@ export function StockAlert({ productId, initial }: { productId: string; initial:
       >
         {on ? "Сообщим о поступлении ✓" : "Сообщить о поступлении"}
       </button>
-      <span className="muted small">{on ? "Пришлём сообщение в Telegram или на почту, как только товар появится" : "Товара сейчас нет в наличии"}</span>
+      <span className="muted small">{on ? "Пришлём уведомление в приложение, в Telegram или на почту, как только товар появится" : "Товара сейчас нет в наличии"}</span>
     </div>
   );
 }
