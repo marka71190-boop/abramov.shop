@@ -18,6 +18,13 @@ if (!owner) {
   await db.insert(s.account).values({ id: randomUUID(), accountId: id, providerId: "credential", userId: id, password: await hashPassword(E2E.owner.password) });
 }
 
+const player = await db.query.user.findFirst({ where: eq(s.user.email, E2E.player.email) });
+if (!player) {
+  const id = randomUUID();
+  await db.insert(s.user).values({ id, name: "Игрок E2E", email: E2E.player.email, emailVerified: true });
+  await db.insert(s.account).values({ id: randomUUID(), accountId: id, providerId: "credential", userId: id, password: await hashPassword(E2E.player.password) });
+}
+
 await db
   .insert(s.club)
   .values({ id: E2E.club.id, name: E2E.club.name, city: "Ростов-на-Дону", address: "ул. Тестовая, 1", ownStock: true, pickup: true })

@@ -64,6 +64,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const minutesLeft = o.expiresAt ? Math.max(0, Math.round((+o.expiresAt - Date.now()) / 60000)) : null;
   const justPaid = from === "pay" && o.status === "PAID";
   const countryName = o.country !== "RU" ? await countryText(o.country, o.countryName) : null;
+  // Паспорта киёв из этого заказа — только владельцу
+  const cuePassports = (await import("@/lib/cue-passport").then((m) => m.passportsOfOrder(o.id))).filter((p) => p.status === "ACTIVE" && p.ownerId === user.id);
 
   return (
     <section className="container page-pad order-page ym-hide-content">
@@ -80,6 +82,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
           {st.text}
         </div>
       </div>
+
+      {cuePassports.map((p) => (
+        <Link key={p.id} href={`/pasport/${p.code}`} className="notice" style={{ display: "block", textDecoration: "none" }}>
+          🎱 Электронный паспорт кия «{p.model}» · № {p.serial} — подлинность, гарантия и история →
+        </Link>
+      ))}
 
       {o.paidAt && o.userId === user.id && ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status) && Date.now() - +o.paidAt < 3 * 86400_000 && (
         <PurchaseTracker

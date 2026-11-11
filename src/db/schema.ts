@@ -1180,6 +1180,56 @@ export const productionEvent = pgTable(
   (t) => [index("production_event_order_idx").on(t.orderId)],
 );
 
+export const cuePassportStatusEnum = pgEnum("cue_passport_status", ["ACTIVE", "VOID"]);
+
+/**
+ * Электронный паспорт кия: QR на кие → страница с моделью, мастером, датой, гарантией и историей обслуживания.
+ * code — в QR (длинный, не угадать), serial — гравируется на кие и печатается в паспорте, claimCode — на бумажной
+ * карточке: им покупатель привязывает кий к себе. Владелец публично не показывается.
+ */
+export const cuePassport = pgTable(
+  "cue_passport",
+  {
+    id: id(),
+    code: text("code").notNull().unique(),
+    serial: text("serial").notNull().unique(), // AB-26-0001
+    claimCode: text("claim_code").notNull(),
+    model: text("model").notNull(),
+    spec: text("spec"), // параметры по строке «Группа: значение»
+    master: text("master"), // мастер, собравший кий
+    madeAt: ts("made_at").notNull(),
+    warrantyMonths: integer("warranty_months").default(12).notNull(),
+    photo: text("photo"),
+    status: cuePassportStatusEnum("status").default("ACTIVE").notNull(),
+    ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
+    orderId: text("order_id").references(() => order.id, { onDelete: "set null" }),
+    orderItemId: text("order_item_id"),
+    transferToken: text("transfer_token"), // передача новому владельцу: ссылка живёт 7 дней
+    transferUntil: ts("transfer_until"),
+    scans: integer("scans").default(0).notNull(), // сколько раз открывали паспорт
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("cue_passport_owner_idx").on(t.ownerId), index("cue_passport_order_idx").on(t.orderId)],
+);
+
+/** История кия: изготовлен, продан, сменил владельца, обслуживание в мастерской, заметки — без имён */
+export const cuePassportEvent = pgTable(
+  "cue_passport_event",
+  {
+    id: id(),
+    passportId: text("passport_id")
+      .notNull()
+      .references(() => cuePassport.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // MADE | SOLD | OWNER | SERVICE | NOTE
+    text: text("text").notNull(),
+    serviceRequestId: text("service_request_id").references(() => serviceRequest.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("cue_passport_event_passport_idx").on(t.passportId)],
+);
+
 export const productionEventRelations = relations(productionEvent, ({ one }) => ({
   order: one(order, { fields: [productionEvent.orderId], references: [order.id] }),
 }));

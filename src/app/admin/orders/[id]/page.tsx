@@ -41,6 +41,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
     with: { items: { orderBy: asc(s.orderItem.name) }, payments: { orderBy: desc(s.payment.createdAt) }, user: true, promo: true },
   });
   if (!o) notFound();
+  const passports = await import("@/lib/cue-passport").then((m) => m.passportsOfOrder(o.id));
   const events = await db.query.auditLog.findMany({
     where: and(eq(s.auditLog.entity, "order"), eq(s.auditLog.entityId, o.id)),
     orderBy: desc(s.auditLog.createdAt),
@@ -229,6 +230,23 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                     {i.name}
                     {i.wholesale && <span className="pill pill--warn" style={{ marginLeft: 6 }}>опт</span>}
                     {i.spec && <div className="small muted" style={{ whiteSpace: "pre-line" }}>{i.spec}</div>}
+                    {/* Паспорт кия: у кия на заказ и у киёв из каталога, когда заказ оплачен */}
+                    {(i.spec || /(^|[\s«"])ки[йи]([\s»",]|$)/i.test(i.name)) &&
+                      ["PAID", "ASSEMBLING", "SHIPPED", "DELIVERED"].includes(o.status) &&
+                      (() => {
+                        const pp = passports.find((x) => x.orderItemId === i.id && x.status === "ACTIVE");
+                        return pp ? (
+                          <div className="small" style={{ marginTop: 4 }}>
+                            🎱 <Link href={`/admin/passports/${pp.id}`}>Паспорт {pp.serial}</Link>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 4 }}>
+                            <Link className="btn btn--line btn--sm" href={`/admin/passports/new?order=${o.id}&item=${i.id}`}>
+                              🎱 Выпустить паспорт кия
+                            </Link>
+                          </div>
+                        );
+                      })()}
                   </td>
                   <td>{rub(i.price)}</td>
                   <td>{i.quantity}</td>

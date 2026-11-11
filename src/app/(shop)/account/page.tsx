@@ -83,7 +83,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const [orders, pd, mk, referrals, bonusLog, hasPassword, passkeys] = await Promise.all([
+  const [orders, pd, mk, referrals, bonusLog, hasPassword, passkeys, cues] = await Promise.all([
     db.query.order.findMany({ where: eq(s.order.userId, user.id), orderBy: desc(s.order.createdAt), limit: 10, with: { items: true } }),
     getActiveConsent(user.id, "PERSONAL_DATA"),
     getActiveConsent(user.id, "MARKETING"),
@@ -92,6 +92,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     // Пароль есть? Раньше входили через Google или VK — пароля могло не быть
     db.$count(s.account, and(eq(s.account.userId, user.id), eq(s.account.providerId, "credential"))).then((n) => n > 0),
     db.select({ id: s.passkey.id, name: s.passkey.name, createdAt: s.passkey.createdAt }).from(s.passkey).where(eq(s.passkey.userId, user.id)),
+    import("@/lib/cue-passport").then((m) => m.passportsOfUser(user.id)),
   ]);
 
   // Без действующего согласия на обработку ПДн кабинетом пользоваться нельзя
@@ -245,6 +246,25 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <div className="muted small">Приглашено друзей: {referrals}</div>
           </div>
         </div>
+
+        {cues.length > 0 && (
+          <section className="panel stack" id="cues">
+            <div className="label">Мои кии · паспорта</div>
+            <ul className="passkey-list">
+              {cues.map((c) => (
+                <li key={c.id}>
+                  <span>
+                    🎱 <Link href={`/pasport/${c.code}`}>{c.model}</Link>
+                    <span className="muted small"> · № {c.serial}</span>
+                  </span>
+                  <Link href={`/pasport/${c.code}`} className="small">
+                    Паспорт →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <PasskeySection items={passkeys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt?.toISOString() ?? null }))} />
 

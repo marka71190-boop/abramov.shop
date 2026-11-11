@@ -42,6 +42,7 @@ export const ADMIN_GROUPS: AdminGroup[] = [
       { key: "catalog", href: "/admin/catalog", label: "Каталог" },
       { key: "stock", href: "/admin/stock", label: "Склад", badge: "stock" },
       { key: "cue", href: "/admin/cue", label: "Кий на заказ", owner: true },
+      { key: "passports", href: "/admin/passports", label: "Паспорта киёв" },
       { key: "gift-cards", href: "/admin/gift-cards", label: "Сертификаты", owner: true },
       { key: "promo", href: "/admin/promo", label: "Промокоды", owner: true },
     ],
