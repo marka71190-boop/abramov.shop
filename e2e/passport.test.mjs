@@ -97,3 +97,30 @@ test("паспорт кия: выпуск, печать, проверка, пр�
 
   for (const x of [admin, anon, player]) assert.deepEqual(x.errors, []);
 });
+
+test("регистрация киёв из каталога: модель подставляется, партия из 3 — три паспорта и печать разом", async () => {
+  const admin = await page(b);
+  await loginOwner(admin);
+  await admin.goto(`${B}/admin/passports/new`);
+  const select = admin.locator('select[aria-label="Кий из каталога"]');
+  // В списке моделей — только кии, без мела
+  const options = await select.locator("option").allTextContents();
+  assert.ok(options.includes(E2E.products[1].name));
+  assert.ok(!options.includes(E2E.products[0].name));
+  await select.selectOption({ label: E2E.products[1].name });
+  assert.equal(await admin.inputValue("input[name=model]"), E2E.products[1].name);
+  await admin.fill("input[name=qty]", "3");
+  await admin.click("form.panel button.btn--gold");
+  await admin.waitForURL(/\/admin\/passports\?new=/);
+  await admin.getByText("Зарегистрировано киёв: 3").waitFor();
+  const rows = await q("select serial, code, claim_code from cue_passport where model = $1", [E2E.products[1].name]);
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows.map((r) => r.serial)).size, 3);
+  assert.equal(new Set(rows.map((r) => r.claim_code)).size, 3);
+  const href = await admin.getByRole("link", { name: "Печать всех карточек" }).getAttribute("href");
+  await admin.goto(`${B}${href}`);
+  assert.equal(await admin.locator(".card").count(), 3);
+  await admin.goto(`${B}${href.replace("f=card", "f=sticker")}`);
+  assert.equal(await admin.locator(".stk").count(), 3);
+  assert.deepEqual(admin.errors, []);
+});

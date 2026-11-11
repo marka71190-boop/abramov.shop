@@ -6,18 +6,36 @@ import { requireAdmin } from "@/lib/viewer";
 export const dynamic = "force-dynamic";
 
 /** Паспорта киёв: список, поиск по номеру и модели */
-export default async function PassportsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function PassportsPage({ searchParams }: { searchParams: Promise<{ q?: string; new?: string }> }) {
   await requireAdmin();
-  const { q = "" } = await searchParams;
+  const { q = "", new: fresh = "" } = await searchParams;
   const rows = await listPassports(q);
+  // Только что зарегистрировали несколько киёв — печать всех разом
+  const batch = fresh.split(",").filter((x) => /^[\w-]{8,64}$/.test(x)).slice(0, 50);
+  const batchRows = rows.filter((r) => batch.includes(r.id));
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h1 style={{ margin: 0 }}>Паспорта киёв</h1>
         <Link className="btn btn--gold btn--sm" href="/admin/passports/new">
-          Выпустить паспорт
+          Зарегистрировать кий
         </Link>
       </div>
+      {batchRows.length > 0 && (
+        <div className="form-ok stack" style={{ gap: 8 }}>
+          <div>
+            Зарегистрировано киёв: {batchRows.length}. Номера: {batchRows.map((r) => r.serial).sort().join(", ")}
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn--gold btn--sm" href={`/print/passport/${batch.join(",")}?f=card`} target="_blank" rel="noreferrer">
+              Печать всех карточек
+            </a>
+            <a className="btn btn--line btn--sm" href={`/print/passport/${batch.join(",")}?f=sticker`} target="_blank" rel="noreferrer">
+              Печать всех наклеек с QR
+            </a>
+          </div>
+        </div>
+      )}
       <p className="muted" style={{ maxWidth: 760, margin: 0 }}>
         У каждого кия — номер (гравируется на кие) и QR-наклейка. Скан открывает паспорт на сайте: «Подлинный кий Abramov», модель, мастер,
         гарантия и история обслуживания. В коробку — карточка с кодом владельца: им покупатель привязывает кий к себе. Паспорт можно выпустить из

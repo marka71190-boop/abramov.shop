@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { passportUrl, warrantyUntil } from "@/lib/cue-passport";
 import { fmtDate } from "@/lib/format";
@@ -19,11 +19,14 @@ export const dynamic = "force-dynamic";
 export default async function PassportPrint({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ f?: string }> }) {
   await requireAdmin();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
-  const p = await db.query.cuePassport.findFirst({ where: eq(s.cuePassport.id, String(id).slice(0, 64)) });
-  if (!p) notFound();
-  const qr = await qrSvg(passportUrl(p.code));
+  // Несколько паспортов разом — id через запятую (после регистрации партии киёв)
+  const ids = decodeURIComponent(String(id)).split(",").filter((x) => /^[\w-]{8,64}$/.test(x)).slice(0, 50);
+  const found = ids.length ? await db.query.cuePassport.findMany({ where: inArray(s.cuePassport.id, ids) }) : [];
+  if (!found.length) notFound();
+  const list = await Promise.all(
+    found.sort((a, b) => a.serial.localeCompare(b.serial)).map(async (p) => ({ p, qr: await qrSvg(passportUrl(p.code)), specs: (p.spec ?? "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 10) })),
+  );
   const sticker = sp.f === "sticker";
-  const specs = (p.spec ?? "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 10);
 
   if (sticker)
     return (
@@ -31,7 +34,7 @@ export default async function PassportPrint({ params, searchParams }: { params: 
         <style>{`
           @page { size: 30mm 20mm; margin: 0; }
           body { background: #fff; }
-          .stk { width: 30mm; height: 20mm; box-sizing: border-box; padding: 1mm 1.2mm; display: flex; gap: 1mm; align-items: center; color: #000; font-family: Arial, sans-serif; overflow: hidden; }
+          .stk { break-after: page; width: 30mm; height: 20mm; box-sizing: border-box; padding: 1mm 1.2mm; display: flex; gap: 1mm; align-items: center; color: #000; font-family: Arial, sans-serif; overflow: hidden; }
           .stk__qr { flex: none; width: 17mm; height: 17mm; }
           .stk__qr svg { width: 100%; height: 100%; display: block; }
           .stk__t { font-size: 5.5pt; line-height: 1.2; }
@@ -40,27 +43,28 @@ export default async function PassportPrint({ params, searchParams }: { params: 
           @media print { .bar { display: none; } }
         `}</style>
         <div className="bar">
-          <PrintButton count={1} />
+          <PrintButton count={list.length} />
         </div>
-        <div className="stk">
-          <div className="stk__qr" dangerouslySetInnerHTML={{ __html: qr }} />
-          <div className="stk__t">
-            <b>ABRAMOV</b>
-            паспорт
-            <br />
-            {p.serial}
+        {list.map(({ p, qr }) => (
+          <div className="stk" key={p.id}>
+            <div className="stk__qr" dangerouslySetInnerHTML={{ __html: qr }} />
+            <div className="stk__t">
+              <b>ABRAMOV</b>
+              паспорт
+              <br />
+              {p.serial}
+            </div>
           </div>
-        </div>
+        ))}
       </>
     );
 
-  const until = warrantyUntil(p);
   return (
     <>
       <style>{`
         @page { size: 100mm 150mm; margin: 0; }
         body { background: #fff; }
-        .card { background: #fff; width: 100mm; height: 150mm; box-sizing: border-box; padding: 8mm 8mm 7mm; display: flex; flex-direction: column; gap: 3.5mm; color: #111; font-family: Arial, sans-serif; border: 0.6mm solid #b8995a; }
+        .card { break-after: page; background: #fff; width: 100mm; height: 150mm; box-sizing: border-box; padding: 8mm 8mm 7mm; display: flex; flex-direction: column; gap: 3.5mm; color: #111; font-family: Arial, sans-serif; border: 0.6mm solid #b8995a; }
         .card__brand { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 0.3mm solid #b8995a; padding-bottom: 2mm; }
         .card__brand b { font-size: 15pt; letter-spacing: 0.18em; color: #8a6d2f; }
         .card__brand span { font-size: 8pt; letter-spacing: 0.2em; text-transform: uppercase; }
@@ -79,9 +83,10 @@ export default async function PassportPrint({ params, searchParams }: { params: 
         @media print { .bar { display: none; } }
       `}</style>
       <div className="bar">
-        <PrintButton count={1} />
+        <PrintButton count={list.length} />
       </div>
-      <div className="card">
+      {list.map(({ p, qr, specs }) => (
+      <div className="card" key={p.id}>
         <div className="card__brand">
           <b>ABRAMOV</b>
           <span>Паспорт кия</span>
@@ -103,7 +108,7 @@ export default async function PassportPrint({ params, searchParams }: { params: 
           </div>
           <div>
             <i>Гарантия</i>
-            {p.warrantyMonths ? `до ${fmtDate(until)}` : "без гарантии"}
+            {p.warrantyMonths ? `до ${fmtDate(warrantyUntil(p))}` : "без гарантии"}
           </div>
           {specs.map((l, i) => {
             const k = l.indexOf(":");
@@ -128,6 +133,7 @@ export default async function PassportPrint({ params, searchParams }: { params: 
           </div>
         </div>
       </div>
+      ))}
     </>
   );
 }

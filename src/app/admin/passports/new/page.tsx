@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { cueModels } from "@/lib/cue-products";
 import { requireAdmin } from "@/lib/viewer";
 import { PassportForm } from "../PassportForm";
 
@@ -15,14 +16,20 @@ export default async function NewPassportPage({ searchParams }: { searchParams: 
   const order = sp.order ? await db.query.order.findFirst({ where: eq(s.order.id, sp.order.slice(0, 64)), with: { items: true } }) : null;
   const item = order?.items.find((i) => i.id === sp.item) ?? null;
   // Мастер по умолчанию — из последнего паспорта
+  const models = order ? [] : await cueModels();
   const last = await db.query.cuePassport.findFirst({ where: and(isNotNull(s.cuePassport.master)), orderBy: desc(s.cuePassport.createdAt), columns: { master: true } });
   return (
     <>
       <Link href="/admin/passports" className="small">
         ← Паспорта киёв
       </Link>
-      <h1>Выпустить паспорт кия</h1>
+      <h1>Регистрация кия</h1>
+      <p className="muted" style={{ margin: 0, maxWidth: 720 }}>
+        Выберите модель из каталога — параметры и фото подставятся. Каждому кию сразу присваивается номер и выпускается паспорт: останется
+        выгравировать номер, наклеить QR и положить карточку в коробку.
+      </p>
       <PassportForm
+        models={models}
         orderLabel={order ? order.number : null}
         data={{
           model: item?.name ?? "",

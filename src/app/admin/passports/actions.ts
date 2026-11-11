@@ -17,13 +17,14 @@ const date = (v: string) => {
 /** Выпустить паспорт */
 export async function createPassportAction(_: FormState, form: FormData): Promise<FormState> {
   const me = await requireAdmin();
-  let id: string;
+  const ids: string[] = [];
   try {
     const orderId = str(form, "orderId", 64) || null;
     const order = orderId ? await db.query.order.findFirst({ where: eq(s.order.id, orderId), columns: { id: true, userId: true } }) : null;
-    const p = await createPassport(
-      {
-        model: str(form, "model", 160),
+    // Несколько одинаковых киёв — каждому свой номер и паспорт (из заказа — всегда один)
+    const qty = order ? 1 : Math.max(1, Math.min(50, Math.trunc(Number(form.get("qty") ?? 1)) || 1));
+    const input = {
+      model: str(form, "model", 160),
         spec: str(form, "spec"),
         master: str(form, "master", 80),
         madeAt: date(str(form, "madeAt", 10)),
@@ -32,15 +33,13 @@ export async function createPassportAction(_: FormState, form: FormData): Promis
         orderId: order?.id ?? null,
         orderItemId: order ? str(form, "orderItemId", 64) || null : null,
         ownerId: order?.userId ?? null,
-      },
-      me.id,
-    );
-    id = p.id;
+    };
+    for (let i = 0; i < qty; i++) ids.push((await createPassport(input, me.id)).id);
   } catch (e) {
     if (e instanceof PassportError) return { error: e.message };
     throw e;
   }
-  redirect(`/admin/passports/${id}?created=1`);
+  redirect(ids.length === 1 ? `/admin/passports/${ids[0]}?created=1` : `/admin/passports?new=${ids.join(",")}`);
 }
 
 export async function updatePassportAction(_: FormState, form: FormData): Promise<FormState> {
