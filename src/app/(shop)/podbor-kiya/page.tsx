@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { attrValues, listAttributes } from "@/lib/attributes";
+import { isGroup, type GroupKey } from "@/lib/attributes-pro";
 import { getCueConfig, CUE_SLUG } from "@/lib/cue";
 import type { QuizProduct } from "@/lib/quiz";
 import { ratingsFor } from "@/lib/reviews";
@@ -18,7 +19,12 @@ export const metadata: Metadata = {
   openGraph: og({ url: "/podbor-kiya", title: "Подбор кия за минуту — Abramov Shop", description: DESC }),
 };
 
-/** Кии из каталога: товары с весом в характеристиках или из категории «Кии» */
+/** Не кии: мел, наклейки, шары и прочее — даже если у них указан вес */
+const NOT_CUE_GROUPS: GroupKey[] = ["tips", "chalk", "balls", "cloth", "tables", "gloves", "merch", "cases"];
+const NOT_CUE_NAME = /(^|\s)мел(\s|$|ки|ок)|мелок|мелки|наклейк|перчат|чехол|чехл|тубус|шар|сукн|футболк|худи|стол/i;
+const CUE_NAME = /(^|[\s«"(])ки[йяи](\s|[»",)]|$)/i;
+
+/** Кии из каталога: категория «Кии» (или её подкатегория) либо «кий» в названии — без мела, наклеек и аксессуаров */
 async function quizProducts(): Promise<QuizProduct[]> {
   const attrs = await listAttributes();
   const key = (k: string) => attrs.find((a) => a.key === k)?.id;
@@ -29,11 +35,20 @@ async function quizProducts(): Promise<QuizProduct[]> {
     limit: 500,
   });
   const vals = await attrValues(rows.map((r) => r.id));
-  const cueCat = (name: string | undefined, slug: string | undefined) => /^ки[йи]/i.test(name ?? "") || /^(kii|kiy|cue)/i.test(slug ?? "");
+  const cats = await db.query.category.findMany({ columns: { id: true, name: true, slug: true, parentId: true } });
+  const byId = new Map(cats.map((c) => [c.id, c]));
+  const chain = (id: string | null | undefined) => {
+    const out: { name: string; slug: string }[] = [];
+    for (let c = id ? byId.get(id) : undefined, i = 0; c && i < 5; c = c.parentId ? byId.get(c.parentId) : undefined, i++) out.push(c);
+    return out;
+  };
   const list = rows.filter((r) => {
     if (r.category && !isPublic(r.category)) return false;
     if (!r.variants.some((v) => v.stock > 0)) return false;
-    return (wId && vals.get(r.id)?.has(wId)) || cueCat(r.category?.name, r.category?.slug);
+    const path = chain(r.categoryId);
+    if (NOT_CUE_NAME.test(r.name)) return false;
+    if (path.some((c) => NOT_CUE_GROUPS.some((g) => isGroup(g, c)))) return false;
+    return path.some((c) => isGroup("cues", c)) || CUE_NAME.test(r.name);
   });
   const ratings = await ratingsFor(list.map((r) => r.id));
   const n = (pid: string, aid: string | undefined) => {

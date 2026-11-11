@@ -104,6 +104,20 @@ export async function CatalogView({ basePath, params, raw, viewer, isAll, catego
         <CatalogFilters sorts={sorts} sort={res.sort} showSearch={isAll} priceRange={res.priceRange} activeCount={activeCount} />
       </Suspense>
 
+      {/* Подбор кия — во всём каталоге и в категории киёв */}
+      {(isAll || /^ки[йи]/i.test(categoryName ?? res.activeCat?.name ?? "")) && (
+        <Link href="/podbor-kiya" className="quiz-banner">
+          <span className="quiz-banner__icon" aria-hidden>
+            🎯
+          </span>
+          <span className="quiz-banner__text">
+            <b>Не знаете, какой кий выбрать?</b>
+            <span>5 вопросов — подберём длину, вес и наклейку под вас и покажем подходящие кии</span>
+          </span>
+          <span className="quiz-banner__go">Подобрать →</span>
+        </Link>
+      )}
+
       {isAll && res.categories.length > 1 && (
         <nav className="cchips" aria-label="Категории">
           <Link href={href({ cat: null })} className="vchip" aria-current={!res.activeCat ? "true" : undefined} scroll={false}>
@@ -173,11 +187,6 @@ export async function CatalogView({ basePath, params, raw, viewer, isAll, catego
               Сбросить фильтры
             </Link>
           </>
-        )}
-        {/^ки[йи]/i.test(categoryName ?? res.activeCat?.name ?? "") && (
-          <Link href="/podbor-kiya" className="cmeta__quiz">
-            Не знаете, какой выбрать? Подбор кия за минуту →
-          </Link>
         )}
       </div>
 

@@ -37,6 +37,7 @@ export function Header({
         </Link>
         <nav className="nav" aria-label="Основное меню">
           <Link href="/catalog">Каталог</Link>
+          <Link href="/podbor-kiya">Подбор кия</Link>
           <Link href="/nabory">Наборы</Link>
           {cue && <Link href="/cue">Кий на заказ</Link>}
           <Link href="/service">Мастерская</Link>

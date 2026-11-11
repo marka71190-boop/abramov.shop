@@ -152,3 +152,25 @@ test("товарный фид для Яндекса: товары с ценой,
   assert.doesNotMatch(xml, /<barcode>2\d{12}<\/barcode>/); // магазинные коды не отправляем
   assert.doesNotMatch(xml, /@e2e\.test/); // без данных покупателей
 });
+
+test("подбор кия: в меню и в каталоге; в подборе только кии, без мела", async () => {
+  // У мела указан вес — раньше из-за этого он попадал в подбор
+  await q(`insert into attribute (id, key, name, unit, type) values (gen_random_uuid()::text, 'weight', 'Вес', 'г', 'number') on conflict (key) do nothing`);
+  await q(
+    `insert into product_attribute (product_id, attribute_id, value)
+     select p.id, a.id, '20' from product p, attribute a where p.slug = $1 and a.key = 'weight'
+     on conflict do nothing`,
+    [E2E.products[0].slug],
+  );
+  const p = await page(b);
+  await p.goto(`${B}/catalog`);
+  await p.locator(".quiz-banner").waitFor();
+  assert.equal(await p.locator('header .nav a[href="/podbor-kiya"]').count(), 1);
+  await p.click(".quiz-banner");
+  await p.waitForURL("**/podbor-kiya");
+  // Страницу подбора — с нуля: после перехода в коде страницы остаётся список каталога
+  const html = await (await fetch(`${B}/podbor-kiya`)).text();
+  assert.match(html, /Кий тестовый E2E/);
+  assert.doesNotMatch(html, /Мел тестовый E2E/);
+  assert.deepEqual(p.errors, []);
+});

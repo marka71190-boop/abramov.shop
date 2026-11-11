@@ -8137,3 +8137,63 @@ html.is-app .bcard__install {
 .passport-owner {
   gap: 10px;
 }
+
+/* Плашка «Подбор кия» в каталоге */
+.quiz-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border: 1px solid rgba(220, 191, 131, 0.45);
+  border-radius: 14px;
+  background: linear-gradient(100deg, rgba(220, 191, 131, 0.14), rgba(220, 191, 131, 0.03) 70%);
+  color: var(--c-text);
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.quiz-banner:hover {
+  border-color: var(--c-gold);
+}
+.quiz-banner:active {
+  transform: scale(0.99);
+}
+.quiz-banner__icon {
+  flex: none;
+  font-size: 28px;
+}
+.quiz-banner__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.quiz-banner__text span {
+  font-size: 13px;
+  color: var(--c-muted);
+}
+.quiz-banner__go {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: var(--c-gold);
+}
+@media (max-width: 560px) {
+  .quiz-banner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    padding: 12px 14px;
+  }
+  .quiz-banner__icon {
+    font-size: 24px;
+    grid-row: span 2;
+    align-self: start;
+  }
+  .quiz-banner__go {
+    margin-left: 0;
+    font-size: 13px;
+  }
+}
