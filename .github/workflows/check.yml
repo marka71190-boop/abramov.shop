@@ -34,9 +34,12 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Браузер для тестов
+        timeout-minutes: 10
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.63.0
-          npx playwright install --with-deps chromium
+          # Пакеты Ubuntu иногда не качаются (сбой у GitHub) — тогда без них: библиотеки для браузера на сервере уже есть,
+          # а если и сам Chromium не скачался — тесты возьмут Google Chrome, который стоит на сервере GitHub
+          timeout 300 npx playwright install --with-deps chromium || timeout 300 npx playwright install chromium || echo "E2E_CHANNEL=chrome" >> "$GITHUB_ENV"
 
       - name: Сборка и автотесты
         run: bash e2e/run.sh

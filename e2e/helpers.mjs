@@ -7,7 +7,8 @@ import { E2E } from "./data.mjs";
 export const B = E2E.base;
 
 export async function browser() {
-  return chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
+  // E2E_CHANNEL=chrome — браузер, установленный в системе (если Chromium для Playwright не скачался)
+  return chromium.launch({ channel: process.env.E2E_CHANNEL || undefined, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
 }
 
 /** Страница с перехватом ошибок: любая ошибка JS на странице роняет тест */
