@@ -116,7 +116,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         <main id="main">{children}</main>
         <Footer pages={footerPages} telegram={settings.supportTelegram} email={settings.supportEmail} cue={cueOn} />
       </div>
-      <AppTabbar />
+      <AppTabbar staff={admin || isDirector(viewer) ? "admin" : hasRole(viewer, "CASHIER") ? "kassa" : null} />
       {ban && <BanModal reason={ban.reason} until={ban.until} ticket={ban.ticket} telegram={settings.supportTelegram} />}
     </CartProvider>
   );

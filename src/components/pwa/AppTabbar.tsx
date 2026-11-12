@@ -17,9 +17,11 @@ const ICONS = {
   cart: "M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6.2M9 20.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM17 20.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z",
   card: "M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5zM3 10h18M7 15h4",
   user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5",
+  admin: "M4 5h16v4H4zM4 11h7v8H4zM13 11h7v3h-7zM13 16h7v3h-7z",
 };
 
-export function AppTabbar() {
+/** staff — сотруднику вместо «Карты» кнопка в админку или в кассу */
+export function AppTabbar({ staff = null }: { staff?: "admin" | "kassa" | null }) {
   const path = usePathname();
   const { count } = useCart();
   const [app, setApp] = useState(false);
@@ -36,7 +38,9 @@ export function AppTabbar() {
     { href: "/", label: "Главная", icon: "home", on: path === "/" },
     { href: "/catalog", label: "Каталог", icon: "catalog", on: path.startsWith("/catalog") || path.startsWith("/product") },
     { href: "/cart", label: "Корзина", icon: "cart", on: path.startsWith("/cart"), badge: count },
-    { href: "/account/card", label: "Карта", icon: "card", on: path.startsWith("/account/card") },
+    staff
+      ? { href: staff === "admin" ? "/admin" : "/kassa", label: staff === "admin" ? "Админка" : "Касса", icon: "admin", on: false }
+      : { href: "/account/card", label: "Карта", icon: "card", on: path.startsWith("/account/card") },
     { href: "/account", label: "Профиль", icon: "user", on: path.startsWith("/account") && !path.startsWith("/account/card") },
   ];
 

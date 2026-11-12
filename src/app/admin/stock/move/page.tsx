@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { isDirector, requireAdmin } from "@/lib/viewer";
 import { db, schema as s } from "@/db";
 import { asc } from "drizzle-orm";
+import { EnableClubs } from "../clubs/EnableClubs";
 import { MoveForm } from "./MoveForm";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,8 @@ export default async function StockMovePage({ searchParams }: { searchParams: Pr
   const { t, c } = await searchParams;
   const kind = KINDS.find((k) => k.key === t) ?? KINDS[0];
   // Где: склад или клуб со своим учётом
-  const clubs = (await stockClubs()).filter((x) => x.ownStock);
+  const allClubs = await stockClubs();
+  const clubs = allClubs.filter((x) => x.ownStock);
   const club = clubs.find((x) => x.id === c) ?? null;
   const options = await variantOptions(club?.id ?? null);
   // Для нового товара прямо из приёмки
@@ -57,6 +59,7 @@ export default async function StockMovePage({ searchParams }: { searchParams: Pr
         {kind.text}
       </p>
       <MoveForm key={`${kind.key}-${club?.id ?? "wh"}`} kind={kind.key} options={options} clubId={club?.id ?? null} categories={categories} />
+      <EnableClubs clubs={allClubs.filter((x) => !x.ownStock)} owner={me.role === "OWNER"} />
     </>
   );
 }

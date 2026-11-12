@@ -4,6 +4,7 @@ import { clubLines } from "@/lib/club-low";
 import { stockClubs } from "@/lib/club-stock";
 import { variantOptions } from "@/lib/stock-moves";
 import { isDirector, requireAdmin } from "@/lib/viewer";
+import { EnableClubs } from "../clubs/EnableClubs";
 import { TransferForm } from "./TransferForm";
 
 export const metadata = { title: "Перемещение товара" };
@@ -13,7 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function TransferPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const me = await requireAdmin();
   if (isDirector(me)) redirect("/admin/stock");
-  const clubs = (await stockClubs()).filter((c) => c.ownStock);
+  const all = await stockClubs();
+  const clubs = all.filter((c) => c.ownStock);
+  const off = all.filter((c) => !c.ownStock);
   const locations = [{ id: "", title: "Склад" }, ...clubs.map((c) => ({ id: c.id, title: c.title }))];
   const sp = await searchParams;
   const pick = (v: string | undefined, def: string) => (v === "wh" ? "" : locations.some((l) => l.id === v) ? v! : def);
@@ -36,6 +39,7 @@ export default async function TransferPage({ searchParams }: { searchParams: Pro
           <TransferForm key={`${from}-${to}`} locations={locations} from={from} to={to} options={options} there={there} />
         </>
       )}
+      <EnableClubs clubs={off} owner={me.role === "OWNER"} />
     </>
   );
 }

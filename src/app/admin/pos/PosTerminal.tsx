@@ -6,7 +6,7 @@ import { BarcodeScanner, signal } from "@/components/pos/BarcodeScanner";
 import { useScanWedge } from "@/components/pos/useScanWedge";
 import { ApprovalWait, ApproverPick, type WaitRequest } from "@/components/pos/PinApprove";
 import type { PosCustomer } from "@/lib/pos";
-import { cashMoveAction, posCancel, posCreate, posFindCustomer, posGiftCheck, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
+import { cashMoveAction, posCancel, posCreate, posFindCustomer, posGiftCheck, posPassportFind, posPassportSold, type PosPassport, posRequestSaleApproval, posStatus, shiftClose, shiftOpen, type SaleView, type ShiftState } from "./actions";
 import { codeMatches } from "@/lib/code-match";
 
 type Method = "CASH" | "SBP" | "CARD";
@@ -52,6 +52,18 @@ export function PosTerminal({
   const [phone, setPhone] = useState("");
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [cardScan, setCardScan] = useState(false);
+  // Паспорта киёв, отсканированные к этой продаже: после оплаты в паспорт запишется продажа и покупатель
+  const [passports, setPassports] = useState<PosPassport[]>([]);
+  const [passportMsg, setPassportMsg] = useState<{ ok?: string; error?: string }>({});
+  const addPassport = (raw: string) => {
+    setPassportMsg({});
+    void posPassportFind(raw).then((r) => {
+      signal(!!r.passport);
+      if (!r.passport) return setPassportMsg({ error: r.error ?? "Паспорт не найден" });
+      const pp = r.passport;
+      setPassports((ps) => (ps.some((x) => x.code === pp.code) ? ps : [...ps, pp]));
+    });
+  };
   const [custError, setCustError] = useState("");
   const [useBonus, setUseBonus] = useState(false);
   const [finding, startFind] = useTransition();
@@ -96,6 +108,11 @@ export function PosTerminal({
   };
   /** Код со сканера: штрихкод или артикул товара. Нашли — добавили, вернули название */
   const onCode = (code: string) => {
+    if (code.includes("/pasport/")) {
+      setScan(false);
+      addPassport(code);
+      return "Паспорт кия";
+    }
     if (code.startsWith("ABC.")) {
       // Сканером товаров навели на карту покупателя — тоже поймём
       setScan(false);
@@ -116,6 +133,7 @@ export function PosTerminal({
     (code) => {
       if (/AS-\d{6}-/i.test(code)) return false; // номер заказа с сайта — это для выдачи заказов
       if (code.startsWith("ABC.")) return void findCustomer(code); // QR бонусной карты из приложения
+      if (code.includes("/pasport/")) return void addPassport(code); // QR паспорта кия
       const name = onCode(code);
       signal(!!name);
       setScanMsg(name ? { text: `+ ${name}`, ok: true } : { text: `Не нашли товар в наличии с кодом ${code}`, ok: false });
@@ -148,7 +166,17 @@ export function PosTerminal({
   };
   const upd = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
 
+  // Продажа оплачена — записываем её в паспорта отсканированных киёв
+  const soldRef = useRef("");
+  useEffect(() => {
+    if (sale?.status !== "PAID" || !passports.length || soldRef.current === sale.id) return;
+    soldRef.current = sale.id;
+    void posPassportSold(sale.id, passports.map((x) => x.code)).then(setPassportMsg);
+  }, [sale?.status, sale?.id, passports]);
+
   function reset() {
+    setPassports([]);
+    setPassportMsg({});
     setLines([]);
     setDiscount("");
     setContact("");
@@ -247,6 +275,8 @@ export function PosTerminal({
         {sale.bonusAccrued > 0 && sale.status === "PAID" && <div className="small form-ok-text">Покупателю начислено {Math.floor(sale.bonusAccrued / 100)} бонусов</div>}
         {paid && (
           <>
+            {passportMsg.ok && <div className="form-ok small">🎱 {passportMsg.ok}</div>}
+            {passportMsg.error && <div className="form-error small">{passportMsg.error}</div>}
             <div className="pos-pay__ok" role="status">
               ✓ {sale.method === "CASH" ? "Продано за наличные" : sale.method === "GIFT" ? "Оплачено сертификатом" : "Оплачено"}
             </div>
@@ -360,6 +390,23 @@ export function PosTerminal({
         />
       )}
 
+      {(passports.length > 0 || passportMsg.error) && (
+        <div className="stack pos-passports" style={{ gap: 6 }}>
+          {passports.map((x) => (
+            <div key={x.code} className="row small" style={{ justifyContent: "space-between", gap: 8 }}>
+              <span>
+                🎱 Паспорт <b>{x.serial}</b> · {x.model}
+                {x.hasOwner && <span className="muted"> · владелец уже есть</span>}
+              </span>
+              <button type="button" className="linklike" onClick={() => setPassports((ps) => ps.filter((y) => y.code !== x.code))} aria-label="Убрать паспорт">
+                ✕
+              </button>
+            </div>
+          ))}
+          {passportMsg.error && <div className="form-error small">{passportMsg.error}</div>}
+        </div>
+      )}
+
       <div className="pos-customer stack" style={{ gap: 8 }}>
         {customer ? (
           <>
@@ -397,6 +444,7 @@ export function PosTerminal({
         )}
         {cardScan && <BarcodeScanner onCode={onCardCode} onClose={() => setCardScan(false)} />}
         {!customer && !cardScan && <div className="muted small">Или сканируйте QR бонусной карты из приложения покупателя</div>}
+        <div className="muted small">Продаёте кий Abramov — отсканируйте QR его паспорта: продажа запишется в паспорт, а кий — на покупателя</div>
         {custError && <div className="small is-loss">{custError}</div>}
       </div>
 

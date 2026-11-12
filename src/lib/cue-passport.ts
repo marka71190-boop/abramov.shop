@@ -216,3 +216,27 @@ export async function passportsOfOrder(orderId: string) {
 }
 
 export const EVENT_ICON: Record<string, string> = { MADE: "🛠", SOLD: "🛍", OWNER: "🤝", SERVICE: "🔧", NOTE: "📝" };
+
+// ---------- Касса клуба
+
+/** QR паспорта → код: «https://abramov.shop/pasport/abc…» или сам код */
+export function passportCodeFrom(raw: string) {
+  const m = /\/pasport\/([a-z0-9]{8,20})/.exec(raw.trim());
+  return m?.[1] ?? null;
+}
+
+/** Продажа кия в кассе клуба: запись «Продан» в историю; если покупатель известен и у кия нет владельца — кий его */
+export async function markSoldAtPos(code: string, sale: { id: string; number: string; customerId: string | null }, place: string | null) {
+  const p = await passportByCode(code);
+  if (!p || p.status !== "ACTIVE") return null;
+  const note = `Продан в клубе${place ? ` ${place}` : ""} · чек ${sale.number}`;
+  const dup = await db.query.cuePassportEvent.findFirst({ where: and(eq(s.cuePassportEvent.passportId, p.id), eq(s.cuePassportEvent.text, note)) });
+  if (!dup) await db.insert(s.cuePassportEvent).values({ passportId: p.id, kind: "SOLD", text: note });
+  let owned = false;
+  if (sale.customerId && !p.ownerId) {
+    const r = await db.update(s.cuePassport).set({ ownerId: sale.customerId, updatedAt: new Date() }).where(and(eq(s.cuePassport.id, p.id), sql`${s.cuePassport.ownerId} is null`)).returning();
+    owned = r.length > 0;
+    if (owned) void notifyOwner(sale.customerId, r[0], "Паспорт вашего кия — в приложении");
+  }
+  return { serial: p.serial, owned };
+}

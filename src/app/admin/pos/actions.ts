@@ -203,6 +203,42 @@ export async function posFindCustomer(phone: string): Promise<{ customer?: PosCu
   }
 }
 
+// ---------------------------------------------------------------- паспорт кия
+
+export interface PosPassport {
+  code: string;
+  serial: string;
+  model: string;
+  hasOwner: boolean;
+}
+
+/** Кассир отсканировал QR паспорта кия — показываем, что за кий */
+export async function posPassportFind(raw: string): Promise<{ passport?: PosPassport; error?: string }> {
+  const { me } = await requireCashier();
+  if (!findLimit(me.id)) return { error: "Слишком много поисков — подождите несколько минут" };
+  const { passportByCode, passportCodeFrom } = await import("@/lib/cue-passport");
+  const code = passportCodeFrom(String(raw).slice(0, 200));
+  const p = code ? await passportByCode(code) : null;
+  if (!p || p.status !== "ACTIVE") return { error: "Паспорт кия не найден" };
+  return { passport: { code: p.code, serial: p.serial, model: p.model, hasOwner: !!p.ownerId } };
+}
+
+/** Продажа оплачена — отмечаем в паспортах отсканированных киёв; покупатель из чека становится владельцем */
+export async function posPassportSold(saleId: string, codes: string[]): Promise<{ ok?: string; error?: string }> {
+  const { me } = await requireCashier();
+  const sale = await db.query.posSale.findFirst({ where: eq(s.posSale.id, String(saleId).slice(0, 64)) });
+  if (!sale || sale.sellerId !== me.id || sale.status !== "PAID") return { error: "Продажа не найдена или не оплачена" };
+  const { markSoldAtPos } = await import("@/lib/cue-passport");
+  const done: string[] = [];
+  let owned = 0;
+  for (const code of codes.slice(0, 10)) {
+    const r = await markSoldAtPos(String(code).slice(0, 20), sale, sale.place);
+    if (r) (done.push(r.serial), r.owned && owned++);
+  }
+  if (!done.length) return { error: "Паспорт не найден" };
+  return { ok: `Паспорт ${done.join(", ")}: продажа записана${owned ? ", кий привязан к покупателю" : sale.customerId ? "" : " — покупатель привяжет кий кодом с карточки"}` };
+}
+
 // ---------------------------------------------------------------- возврат
 
 export interface ReturnView {

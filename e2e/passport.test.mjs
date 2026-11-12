@@ -1,7 +1,7 @@
 /** Электронный паспорт кия: выпуск в админке → печать → проверка по QR → привязка кодом с карточки → передача новому владельцу */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, browser, closeDb, loginOwner, page, q } from "./helpers.mjs";
+import { B, browser, closeDb, loginKassa, loginOwner, page, q, variant, wedgeScan } from "./helpers.mjs";
 import { E2E } from "./data.mjs";
 
 let b;
@@ -123,4 +123,22 @@ test("регистрация киёв из каталога: модель под
   await admin.goto(`${B}${href.replace("f=card", "f=sticker")}`);
   assert.equal(await admin.locator(".stk").count(), 3);
   assert.deepEqual(admin.errors, []);
+});
+
+test("касса: продаём кий и сканируем QR паспорта — продажа записана в историю кия", async () => {
+  const [pp] = await q("select id, code, serial from cue_passport where model = $1 and owner_id is null order by serial limit 1", [E2E.products[1].name]);
+  const k = await page(b);
+  await loginKassa(k);
+  const v = await variant(E2E.products[1].slug);
+  await wedgeScan(k, v.barcode);
+  await k.waitForSelector(".pos-lines li");
+  await wedgeScan(k, `${B}/pasport/${pp.code}`);
+  await k.locator(".pos-passports", { hasText: pp.serial }).waitFor();
+  await k.click(".pos-total button.btn--gold");
+  await k.waitForSelector(".pos-pay__ok", { timeout: 15_000 });
+  await k.getByText(/продажа записана/).waitFor({ timeout: 15_000 });
+  const ev = await q("select text from cue_passport_event where passport_id = $1 and kind = 'SOLD'", [pp.id]);
+  assert.equal(ev.length, 1);
+  assert.match(ev[0].text, /Продан в клубе.*чек/);
+  assert.deepEqual(k.errors, []);
 });

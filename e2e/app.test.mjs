@@ -191,3 +191,13 @@ test("сторож сайта: «Проверить сейчас» — база 
   await p.locator(".form-ok", { hasText: /отправили/i }).waitFor();
   assert.deepEqual(p.errors, []);
 });
+
+test("приложение у сотрудника: в нижнем меню кнопка «Админка»", async () => {
+  const p = await page(b, { ...devices["iPhone 13"] });
+  await p.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
+  await loginOwner(p);
+  await p.goto(`${B}/catalog`);
+  await p.locator(".tabbar").getByText("Админка").click();
+  await p.waitForURL("**/admin");
+  assert.deepEqual(p.errors, []);
+});

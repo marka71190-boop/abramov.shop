@@ -87,7 +87,7 @@ export async function ownStockAction(clubId: string, on: boolean): Promise<MoveR
   try {
     await setOwnStock(String(clubId).slice(0, 64), !!on);
     await audit(me.id, on ? "stock.club_on" : "stock.club_off", "club", clubId);
-    revalidatePath("/admin/stock/clubs");
+    revalidatePath("/admin/stock", "layout");
     revalidatePath("/kassa");
     return { ok: on ? "Учёт клуба включён — привезите товар перемещением со склада" : "Учёт клуба выключен — касса клуба снова продаёт со склада" };
   } catch (e) {
