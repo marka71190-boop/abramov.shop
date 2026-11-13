@@ -96,6 +96,23 @@ test("перемещение списком: набрать кнопками н�
   assert.equal(await clubQty(mel.id), melClub + 3);
   assert.equal(await clubQty(kiy.id), kiyClub + 2);
   assert.equal(await p.locator(".tr-bar").count(), 0, "после перемещения выбор сброшен");
+
+  // Сразу — этикетки на привезённое: открыт клуб, отмечено ровно то, что привезли
+  await p.click("a:has-text('Этикетки на привезённое')");
+  await p.waitForSelector("text=Отметили привезённое");
+  assert.equal(await p.getByLabel(`Сколько этикеток: ${E2E.products[0].name}`).inputValue(), "3");
+  assert.equal(await p.getByLabel(`Сколько этикеток: ${E2E.products[1].name}`).inputValue(), "2");
+  assert.match(await p.locator("button:has-text('Файл для NIIMBOT')").textContent(), /5 шт/);
+  assert.equal(await p.locator("table thead").getByText("В клубе").count(), 1);
+  // «Сколько в клубе» — по остатку клуба
+  await p.click("button:has-text('Сколько в клубе')");
+  assert.equal(await p.getByLabel(`Сколько этикеток: ${E2E.products[0].name}`).inputValue(), String(melClub + 3));
+  // Печать с подписью клуба
+  const [club] = await q("select name from club where id = $1", [E2E.club.id]);
+  const pr = await p.context().newPage();
+  await pr.goto(`${B}/print/labels?f=50x30&p=1&q=0&c=${E2E.club.id}&i=${encodeURIComponent(`${mel.id}:1`)}`);
+  assert.match(await pr.locator(".lbl__club").first().innerText(), new RegExp(club.name.slice(0, 6)));
+  await pr.close();
   assert.deepEqual(p.errors, []);
 });
 

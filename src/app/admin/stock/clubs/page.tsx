@@ -59,6 +59,11 @@ export default async function ClubStockPage({ searchParams }: { searchParams: Pr
         <Link href="/admin/stock/refill" className="btn btn--line btn--sm">
           Заканчивается и нормы
         </Link>
+        {own.length > 0 && (
+          <Link href={`/admin/stock/labels?club=${own[0].id}`} className="btn btn--line btn--sm">
+            Этикетки для клуба
+          </Link>
+        )}
         <form className="row" style={{ gap: 6 }}>
           <input className="input" name="q" defaultValue={q} placeholder="Найти товар" style={{ minHeight: 40 }} />
         </form>

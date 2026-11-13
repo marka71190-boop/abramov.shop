@@ -20,10 +20,19 @@ const FORMATS = [
   { key: "a4", label: "Лист A4: 3×8 наклеек 70×37 мм" },
 ];
 
-export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number }) {
+interface Club {
+  id: string;
+  title: string;
+}
+
+export function LabelPicker({ rows, missing, clubs, club, preset }: { rows: Row[]; missing: number; clubs: Club[]; club: Club | null; preset: Record<string, string> }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [copies, setCopies] = useState<Record<string, string>>({});
+  const [copies, setCopies] = useState<Record<string, string>>(preset);
+  // В клубе по умолчанию — только то, что там лежит (и то, что пришло отмеченным после перемещения)
+  const [onlyHere, setOnlyHere] = useState(!!club);
+  const [sign, setSign] = useState(!!club);
+  const where = club ? "В клубе" : "На складе";
   const [format, setFormat] = useState("50x30");
   const [price, setPrice] = useState(true);
   const [qr, setQr] = useState(true);
@@ -31,20 +40,45 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
   const [pending, start] = useTransition();
 
   const needle = q.trim().toLowerCase();
-  const shown = useMemo(() => rows.filter((r) => !needle || `${r.name} ${r.sku ?? ""} ${r.barcode ?? ""}`.toLowerCase().includes(needle)), [rows, needle]);
+  const shown = useMemo(
+    () =>
+      rows.filter(
+        (r) => (!onlyHere || r.stock > 0 || preset[r.id]) && (!needle || `${r.name} ${r.sku ?? ""} ${r.barcode ?? ""}`.toLowerCase().includes(needle)),
+      ),
+    [rows, needle, onlyHere, preset],
+  );
   const n = (id: string) => Math.max(0, Math.min(500, Math.trunc(Number(copies[id] ?? 0)) || 0));
   const chosen = rows.filter((r) => r.ok && n(r.id) > 0);
   const total = chosen.reduce((a, r) => a + n(r.id), 0);
 
   const items = () => encodeURIComponent(chosen.map((r) => `${r.id}:${n(r.id)}`).join(","));
-  const print = () => window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}&i=${items()}`, "_blank", "noopener");
+  const signQ = club && sign ? `&c=${club.id}` : "";
+  const print = () => window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}${signQ}&i=${items()}`, "_blank", "noopener");
   // NIIMBOT печатает только из своего приложения — отдаём таблицу, приложение само сделает штрихкоды и QR
   const niimbot = () => {
-    window.location.href = `/admin/stock/labels/niimbot?p=${price ? 1 : 0}&i=${items()}`;
+    window.location.href = `/admin/stock/labels/niimbot?p=${price ? 1 : 0}${signQ}&i=${items()}`;
   };
 
   return (
     <div className="stack" style={{ gap: 14 }}>
+      {clubs.length > 0 && (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }} role="group" aria-label="Для чего печатаем">
+          <span className="muted small">Печатаем для:</span>
+          <button type="button" className={`btn btn--sm ${club ? "btn--line" : "btn--gold"}`} onClick={() => router.replace("/admin/stock/labels")}>
+            Склад
+          </button>
+          {clubs.map((c) => (
+            <button key={c.id} type="button" className={`btn btn--sm ${club?.id === c.id ? "btn--gold" : "btn--line"}`} onClick={() => router.replace(`/admin/stock/labels?club=${c.id}`)}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+      )}
+      {club && Object.keys(preset).length > 0 && (
+        <div className="form-ok">
+          Отметили привезённое в «{club.title}»: {Object.keys(preset).length} поз., {Object.values(preset).reduce((a, x) => a + Number(x), 0)} шт — проверьте и печатайте.
+        </div>
+      )}
       <details className="panel" open>
         <summary>
           <b>Печать на NIIMBOT</b> <span className="muted small">— через приложение NIIMBOT на телефоне</span>
@@ -92,8 +126,12 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
           Поиск
           <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название, артикул или штрихкод" />
         </label>
-        <button type="button" className="btn btn--line btn--sm" onClick={() => setCopies(Object.fromEntries(shown.filter((r) => r.ok).map((r) => [r.id, String(Math.max(0, r.stock))])))}>
-          Сколько на складе
+        <button
+          type="button"
+          className="btn btn--line btn--sm"
+          onClick={() => setCopies(Object.fromEntries(shown.filter((r) => r.ok && r.stock > 0).map((r) => [r.id, String(r.stock)])))}
+        >
+          Сколько {club ? "в клубе" : "на складе"}
         </button>
         <button type="button" className="btn btn--line btn--sm" onClick={() => setCopies(Object.fromEntries(shown.filter((r) => r.ok).map((r) => [r.id, "1"])))}>
           По одной
@@ -101,6 +139,10 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
         <button type="button" className="btn btn--line btn--sm" onClick={() => setCopies({})}>
           Очистить
         </button>
+        <label className="check" style={{ margin: 0 }}>
+          <input type="checkbox" checked={onlyHere} onChange={(e) => setOnlyHere(e.target.checked)} />
+          <span>Только в наличии</span>
+        </label>
       </div>
 
       <div className="table-wrap">
@@ -123,7 +165,7 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
               </th>
               <th>Товар</th>
               <th>Штрихкод</th>
-              <th style={{ textAlign: "right" }}>На складе</th>
+              <th style={{ textAlign: "right" }}>{where}</th>
               <th style={{ textAlign: "right" }}>Этикеток</th>
             </tr>
           </thead>
@@ -173,6 +215,13 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
                 </td>
               </tr>
             ))}
+            {!shown.length && (
+              <tr>
+                <td colSpan={5} className="muted">
+                  {onlyHere && club ? "В клубе пока пусто — снимите «Только в наличии» или привезите товар перемещением." : "Ничего не нашли"}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -194,6 +243,12 @@ export function LabelPicker({ rows, missing }: { rows: Row[]; missing: number })
             <input type="checkbox" checked={qr} onChange={(e) => setQr(e.target.checked)} />
             <span>QR-код — ссылка на товар</span>
           </label>
+          {club && (
+            <label className="check" style={{ margin: 0 }}>
+              <input type="checkbox" checked={sign} onChange={(e) => setSign(e.target.checked)} />
+              <span>Подпись клуба</span>
+            </label>
+          )}
         </div>
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           <button type="button" className="btn btn--gold btn--sm" disabled={!total} onClick={niimbot}>

@@ -6,6 +6,7 @@ import "server-only";
 import { inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canBarcode, isEan13 } from "@/lib/barcode";
+import { clubTitle } from "@/lib/club-label";
 import { ensureShopBarcodes } from "@/lib/shop-barcodes";
 import { SITE } from "@/lib/site";
 
@@ -19,6 +20,13 @@ export interface LabelItem {
   price: number; // копейки
   url: string;
   copies: number;
+}
+
+/** Подпись клуба для этикетки: «Клуб «Чемпион» · ул. Красная, 176»; пусто — склад, без подписи */
+export async function labelClub(id: string | null | undefined) {
+  if (!id) return null;
+  const c = await db.query.club.findFirst({ where: (t, { eq }) => eq(t.id, id.slice(0, 64)) });
+  return c ? clubTitle(c) : null;
 }
 
 export function parseLabelQuery(i: string | undefined) {

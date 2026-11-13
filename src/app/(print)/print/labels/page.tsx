@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { barcodeSvg } from "@/lib/barcode";
 import { rub } from "@/lib/format";
 import { qrSvg } from "@/lib/qr";
-import { labelItems, parseLabelQuery } from "@/lib/labels";
+import { labelClub, labelItems, parseLabelQuery } from "@/lib/labels";
 import { requireAdmin } from "@/lib/viewer";
 import { PrintButton } from "./PrintButton";
 
@@ -17,12 +17,14 @@ const FORMATS = {
 } as const;
 
 /** Печать этикеток: штрихкод артикула, название, цена и QR-код — ссылка на товар на сайте */
-export default async function LabelsPrint({ searchParams }: { searchParams: Promise<{ f?: string; p?: string; i?: string; q?: string }> }) {
+export default async function LabelsPrint({ searchParams }: { searchParams: Promise<{ f?: string; p?: string; i?: string; q?: string; c?: string }> }) {
   await requireAdmin();
   const sp = await searchParams;
   const fmt = FORMATS[(sp.f ?? "58x40") as keyof typeof FORMATS] ?? FORMATS["58x40"];
   const withQr = sp.q === "1";
   const items = await labelItems(parseLabelQuery(sp.i));
+  // Подпись клуба мелко внизу — чтобы на складе не перепутать, чьи наклейки
+  const club = await labelClub(sp.c);
   const labels = (
     await Promise.all(
       items.map(async (r) => {
@@ -47,6 +49,7 @@ export default async function LabelsPrint({ searchParams }: { searchParams: Prom
         .lbl__variant { font-size: 8pt; }
         .lbl__code svg { display: block; width: 100%; height: ${fmt.h < 35 ? 9 : 12}mm; }
         .lbl__row { display: flex; justify-content: space-between; align-items: baseline; font-size: 8pt; }
+        .lbl__club { font-size: 6pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin: 0 1mm; flex: 1; text-align: center; }
         .lbl__price { font-size: ${fmt.h < 35 ? 11 : 13}pt; font-weight: 700; }
         .lbl__top { display: flex; gap: 2mm; align-items: flex-start; min-height: 0; }
         .lbl__qr { flex: none; width: ${fmt.h < 35 ? 13 : 16}mm; height: ${fmt.h < 35 ? 13 : 16}mm; }
@@ -83,6 +86,7 @@ export default async function LabelsPrint({ searchParams }: { searchParams: Prom
             <div className="lbl__code" dangerouslySetInnerHTML={{ __html: l.svg }} />
             <div className="lbl__row">
               <span>{l.sku}</span>
+              {club && <span className="lbl__club">{club}</span>}
               {withPrice && !l.qr && <span className="lbl__price">{rub(l.price)}</span>}
             </div>
           </div>

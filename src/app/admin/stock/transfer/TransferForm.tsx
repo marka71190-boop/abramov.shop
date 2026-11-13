@@ -5,6 +5,7 @@
  * Набрали сразу всё, что везёте (с телефона, на складе), проверили и переместили одной кнопкой.
  * Сканер (пистолет или камера) тоже добавляет +1. Набранное не теряется при перезагрузке страницы.
  */
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { PickOption } from "@/components/admin/VariantPicker";
@@ -31,6 +32,8 @@ export function TransferForm({ locations, from, to, options, there }: { location
   const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [note, setNote] = useState("");
   const [res, setRes] = useState<MoveResult>({});
+  // Привезли в клуб — сразу предложить этикетки ровно на привезённое
+  const [labelsHref, setLabelsHref] = useState("");
   const [pending, start] = useTransition();
   const go = (f: string, t: string) => router.replace(`/admin/stock/transfer?from=${f || "wh"}&to=${t || "wh"}`);
   const fromTitle = locations.find((l) => l.id === from)?.title ?? "Склад";
@@ -106,6 +109,7 @@ export function TransferForm({ locations, from, to, options, there }: { location
     start(async () => {
       const r = await transferAction({ from: from || null, to: to || null, note: note.trim() || undefined, lines });
       setRes(r);
+      setLabelsHref(r.ok && to ? `/admin/stock/labels?club=${to}&i=${encodeURIComponent(lines.map((l) => `${l.variantId}:${l.qty}`).join(","))}` : "");
       if (r.ok) {
         setQty({});
         setNote("");
@@ -138,7 +142,16 @@ export function TransferForm({ locations, from, to, options, there }: { location
         </select>
       </div>
 
-      {res.ok && <div className="form-ok">{res.ok}</div>}
+      {res.ok && (
+        <div className="form-ok row" style={{ gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <span>{res.ok}</span>
+          {labelsHref && (
+            <Link href={labelsHref} className="btn btn--sm btn--line">
+              🏷 Этикетки на привезённое
+            </Link>
+          )}
+        </div>
+      )}
 
       {from === to ? (
         <div className="form-error">Откуда и куда — одно место. Выберите другое.</div>
