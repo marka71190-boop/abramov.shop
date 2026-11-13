@@ -1,17 +1,36 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClubLine } from "@/lib/club-low";
-import { normsAction, transferAction, type MoveResult } from "../actions";
+import { normsAction, refillDigestAction, transferAction, type MoveResult } from "../actions";
+
+/** «Прислать список сейчас» — тот же недельный список, что приходит по понедельникам */
+export function DigestButton() {
+  const [res, setRes] = useState<MoveResult>({});
+  const [pending, start] = useTransition();
+  return (
+    <span className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <button type="button" className="btn btn--sm btn--line" disabled={pending} onClick={() => start(async () => setRes(await refillDigestAction()))}>
+        {pending ? "Отправляем…" : "Прислать список сейчас"}
+      </button>
+      {res.ok && <span className="small">{res.ok}</span>}
+    </span>
+  );
+}
 
 /** Заканчивается в клубе: отметить, поправить количество и привезти со склада одной кнопкой */
-export function RefillForm({ clubId, lines, readonly }: { clubId: string; lines: ClubLine[]; readonly: boolean }) {
+export function RefillForm({ clubId, lines, readonly, empty }: { clubId: string; lines: ClubLine[]; readonly: boolean; empty: string }) {
   const router = useRouter();
   const [qty, setQty] = useState<Record<string, string>>(() => Object.fromEntries(lines.map((l) => [l.variantId, l.suggest > 0 ? String(l.suggest) : ""])));
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(lines.map((l) => [l.variantId, l.suggest > 0])));
   const [res, setRes] = useState<MoveResult>({});
   const [pending, start] = useTransition();
   const chosen = lines.filter((l) => on[l.variantId]);
+  const [labelsHref, setLabelsHref] = useState("");
+  const packed = (list: { variantId: string; qty: number }[]) => encodeURIComponent(list.map((l) => `${l.variantId}:${l.qty}`).join(","));
+  // Лист сборки — на отмеченное, с теми количествами, что в полях
+  const pickHref = `/print/pick?club=${clubId}&i=${packed(chosen.map((l) => ({ variantId: l.variantId, qty: Math.trunc(Number(qty[l.variantId])) || 0 })).filter((l) => l.qty > 0))}`;
 
   function submit() {
     setRes({});
@@ -26,9 +45,30 @@ export function RefillForm({ clubId, lines, readonly }: { clubId: string; lines:
     start(async () => {
       const r = await transferAction({ from: null, to: clubId, note: "Пополнение по «заканчивается в клубе»", lines: out });
       setRes(r);
+      setLabelsHref(r.ok ? `/admin/stock/labels?club=${clubId}&i=${packed(out)}` : "");
       if (r.ok) router.refresh();
     });
   }
+
+  const done = res.ok && (
+    <div className="form-ok row" style={{ gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+      <span>{res.ok}</span>
+      {labelsHref && (
+        <Link href={labelsHref} className="btn btn--sm btn--line">
+          🏷 Этикетки на привезённое
+        </Link>
+      )}
+    </div>
+  );
+  if (!lines.length)
+    return (
+      <div className="stack" style={{ gap: 10 }}>
+        {done}
+        <p className="muted" style={{ margin: 0 }}>
+          {empty}
+        </p>
+      </div>
+    );
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -52,7 +92,7 @@ export function RefillForm({ clubId, lines, readonly }: { clubId: string; lines:
                 </td>
                 <td>
                   {l.name}
-                  {l.sku && <div className="muted small">{l.sku}</div>}
+                  <div className="muted small">{[l.sku, l.bin && `ячейка ${l.bin}`].filter(Boolean).join(" · ")}</div>
                 </td>
                 <td style={{ textAlign: "right" }} className={l.qty <= 0 ? "is-loss" : undefined}>
                   {l.qty}
@@ -78,10 +118,18 @@ export function RefillForm({ clubId, lines, readonly }: { clubId: string; lines:
         </table>
       </div>
       {res.error && <div className="form-error">{res.error}</div>}
-      {res.ok && <div className="form-ok">{res.ok}</div>}
-      <button type="button" className="btn btn--gold" style={{ alignSelf: "flex-start" }} disabled={pending || readonly || !chosen.length} onClick={submit}>
-        {pending ? "Перемещаем…" : `Переместить со склада (${chosen.length} поз.)`}
-      </button>
+      {done}
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <button type="button" className="btn btn--line" disabled={!chosen.length} onClick={() => window.open(pickHref, "_blank", "noopener")}>
+          🖨 Лист сборки
+        </button>
+        <button type="button" className="btn btn--gold" disabled={pending || readonly || !chosen.length} onClick={submit}>
+          {pending ? "Перемещаем…" : `Переместить со склада (${chosen.length} поз.)`}
+        </button>
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        Порядок: напечатали лист сборки → собрали по ячейкам → «Переместить» → этикетки на привезённое.
+      </p>
     </div>
   );
 }

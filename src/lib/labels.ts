@@ -18,6 +18,7 @@ export interface LabelItem {
   /** Что кодируем в штрихкод: EAN-13 товара, а если его нет — артикул (Code 128) */
   code: string;
   price: number; // копейки
+  oldPrice: number | null; // зачёркнутая цена — для ценников на витрину
   url: string;
   copies: number;
 }
@@ -53,6 +54,7 @@ export async function labelItems(wanted: { id: string; n: number }[]): Promise<L
       multi,
       sku: sql<string | null>`case when ${multi} > 1 then ${s.productVariant.sku} else coalesce(${s.productVariant.sku}, ${s.product.sku}) end`,
       price: sql<number>`coalesce(${s.productVariant.price}, ${s.product.price})`,
+      oldPrice: sql<number | null>`case when ${s.productVariant.price} is null then ${s.product.oldPrice} end`,
     })
     .from(s.productVariant)
     .innerJoin(s.product, sql`${s.product.id} = ${s.productVariant.productId}`)
@@ -69,6 +71,7 @@ export async function labelItems(wanted: { id: string; n: number }[]): Promise<L
         sku: r.sku,
         code,
         price: Number(r.price),
+        oldPrice: r.oldPrice != null && Number(r.oldPrice) > Number(r.price) ? Number(r.oldPrice) : null,
         // У товара с вариантами ссылка сразу открывает нужный вариант
         url: `${SITE.url}/product/${r.slug}${r.multi > 1 ? `?v=${r.id}` : ""}`,
         copies: w.n,

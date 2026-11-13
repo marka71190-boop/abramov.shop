@@ -32,6 +32,7 @@ export function LabelPicker({ rows, missing, clubs, club, preset }: { rows: Row[
   // В клубе по умолчанию — только то, что там лежит (и то, что пришло отмеченным после перемещения)
   const [onlyHere, setOnlyHere] = useState(!!club);
   const [sign, setSign] = useState(!!club);
+  const [tag, setTag] = useState("big");
   const where = club ? "В клубе" : "На складе";
   const [format, setFormat] = useState("50x30");
   const [price, setPrice] = useState(true);
@@ -54,6 +55,7 @@ export function LabelPicker({ rows, missing, clubs, club, preset }: { rows: Row[
   const items = () => encodeURIComponent(chosen.map((r) => `${r.id}:${n(r.id)}`).join(","));
   const signQ = club && sign ? `&c=${club.id}` : "";
   const print = () => window.open(`/print/labels?f=${format}&p=${price ? 1 : 0}&q=${qr ? 1 : 0}${signQ}&i=${items()}`, "_blank", "noopener");
+  const tags = () => window.open(`/print/pricetags?s=${tag}&q=${qr ? 1 : 0}&i=${items()}`, "_blank", "noopener");
   // NIIMBOT печатает только из своего приложения — отдаём таблицу, приложение само сделает штрихкоды и QR
   const niimbot = () => {
     window.location.href = `/admin/stock/labels/niimbot?p=${price ? 1 : 0}${signQ}&i=${items()}`;
@@ -257,6 +259,15 @@ export function LabelPicker({ rows, missing, clubs, club, preset }: { rows: Row[
           <button type="button" className="btn btn--line btn--sm" disabled={!total} onClick={print}>
             Печать из браузера
           </button>
+          <span className="row" style={{ gap: 4 }}>
+            <button type="button" className="btn btn--line btn--sm" disabled={!total} onClick={tags} title="Лист A4: название, крупная цена и QR-код — на полку рядом с товаром">
+              Ценники на витрину
+            </button>
+            <select className="select" value={tag} onChange={(e) => setTag(e.target.value)} style={{ width: "auto", minHeight: 40 }} aria-label="Размер ценника">
+              <option value="big">крупные · 8 на A4</option>
+              <option value="mid">средние · 21 на A4</option>
+            </select>
+          </span>
         </div>
       </div>
     </div>

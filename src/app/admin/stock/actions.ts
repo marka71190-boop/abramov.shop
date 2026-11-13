@@ -117,6 +117,15 @@ export async function normsAction(raw: unknown): Promise<MoveResult> {
   }
 }
 
+/** Недельное пополнение — прислать список сейчас, не дожидаясь понедельника */
+export async function refillDigestAction(): Promise<MoveResult> {
+  const me = await requireAdmin();
+  const { weeklyRefillDigest } = await import("@/lib/club-low");
+  const n = await weeklyRefillDigest(true);
+  await audit(me.id, "stock.refill_digest", "club", null, { clubs: n });
+  return { ok: n ? `Список отправлен в Telegram и на телефон: клубов — ${n}` : "Во всех клубах всё по норме (или на складе нечем пополнить) — отправлять нечего" };
+}
+
 // ---------- Приёмка сканером: неизвестный штрихкод ----------
 
 const CodeIn = z.string().trim().min(3, "Пустой код").max(64).regex(/^[\p{L}\d\-_.\/ ]+$/u, "Странный код — отсканируйте ещё раз");

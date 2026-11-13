@@ -29,7 +29,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
   const preset = Object.fromEntries(parseLabelQuery(sp.i).map((x) => [x.id, String(x.n)]));
   return (
     <>
-      <h1>Этикетки со штрихкодом</h1>
+      <h1>Этикетки и ценники</h1>
       <div className="row" style={{ gap: 6 }}>
         <Link href="/admin/stock" className="btn btn--sm btn--line">
           ← Остатки

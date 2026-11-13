@@ -149,3 +149,66 @@ test("первая инвентаризация: всем по 100 → попр�
   assert.equal(await p.locator("table tbody tr").count(), 0, "после сохранения черновик очищен");
   assert.deepEqual(p.errors, []);
 });
+
+test("ячейки: вписать ячейку товару, открыть её как по QR с полки, положить второй товар сканером, наклейки на полки", async () => {
+  const p = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(p);
+  const [mel, kiy] = [await variant(E2E.products[0].slug), await variant(E2E.products[1].slug)];
+  await p.goto(`${B}/admin/stock/bins`);
+  await p.getByLabel(`Ячейка: ${E2E.products[0].name}`).fill("a 3");
+  await p.click("button:has-text('Сохранить ячейки (1)')");
+  await p.waitForSelector("text=Сохранено: 1 поз.");
+  assert.equal((await q("select bin from product_variant where id = $1", [mel.id]))[0].bin, "A-3", "код приведён к виду A-3");
+
+  await p.goto(`${B}/admin/stock/bins/A-3`);
+  await p.waitForSelector(`td:has-text('${E2E.products[0].name}')`);
+  await p.locator("h1").click();
+  await wedgeScan(p, kiy.barcode);
+  await p.waitForSelector("text=теперь в ячейке A-3");
+  assert.equal((await q("select bin from product_variant where id = $1", [kiy.id]))[0].bin, "A-3");
+  await p.getByLabel(`Убрать из ячейки: ${E2E.products[1].name}`).click();
+  await p.waitForSelector("text=убрали из ячейки");
+  assert.equal((await q("select bin from product_variant where id = $1", [kiy.id]))[0].bin, null);
+
+  await p.goto(`${B}/print/bins?f=58x40&c=${encodeURIComponent("A-1..A-3, Б-1")}`);
+  assert.equal(await p.locator(".bin").count(), 4, "A-1..A-3 развернулось в три наклейки");
+  assert.equal(await p.locator(".bin__qr svg").count(), 4);
+  assert.deepEqual(p.errors, []);
+});
+
+test("пополнение до нормы: список, «прислать сейчас», лист сборки по ячейкам, перемещение → этикетки; ценники на витрину", async () => {
+  const p = await page(b, { viewport: { width: 1100, height: 900 } });
+  await loginOwner(p);
+  const mel = await variant(E2E.products[0].slug);
+  const [{ qty }] = await q("select qty from club_stock where club_id = $1 and variant_id = $2", [E2E.club.id, mel.id]);
+  // Норма на 4 больше остатка: «заканчивается» (половина нормы) ещё не наступило, а до нормы — не хватает
+  await q("update club_stock set min_qty = $3 where club_id = $1 and variant_id = $2", [E2E.club.id, mel.id, qty + 4]);
+  await p.goto(`${B}/admin/stock/refill?club=${E2E.club.id}&m=norm`);
+  assert.equal(await p.getByLabel("Сколько привезти").first().inputValue(), "4");
+  await p.waitForSelector("text=ячейка A-3");
+  await p.click("button:has-text('Прислать список сейчас')");
+  await p.waitForSelector("text=клубов — 1");
+
+  const pick = await p.context().newPage();
+  await pick.goto(`${B}/print/pick?club=${E2E.club.id}&i=${encodeURIComponent(`${mel.id}:4`)}`);
+  const row = await pick.locator(".pick tbody tr").first().innerText();
+  assert.match(row, /A-3/);
+  assert.match(row, new RegExp(E2E.products[0].name));
+  await pick.close();
+
+  await p.click("button:has-text('Переместить со склада')");
+  await p.waitForSelector("a:has-text('Этикетки на привезённое')");
+  assert.equal((await q("select qty from club_stock where club_id = $1 and variant_id = $2", [E2E.club.id, mel.id]))[0].qty, qty + 4);
+  await p.click("a:has-text('Этикетки на привезённое')");
+  await p.waitForSelector("text=Отметили привезённое");
+  assert.equal(await p.getByLabel(`Сколько этикеток: ${E2E.products[0].name}`).inputValue(), "4");
+
+  // Ценники на витрину — на то же отмеченное
+  const [tags] = await Promise.all([p.context().waitForEvent("page"), p.click("button:has-text('Ценники на витрину')")]);
+  await tags.waitForSelector(".pt");
+  assert.equal(await tags.locator(".pt").count(), 4);
+  assert.match(await tags.locator(".pt__price").first().innerText(), /500/);
+  assert.equal(await tags.locator(".pt__qr svg").count(), 4);
+  await tags.close();
+  assert.deepEqual(p.errors, []);
+});

@@ -348,6 +348,7 @@ export const productVariant = pgTable("product_variant", {
   barcode: text("barcode").unique(),
   price: integer("price"), // если отличается от цены товара, копейки
   stock: integer("stock").default(0).notNull(),
+  bin: text("bin"), // ячейка на складе: «A-3» — где лежит; наклейка с QR на полке открывает её содержимое
   costPrice: integer("cost_price"), // закупочная цена за 1 шт., копейки (средняя по приходам); пусто — не указана
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),

@@ -53,7 +53,10 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             Заказы поставщикам
           </Link>
           <Link href="/admin/stock/labels" className="btn btn--sm btn--line">
-            Этикетки
+            Этикетки и ценники
+          </Link>
+          <Link href="/admin/stock/bins" className="btn btn--sm btn--line">
+            Ячейки
           </Link>
           <Link href="/admin/stock/history" className="btn btn--sm btn--line">
             Журнал движений

@@ -25,15 +25,17 @@ export interface ClubLine {
   minQty: number | null;
   warehouse: number; // свободно на складе
   low: boolean;
+  short: boolean; // меньше нормы — войдёт в недельное пополнение
+  bin: string | null; // ячейка на складе — лист сборки идёт по полкам
   suggest: number; // сколько предложить привезти (не больше, чем есть на складе)
 }
 
 /** Товары клуба: всё, что там было или для чего задана норма, плюс то, что есть на складе */
 export async function clubLines(clubId: string): Promise<ClubLine[]> {
-  const rows = await db.execute<{ id: string; name: string; sku: string | null; stock: number; qty: number | null; min_qty: number | null }>(sql`
+  const rows = await db.execute<{ id: string; name: string; sku: string | null; stock: number; qty: number | null; min_qty: number | null; bin: string | null }>(sql`
     select v.id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
-      coalesce(v.sku, p.sku) as sku, v.stock, cs.qty, cs.min_qty
+      coalesce(v.sku, p.sku) as sku, v.stock, v.bin, cs.qty, cs.min_qty
     from product_variant v join product p on p.id = v.product_id
     left join club_stock cs on cs.variant_id = v.id and cs.club_id = ${clubId}
     where v.is_active and (cs.variant_id is not null or v.stock > 0)
@@ -44,7 +46,8 @@ export async function clubLines(clubId: string): Promise<ClubLine[]> {
     const warehouse = Number(r.stock);
     const tracked = r.qty != null;
     const low = tracked && qty <= lowAt(minQty);
-    return { variantId: r.id, name: r.name, sku: r.sku, qty, minQty, warehouse, low, suggest: Math.min(refillQty(qty, minQty), Math.max(warehouse, 0)) };
+    const short = tracked && minQty != null && qty < minQty;
+    return { variantId: r.id, name: r.name, sku: r.sku, qty, minQty, warehouse, low, short, bin: r.bin, suggest: Math.min(refillQty(qty, minQty), Math.max(warehouse, 0)) };
   });
 }
 
@@ -107,6 +110,44 @@ export async function checkClubLow(variantIds?: string[]) {
     }).catch(() => {});
   }
   return fresh.length;
+}
+
+/**
+ * Недельное пополнение: по понедельникам в 10:00 (Москва) — по каждому клубу готовый список
+ * «что отвезти до нормы» с кнопкой «Собрать». Проверка — раз в 10 минут, отправка — один раз в день.
+ * force — прислать сейчас (кнопка на странице «Пополнить клуб»).
+ */
+export async function weeklyRefillDigest(force = false) {
+  if (!force) {
+    const now = new Date();
+    const part = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Moscow", ...o }).format(now);
+    if (part({ weekday: "short" }) !== "Mon" || Number(part({ hour: "numeric", hourCycle: "h23" })) !== 10) return 0;
+    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Moscow" }).format(now);
+    // Отметку ставим до отправки: два экземпляра сайта не пришлют список дважды
+    const r = await db.execute(sql`
+      insert into setting (key, value, updated_at) values ('club-refill-weekly', ${JSON.stringify({ day })}::jsonb, now())
+      on conflict (key) do update set value = excluded.value, updated_at = now()
+      where setting.value ->> 'day' is distinct from ${day}
+      returning key`);
+    if (!r.rows.length) return 0;
+  }
+  const clubs = await db.query.club.findMany({ where: and(eq(s.club.ownStock, true), eq(s.club.isActive, true)) });
+  const { esc, notifyAdmins } = await import("@/lib/telegram");
+  let sent = 0;
+  for (const c of clubs) {
+    const need = (await clubLines(c.id)).filter((l) => l.short || l.low);
+    const can = need.filter((l) => l.suggest > 0);
+    if (!can.length) continue;
+    const units = can.reduce((a, l) => a + l.suggest, 0);
+    const none = need.length - can.length;
+    const line = (l: ClubLine) => `• ${esc(l.name)} — <b>${l.suggest} шт</b>${l.bin ? ` (ячейка ${esc(l.bin)})` : ""}`;
+    await notifyAdmins(
+      `🚚 Пополнение на неделю: ${esc(clubTitle(c))}\nДо нормы: <b>${can.length} поз., ${units} шт</b>${none ? `\nНет на складе: ${none} поз.` : ""}\n${can.slice(0, 20).map(line).join("\n")}${can.length > 20 ? `\n…и ещё ${can.length - 20}` : ""}`,
+      { text: "Собрать", url: `${SITE.url}/admin/stock/refill?club=${c.id}&m=norm` },
+    ).catch(() => {});
+    sent++;
+  }
+  return sent;
 }
 
 /** Сколько позиций заканчивается во всех клубах — для счётчика в меню */
