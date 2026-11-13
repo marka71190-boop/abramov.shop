@@ -9,19 +9,15 @@ const toRub = (kop: number) => (kop ? String(kop / 100).replace(".", ",") : "");
 
 export interface PayRow {
   name: string;
-  perShift: number;
-  perHour: number;
   percent: number;
   ownPercent: boolean;
   due: number;
   pays: { id: string; kind: string; amount: number; note: string | null; at: string }[];
 }
 
-/** Ставка сотрудника и его выплаты за месяц */
+/** Процент сотрудника и его выплаты за месяц */
 export function StaffPay({ row, month, owner, commonPercent }: { row: PayRow; month: string; owner: boolean; commonPercent: number }) {
   const router = useRouter();
-  const [perShift, setPerShift] = useState(toRub(row.perShift));
-  const [perHour, setPerHour] = useState(toRub(row.perHour));
   const [percent, setPercent] = useState(row.ownPercent ? String(row.percent).replace(".", ",") : "");
   const [kind, setKind] = useState("PAYOUT");
   const [amount, setAmount] = useState("");
@@ -43,19 +39,11 @@ export function StaffPay({ row, month, owner, commonPercent }: { row: PayRow; mo
       {owner && (
         <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           <label className="field" style={{ margin: 0 }}>
-            За смену, ₽
-            <input className="input" inputMode="decimal" style={{ width: 110 }} value={perShift} placeholder="0" onChange={(e) => setPerShift(e.target.value)} aria-label={`Ставка за смену: ${row.name}`} />
+            Процент от выручки, %
+            <input className="input" inputMode="decimal" style={{ width: 110 }} value={percent} placeholder={String(commonPercent).replace(".", ",")} onChange={(e) => setPercent(e.target.value)} aria-label={`Процент от выручки: ${row.name}`} />
           </label>
-          <label className="field" style={{ margin: 0 }}>
-            За час, ₽
-            <input className="input" inputMode="decimal" style={{ width: 110 }} value={perHour} placeholder="0" onChange={(e) => setPerHour(e.target.value)} aria-label={`Ставка за час: ${row.name}`} />
-          </label>
-          <label className="field" style={{ margin: 0 }}>
-            С продаж, %
-            <input className="input" inputMode="decimal" style={{ width: 110 }} value={percent} placeholder={String(commonPercent).replace(".", ",")} onChange={(e) => setPercent(e.target.value)} aria-label={`Процент с продаж: ${row.name}`} />
-          </label>
-          <button type="button" className="btn btn--line btn--sm" disabled={pending} onClick={() => act(() => saveRateAction({ name: row.name, perShift, perHour, percent }))}>
-            Сохранить ставку
+          <button type="button" className="btn btn--line btn--sm" disabled={pending} onClick={() => act(() => saveRateAction({ name: row.name, percent }))}>
+            Сохранить процент
           </button>
         </div>
       )}

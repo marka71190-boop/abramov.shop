@@ -42,9 +42,7 @@ export default async function KassaPayPage({ searchParams }: { searchParams: Pro
   const pc = (v: number) => String(v).replace(".", ",");
   const lines = row
     ? [
-        row.perShift > 0 && { label: `Смены: ${row.shifts} × ${rub(row.perShift)}`, value: row.shiftPay },
-        row.perHour > 0 && { label: `Часы: ${pc(row.hours)} × ${rub(row.perHour)}`, value: row.hourPay },
-        row.percent > 0 && { label: `Процент с продаж: ${pc(row.percent)} % от ${rub(Math.max(0, row.net))}`, value: row.percentPay },
+        row.percent > 0 && { label: `${pc(row.percent)} % от выручки ${rub(Math.max(0, row.net))}`, value: row.percentPay },
         row.bonus > 0 && { label: "Премии", value: row.bonus },
         row.fine > 0 && { label: "Штрафы", value: -row.fine },
       ].filter((x): x is { label: string; value: number } => !!x)
@@ -85,7 +83,7 @@ export default async function KassaPayPage({ searchParams }: { searchParams: Pro
           <div className="panel stack" style={{ gap: 8 }}>
             <b>За что начислено</b>
             {lines.length === 0 ? (
-              <span className="muted">Ставка пока не задана — её выставляет руководитель.</span>
+              <span className="muted">Процент пока не задан — его выставляет руководитель.</span>
             ) : (
               lines.map((l) => (
                 <div key={l.label} className="row" style={{ justifyContent: "space-between", gap: 12 }}>
@@ -96,7 +94,7 @@ export default async function KassaPayPage({ searchParams }: { searchParams: Pro
             )}
             <span className="muted small">
               Смен: {row.shifts} · часов: {pc(row.hours)} · чеков: {row.checks} · продано {rub(row.sold)}
-              {row.returned ? ` · возвраты ${rub(row.returned)}` : ""}. Открытая смена считается по текущее время.
+              {row.returned ? ` · возвраты ${rub(row.returned)}` : ""}. Выручка — продажи товара после скидки минус возвраты.
             </span>
           </div>
           {row.pays.length > 0 && (

@@ -1,5 +1,5 @@
 {
-  "id": "61b658e5-b6b3-4163-a4ec-b03d01410acd",
+  "id": "5471947c-908b-458c-918b-2d9a6e3c6e37",
   "prevId": "e494ce49-86c1-4a36-9957-7f3b145c8e1b",
   "version": "7",
   "dialect": "postgresql",
@@ -8373,20 +8373,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "per_shift": {
-          "name": "per_shift",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "per_hour": {
-          "name": "per_hour",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "percent": {
           "name": "percent",

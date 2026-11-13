@@ -1735,15 +1735,13 @@ export const posShift = pgTable(
 );
 
 /**
- * Ставка сотрудника кассы: за смену, за час и процент с продаж — в любом сочетании.
+ * Ставка сотрудника кассы: процент от его выручки.
  * Сотрудник — по имени на смене (как в отчёте «Продажи сотрудников»): key — имя без регистра и «ё».
  */
 export const staffRate = pgTable("staff_rate", {
   key: text("key").primaryKey(),
   name: text("name").notNull(),
-  perShift: integer("per_shift").default(0).notNull(), // за смену, копейки
-  perHour: integer("per_hour").default(0).notNull(), // за час, копейки
-  percent: doublePrecision("percent"), // % с продаж; пусто — общий процент из настроек
+  percent: doublePrecision("percent"), // % от выручки; пусто — общий процент из настроек
   updatedAt: updatedAt(),
 });
 

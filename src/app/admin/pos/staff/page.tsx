@@ -10,7 +10,7 @@ import { PayVisible, StaffPay } from "./StaffPay";
 export const metadata: Metadata = { title: "Продажи и зарплата сотрудников" };
 export const dynamic = "force-dynamic";
 
-/** Выручка кассы по сотрудникам за месяц и зарплата: ставка за смену, за час, процент, премии, штрафы, выплаты */
+/** Выручка кассы по сотрудникам за месяц и зарплата: процент от выручки, премии, штрафы, выплаты */
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const me = await requireAdmin("MONEY");
   const [{ range, rows }, settings] = await Promise.all([staffReport((await searchParams).m ?? ""), getSettings()]);
@@ -19,8 +19,6 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   const sum = rows.reduce((a, r) => ({ accrued: a.accrued + r.accrued, paid: a.paid + r.paid, due: a.due + r.due }), { accrued: 0, paid: 0, due: 0 });
   const owner = me.role === "OWNER";
   const pc = (v: number) => String(v).replace(".", ",");
-  /** «2 000 ₽/смена · 150 ₽/час · 3 %» */
-  const rateText = (r: (typeof rows)[number]) => [r.perShift && `${rub(r.perShift)}/смена`, r.perHour && `${rub(r.perHour)}/час`, r.percent > 0 && `${pc(r.percent)} %`].filter(Boolean).join(" · ");
 
   return (
     <>
@@ -86,7 +84,9 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                     {r.account && <div className="muted small">телефон кассы: {r.account}</div>}
                     {r.clubs.length > 0 && <div className="muted small">{r.clubs.join("; ")}</div>}
                     {r.gifts > 0 && <div className="small">🎁 сертификаты: {rub(r.gifts)}</div>}
-                    <div className="small">{rateText(r) ? `Ставка: ${rateText(r)}` : <span className="is-loss">ставка не задана</span>}</div>
+                    <div className="small">
+                      {r.percent > 0 ? `Зарплата: ${pc(r.percent)} % от выручки${r.ownPercent ? "" : " (общий)"}` : <span className="is-loss">процент не задан</span>}
+                    </div>
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {r.shifts} · {String(r.hours).replace(".", ",")}
@@ -103,7 +103,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                   <td style={{ textAlign: "right" }}>
                     <b>{rub(r.accrued)}</b>
                     <div className="muted small">
-                      {[r.shiftPay && `смены ${rub(r.shiftPay)}`, r.hourPay && `часы ${rub(r.hourPay)}`, r.percentPay && `% ${rub(r.percentPay)}`, r.bonus && `премии ${rub(r.bonus)}`, r.fine && `штрафы −${rub(r.fine)}`]
+                      {[(r.bonus > 0 || r.fine > 0) && `${pc(r.percent)} % — ${rub(r.percentPay)}`, r.bonus && `премии ${rub(r.bonus)}`, r.fine && `штрафы −${rub(r.fine)}`]
                         .filter(Boolean)
                         .join(" · ")}
                     </div>
@@ -116,8 +116,8 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                 <tr key={`${r.key}:pay`}>
                   <td colSpan={10} style={{ paddingTop: 0, borderTop: 0 }}>
                     <details>
-                      <summary className="small">Ставка и выплаты{r.pays.length ? ` · записей: ${r.pays.length}` : ""}</summary>
-                      <StaffPay key={`${r.key}:${range.key}`} row={{ name: r.name, perShift: r.perShift, perHour: r.perHour, percent: r.percent, ownPercent: r.ownPercent, due: r.due, pays: r.pays }} month={range.key} owner={owner} commonPercent={pct} />
+                      <summary className="small">Процент и выплаты{r.pays.length ? ` · записей: ${r.pays.length}` : ""}</summary>
+                      <StaffPay key={`${r.key}:${range.key}`} row={{ name: r.name, percent: r.percent, ownPercent: r.ownPercent, due: r.due, pays: r.pays }} month={range.key} owner={owner} commonPercent={pct} />
                     </details>
                   </td>
                 </tr>,
@@ -130,8 +130,8 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       <div className="panel stack" style={{ gap: 8 }}>
         <b>Как считается зарплата</b>
         <span className="small">
-          Начислено = смены × ставка за смену + часы × ставка за час + процент с «Итого» + премии − штрафы. Ставку каждому задаёт владелец — в строке сотрудника,
-          «Ставка и выплаты». Часы — от открытия до закрытия смены. Выплатили деньги — запишите выплату: «К выплате» уменьшится.
+          Начислено = процент от выручки сотрудника + премии − штрафы. Выручка — колонка «Итого»: продажи товара после скидки минус возвраты. Процент каждому
+          задаёт владелец — в строке сотрудника, «Процент и выплаты»; не задан — действует общий. Выплатили деньги — запишите выплату: «К выплате» уменьшится.
         </span>
         {owner && <PayVisible on={settings.finance.staffPayVisible} />}
       </div>
@@ -139,7 +139,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       {me.role === "OWNER" && (
         <form action={staffPercentAction} className="panel row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           <label className="field" style={{ margin: 0 }}>
-            Общий процент с продаж, % — тем, кому не задан свой
+            Общий процент от выручки, % — тем, кому не задан свой
             <input className="input" name="percent" inputMode="decimal" defaultValue={String(pct).replace(".", ",")} style={{ width: 100 }} />
           </label>
           <button className="btn btn--line btn--sm">Сохранить</button>

@@ -13,8 +13,6 @@ CREATE TABLE "staff_pay" (
 CREATE TABLE "staff_rate" (
 	"key" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
-	"per_shift" integer DEFAULT 0 NOT NULL,
-	"per_hour" integer DEFAULT 0 NOT NULL,
 	"percent" double precision,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

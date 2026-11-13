@@ -1,6 +1,6 @@
 /**
  * Продажи сотрудников за месяц: кто сколько продал в кассе (товары, без сертификатов), сколько вернули,
- * смены и часы, процент с продаж. Сотрудник — «кто на смене» (общий телефон кассы) или аккаунт кассира.
+ * смены и часы, зарплата — процент от выручки. Сотрудник — «кто на смене» (общий телефон кассы) или аккаунт кассира.
  */
 import "server-only";
 import { and, desc, eq, gte, lt } from "drizzle-orm";
@@ -21,16 +21,12 @@ export interface StaffRow {
   net: number; // sold − returned
   gifts: number; // продали сертификатов, копейки (в процент не входит)
   // Зарплата за месяц
-  perShift: number; // ставка за смену, копейки
-  perHour: number; // ставка за час, копейки
-  percent: number; // % с продаж (свой или общий)
+  percent: number; // % от выручки (свой или общий)
   ownPercent: boolean; // процент задан лично этому сотруднику
-  shiftPay: number;
-  hourPay: number;
-  percentPay: number;
+  percentPay: number; // процент от выручки, копейки
   bonus: number; // премии
   fine: number; // штрафы
-  accrued: number; // начислено: смены + часы + процент + премии − штрафы
+  accrued: number; // начислено: процент от выручки + премии − штрафы
   paid: number; // уже выплатили
   due: number; // к выплате
   pays: { id: string; kind: string; amount: number; note: string | null; at: string }[];
@@ -40,7 +36,7 @@ export interface StaffRow {
 export const staffKey = (name: string) => name.trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
 export const PAY_KIND: Record<string, string> = { PAYOUT: "Выплата", BONUS: "Премия", FINE: "Штраф" };
 
-const NO_PAY = { perShift: 0, perHour: 0, percent: 0, ownPercent: false, shiftPay: 0, hourPay: 0, percentPay: 0, bonus: 0, fine: 0, accrued: 0, paid: 0, due: 0 };
+const NO_PAY = { percent: 0, ownPercent: false, percentPay: 0, bonus: 0, fine: 0, accrued: 0, paid: 0, due: 0 };
 
 /** Границы месяца по Москве: «2026-11» */
 export function monthRange(m: string) {
@@ -129,11 +125,9 @@ export async function staffReport(m: string) {
       const hours = Math.round(w.hours * 10) / 10;
       const net = w.sold - w.returned;
       const percent = rate?.percent ?? common;
-      const shiftPay = w.shifts * (rate?.perShift ?? 0);
-      const hourPay = Math.round(hours * (rate?.perHour ?? 0));
       const percentPay = Math.round((Math.max(0, net) * percent) / 100);
-      const accrued = shiftPay + hourPay + percentPay + w.bonus - w.fine;
-      return { ...w, hours, net, perShift: rate?.perShift ?? 0, perHour: rate?.perHour ?? 0, percent, ownPercent: rate?.percent != null, shiftPay, hourPay, percentPay, accrued, due: accrued - w.paid };
+      const accrued = percentPay + w.bonus - w.fine;
+      return { ...w, hours, net, percent, ownPercent: rate?.percent != null, percentPay, accrued, due: accrued - w.paid };
     })
     .sort((a, b) => b.net - a.net || b.accrued - a.accrued);
   return { range: r, rows: list, commonPercent: common };

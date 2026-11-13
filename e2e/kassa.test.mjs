@@ -114,19 +114,22 @@ test("продажи сотрудников: месяц, чеки и выруч�
   assert.deepEqual(o.errors, []);
 });
 
-test("зарплата кассира: владелец задаёт ставку и премию → кассир видит начисление в приложении → выплата обнуляет «к выплате»", async () => {
+test("зарплата кассира: владелец задаёт процент от выручки и премию → кассир видит начисление в приложении → выплата обнуляет «к выплате»", async () => {
   const o = await page(b, { viewport: { width: 1200, height: 900 } });
   await loginOwner(o);
   await o.goto(`${B}/admin/pos/staff`);
   const who = "Тестовый кассир";
-  await o.locator("tr", { has: o.getByLabel(`Ставка за смену: ${who}`) }).locator("summary").click();
-  await o.getByLabel(`Ставка за смену: ${who}`).fill("2000");
-  await o.getByLabel(`Процент с продаж: ${who}`).fill("5");
-  await o.click("button:has-text('Сохранить ставку')");
-  await o.waitForSelector("text=Ставка сохранена");
-  const [rate] = await q("select per_shift, per_hour, percent from staff_rate where key = 'тестовый кассир'");
-  assert.deepEqual({ ...rate }, { per_shift: 200000, per_hour: 0, percent: 5 });
-  await o.waitForSelector("text=2 000 ₽/смена · 5 %");
+  await o.locator("tr", { has: o.getByLabel(`Процент от выручки: ${who}`) }).locator("summary").click();
+  await o.getByLabel(`Процент от выручки: ${who}`).fill("5");
+  await o.click("button:has-text('Сохранить процент')");
+  await o.waitForSelector("text=Процент сохранён");
+  assert.equal((await q("select percent from staff_rate where key = 'тестовый кассир'"))[0].percent, 5);
+  await o.waitForSelector("text=Зарплата: 5 % от выручки");
+  // Начислено = 5 % от «Итого» сотрудника
+  const [net] = await q("select coalesce(sum(subtotal - discount), 0)::int as n from pos_sale s join pos_shift h on h.id = s.shift_id where s.status = 'PAID' and s.kind = 'SALE' and h.staff_name = $1", [who]);
+  const [back] = await q("select coalesce(sum(r.amount + r.bonus_back + r.gift_back), 0)::int as n from pos_return r join pos_sale s on s.id = r.sale_id join pos_shift h on h.id = s.shift_id where h.staff_name = $1", [who]);
+  const pay = Math.round(((net.n - back.n) * 5) / 100);
+  assert.ok(pay > 0, "у кассира есть выручка");
 
   // Блок «Ставка и выплаты» остался открытым
   await o.getByLabel(`Что записать: ${who}`).selectOption("BONUS");
@@ -142,11 +145,10 @@ test("зарплата кассира: владелец задаёт ставк�
   await k.waitForSelector("h1:has-text('Моя зарплата')");
   const text = await k.locator("main").innerText();
   assert.match(text, /Тестовый кассир/);
-  assert.match(text, /Смены: \d+ × 2\s000\s₽/);
-  assert.match(text, /Процент с продаж: 5 %/);
+  assert.match(text, /5 % от выручки/);
   assert.match(text, /за турнир/);
   const due = (await k.locator(".stat", { hasText: "К выплате" }).locator(".stat__value").innerText()).replace(/\s/g, "");
-  assert.ok(Number.parseInt(due) >= 2500, `к выплате хотя бы смена и премия: ${due}`);
+  assert.ok(Math.abs(Number.parseInt(due) * 100 - (pay + 50000)) < 100, `к выплате = 5 % от выручки + премия 500 ₽: ${due}, ждали ${(pay + 50000) / 100}`);
 
   // Владелец выплачивает всё — у кассира «к выплате» ноль
   await o.reload();

@@ -20,27 +20,23 @@ export async function staffPercentAction(fd: FormData) {
 type Res = { ok?: string; error?: string };
 const rubToKop = (v: unknown) => Math.round(Number(String(v ?? "").replace(/\s/g, "").replace(",", ".")) * 100);
 
-/** Ставка сотрудника: за смену, за час, процент с продаж (пусто — общий). Только владелец */
-export async function saveRateAction(raw: { name: string; perShift: string; perHour: string; percent: string }): Promise<Res> {
+/** Ставка сотрудника: процент от его выручки (пусто — общий). Только владелец */
+export async function saveRateAction(raw: { name: string; percent: string }): Promise<Res> {
   const me = await requireAdmin("OWNER");
   const { db, schema: s } = await import("@/db");
   const { staffKey } = await import("@/lib/pos-staff");
   const name = String(raw.name ?? "").trim().slice(0, 80);
   const key = staffKey(name);
   if (!key) return { error: "Сотрудник не найден" };
-  const perShift = raw.perShift.trim() ? rubToKop(raw.perShift) : 0;
-  const perHour = raw.perHour.trim() ? rubToKop(raw.perHour) : 0;
   const percent = raw.percent.trim() ? Math.round(Number(raw.percent.replace(",", ".")) * 10) / 10 : null;
-  if (!(perShift >= 0 && perShift <= 10_000_000)) return { error: "Ставка за смену — число от 0 до 100 000 ₽" };
-  if (!(perHour >= 0 && perHour <= 1_000_000)) return { error: "Ставка за час — число от 0 до 10 000 ₽" };
   if (percent != null && !(percent >= 0 && percent <= 50)) return { error: "Процент — от 0 до 50" };
   await db
     .insert(s.staffRate)
-    .values({ key, name, perShift, perHour, percent })
-    .onConflictDoUpdate({ target: s.staffRate.key, set: { name, perShift, perHour, percent, updatedAt: new Date() } });
-  await audit(me.id, "staff.rate", "staff", key, { perShift, perHour, percent });
+    .values({ key, name, percent })
+    .onConflictDoUpdate({ target: s.staffRate.key, set: { name, percent, updatedAt: new Date() } });
+  await audit(me.id, "staff.rate", "staff", key, { percent });
   revalidatePath("/admin/pos/staff");
-  return { ok: "Ставка сохранена" };
+  return { ok: percent == null ? "Свой процент убран — действует общий" : "Процент сохранён" };
 }
 
 /** Выплата, премия или штраф за месяц. Владелец и директор */
