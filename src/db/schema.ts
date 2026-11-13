@@ -383,6 +383,26 @@ export const productAttribute = pgTable(
   (t) => [primaryKey({ columns: [t.productId, t.attributeId] }), index("product_attribute_attr_idx").on(t.attributeId)],
 );
 
+/**
+ * Карточка товара у поставщика («Фортуна», fortu.ru): что нашли и какие характеристики там указаны.
+ * По ней заполняются характеристики и пишется описание. Тексты и фото поставщика не копируются.
+ */
+export const supplierCard = pgTable("supplier_card", {
+  productId: text("product_id")
+    .primaryKey()
+    .references(() => product.id, { onDelete: "cascade" }),
+  status: text("status").notNull(), // FOUND — нашли, ждёт проверки; APPLIED — заполнили; NONE — не нашли; SKIP — не трогать
+  url: text("url"),
+  code: text("code"), // код товара у поставщика
+  title: text("title"),
+  score: integer("score").default(0).notNull(), // насколько название совпало с нашим, 0–100
+  specs: jsonb("specs").$type<{ name: string; value: string }[]>().default([]).notNull(),
+  rrp: integer("rrp"), // рекомендованная розничная цена, копейки
+  note: text("note"), // почему не нашли или что пошло не так
+  fetchedAt: ts("fetched_at"),
+  updatedAt: updatedAt(),
+});
+
 /** Комплект со скидкой: если в корзине все товары комплекта — скидка на них */
 export const bundle = pgTable("bundle", {
   id: id(),

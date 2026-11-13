@@ -19,6 +19,8 @@ export OWNER_EMAIL=owner@e2e.test
 export PASSKEY_ORIGIN=http://localhost:3000 TRUSTED_ORIGINS=http://localhost:3000
 # Робокасса в тестовом режиме (выдуманные пароли, на настоящую Робокассу запросы не уходят) и курсы ЦБ из заглушки
 export ROBOKASSA_LOGIN=e2e ROBOKASSA_PASSWORD1=e2e-pass1 ROBOKASSA_PASSWORD2=e2e-pass2 ROBOKASSA_TEST=1 CBR_RATES_URL=http://127.0.0.1:4010/cbr
+# Сайт поставщика для заполнения карточек — заглушка
+export FORTU_URL=http://127.0.0.1:4010/fortu
 export NODE_ENV=production
 
 pids=()

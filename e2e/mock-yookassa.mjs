@@ -23,6 +23,25 @@ http
         payments.set(id, pay);
         return send(200, pay);
       }
+      // Сайт поставщика (как fortu.ru): поиск по названию, переход по коду, карточка с характеристиками
+      if (req.url.startsWith("/fortu/")) {
+        const html = (code, text, headers = {}) => (res.writeHead(code, { "Content-Type": "text/html; charset=utf-8", ...headers }), res.end(text));
+        const card = (title, code, rrp, specs) =>
+          `<html><body><div class="product-name">\n<h1>${title}</h1></div>Код товара: <span class="product_code_by_font">${code}</span>` +
+          `<h3>Рекомендованная розничная цена: <div style="display:inline;">${rrp}</div> <span class="rub">&#8381;</span></h3><div class="key-propertys">` +
+          specs.map(([n, v]) => `<div class="key-propertys-row"><span class="key-propertys-name">${n}</span>\n<span class="key-propertys-value">${v}</span></div>`).join("") +
+          `</div><h2 class="p_h2">Подробное описание</h2><div class="clear_styles">ЧУЖОЙ ТЕКСТ ПОСТАВЩИКА — копировать нельзя</div></body></html>`;
+        const tile = (path, title) => `<a href="${path}" title="${title}" class="product-image" style="display: block;"><img src="/x.jpg" /></a>`;
+        const path = decodeURIComponent(req.url.slice("/fortu".length));
+        if (path === "/product/mel_e2e")
+          return html(200, card("Мел тестовый E2E 1шт.", "00777", "550", [["Бренд", "Taom (Финляндия)"], ["Страна производства", "Финляндия"], ["Цвет", "Green (зеленый)"], ["Вес брутто", "45 г"], ["Упаковка", "коробка картонная"], ["Особенность", "не пачкает сукно"], ["Форма", "круглая"]]));
+        if (path === "/product/kiy_e2e")
+          return html(200, card("Кий Fortuna Тест 2PC Пирамида", "12345", "30 000", [["Длина", "160 см"], ["Вес кия", "700 г"], ["Кол-во частей", "2РС (2-х составной)"], ["Материал шафта", "канадский клен"], ["Тип игры", "пирамида"]]));
+        if (path === "/search/12345") return html(302, "", { Location: "http://fortu.ru/product/kiy_e2e" });
+        if (path === "/search/Мел тестовый E2E") return html(200, `<div class="products-found">${tile("/product/mel_other", "Мел другой Blue 12шт.")}${tile("/product/mel_e2e", "Мел тестовый E2E 1шт.")}</div>`);
+        if (path.startsWith("/search/")) return html(200, "<div>По данному запросу ничего не найдено...</div>");
+        return html(404, "404");
+      }
       // Курсы ЦБ для счёта в валюте (как https://www.cbr.ru/scripts/XML_daily.asp)
       if (req.method === "GET" && req.url.startsWith("/cbr")) {
         res.writeHead(200, { "Content-Type": "application/xml" });
