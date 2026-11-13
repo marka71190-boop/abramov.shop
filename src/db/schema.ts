@@ -1734,6 +1734,36 @@ export const posShift = pgTable(
   (t) => [index("pos_shift_seller_idx").on(t.sellerId), uniqueIndex("pos_shift_one_open").on(t.sellerId).where(sql`status = 'OPEN'`)],
 );
 
+/**
+ * Ставка сотрудника кассы: за смену, за час и процент с продаж — в любом сочетании.
+ * Сотрудник — по имени на смене (как в отчёте «Продажи сотрудников»): key — имя без регистра и «ё».
+ */
+export const staffRate = pgTable("staff_rate", {
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+  perShift: integer("per_shift").default(0).notNull(), // за смену, копейки
+  perHour: integer("per_hour").default(0).notNull(), // за час, копейки
+  percent: doublePrecision("percent"), // % с продаж; пусто — общий процент из настроек
+  updatedAt: updatedAt(),
+});
+
+/** Выплаты, премии и штрафы сотруднику кассы за месяц */
+export const staffPay = pgTable(
+  "staff_pay",
+  {
+    id: id(),
+    key: text("key").notNull(), // сотрудник, как в staff_rate
+    name: text("name").notNull(),
+    month: text("month").notNull(), // «2026-11» — за какой месяц
+    kind: text("kind").notNull(), // PAYOUT — выплатили, BONUS — премия, FINE — штраф
+    amount: integer("amount").notNull(), // копейки, всегда больше нуля
+    note: text("note"),
+    byId: text("by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("staff_pay_month_idx").on(t.month, t.key)],
+);
+
 export const posSaleItem = pgTable("pos_sale_item", {
   id: id(),
   saleId: text("sale_id")

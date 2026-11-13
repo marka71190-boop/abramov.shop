@@ -113,3 +113,49 @@ test("продажи сотрудников: месяц, чеки и выруч�
   assert.match(text, /сертификаты/i);
   assert.deepEqual(o.errors, []);
 });
+
+test("зарплата кассира: владелец задаёт ставку и премию → кассир видит начисление в приложении → выплата обнуляет «к выплате»", async () => {
+  const o = await page(b, { viewport: { width: 1200, height: 900 } });
+  await loginOwner(o);
+  await o.goto(`${B}/admin/pos/staff`);
+  const who = "Тестовый кассир";
+  await o.locator("tr", { has: o.getByLabel(`Ставка за смену: ${who}`) }).locator("summary").click();
+  await o.getByLabel(`Ставка за смену: ${who}`).fill("2000");
+  await o.getByLabel(`Процент с продаж: ${who}`).fill("5");
+  await o.click("button:has-text('Сохранить ставку')");
+  await o.waitForSelector("text=Ставка сохранена");
+  const [rate] = await q("select per_shift, per_hour, percent from staff_rate where key = 'тестовый кассир'");
+  assert.deepEqual({ ...rate }, { per_shift: 200000, per_hour: 0, percent: 5 });
+  await o.waitForSelector("text=2 000 ₽/смена · 5 %");
+
+  // Блок «Ставка и выплаты» остался открытым
+  await o.getByLabel(`Что записать: ${who}`).selectOption("BONUS");
+  await o.getByLabel(`Сумма: ${who}`).fill("500");
+  await o.getByLabel(`Комментарий: ${who}`).fill("за турнир");
+  await o.click("button:has-text('Записать')");
+  await o.waitForSelector("text=Премия начислена");
+
+  // Кассир в приложении кассы
+  const k = await page(b);
+  await loginKassa(k);
+  await k.click("a:has-text('Моя зарплата')");
+  await k.waitForSelector("h1:has-text('Моя зарплата')");
+  const text = await k.locator("main").innerText();
+  assert.match(text, /Тестовый кассир/);
+  assert.match(text, /Смены: \d+ × 2\s000\s₽/);
+  assert.match(text, /Процент с продаж: 5 %/);
+  assert.match(text, /за турнир/);
+  const due = (await k.locator(".stat", { hasText: "К выплате" }).locator(".stat__value").innerText()).replace(/\s/g, "");
+  assert.ok(Number.parseInt(due) >= 2500, `к выплате хотя бы смена и премия: ${due}`);
+
+  // Владелец выплачивает всё — у кассира «к выплате» ноль
+  await o.reload();
+  await o.locator("tr", { has: o.getByLabel(`Сумма: ${who}`) }).locator("summary").click();
+  await o.click("button:has-text('Всё к выплате')");
+  await o.click("button:has-text('Записать')");
+  await o.waitForSelector("text=Выплата записана");
+  await k.reload();
+  assert.equal((await k.locator(".stat", { hasText: "К выплате" }).locator(".stat__value").innerText()).replace(/\s/g, ""), "0₽");
+  assert.deepEqual(o.errors, []);
+  assert.deepEqual(k.errors, []);
+});

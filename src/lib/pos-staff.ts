@@ -3,7 +3,8 @@
  * смены и часы, процент с продаж. Сотрудник — «кто на смене» (общий телефон кассы) или аккаунт кассира.
  */
 import "server-only";
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { getSettings } from "@/lib/settings";
 import { db, schema as s } from "@/db";
 import { clubTitle } from "@/lib/club-label";
 
@@ -19,7 +20,27 @@ export interface StaffRow {
   returned: number; // вернули покупателям, копейки
   net: number; // sold − returned
   gifts: number; // продали сертификатов, копейки (в процент не входит)
+  // Зарплата за месяц
+  perShift: number; // ставка за смену, копейки
+  perHour: number; // ставка за час, копейки
+  percent: number; // % с продаж (свой или общий)
+  ownPercent: boolean; // процент задан лично этому сотруднику
+  shiftPay: number;
+  hourPay: number;
+  percentPay: number;
+  bonus: number; // премии
+  fine: number; // штрафы
+  accrued: number; // начислено: смены + часы + процент + премии − штрафы
+  paid: number; // уже выплатили
+  due: number; // к выплате
+  pays: { id: string; kind: string; amount: number; note: string | null; at: string }[];
 }
+
+/** Как сотрудника зовут в учёте: имя без регистра и «ё» — «Алёна» и «алена» это один человек */
+export const staffKey = (name: string) => name.trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
+export const PAY_KIND: Record<string, string> = { PAYOUT: "Выплата", BONUS: "Премия", FINE: "Штраф" };
+
+const NO_PAY = { perShift: 0, perHour: 0, percent: 0, ownPercent: false, shiftPay: 0, hourPay: 0, percentPay: 0, bonus: 0, fine: 0, accrued: 0, paid: 0, due: 0 };
 
 /** Границы месяца по Москве: «2026-11» */
 export function monthRange(m: string) {
@@ -36,7 +57,10 @@ export function monthRange(m: string) {
 
 export async function staffReport(m: string) {
   const r = monthRange(m);
-  const [clubs, shifts, sales, returns] = await Promise.all([
+  const [rates, pays, settings, clubs, shifts, sales, returns] = await Promise.all([
+    db.select().from(s.staffRate),
+    db.select().from(s.staffPay).where(eq(s.staffPay.month, r.key)).orderBy(desc(s.staffPay.createdAt)),
+    getSettings(),
     db.select({ id: s.club.id, name: s.club.name, address: s.club.address }).from(s.club),
     db
       .select({ x: s.posShift, seller: s.user.name })
@@ -61,10 +85,10 @@ export async function staffReport(m: string) {
   const rows = new Map<string, StaffRow>();
   const row = (seller: string | null, staff: string | null | undefined) => {
     const name = (staff || seller || "Удалённый аккаунт").trim();
-    const key = name.toLowerCase().replace(/ё/g, "е");
+    const key = staffKey(name);
     let x = rows.get(key);
     if (!x) {
-      x = { key, name, account: staff && seller && staff !== seller ? seller : null, clubs: [], shifts: 0, hours: 0, checks: 0, sold: 0, returned: 0, net: 0, gifts: 0 };
+      x = { key, name, account: staff && seller && staff !== seller ? seller : null, clubs: [], shifts: 0, hours: 0, checks: 0, sold: 0, returned: 0, net: 0, gifts: 0, ...NO_PAY, pays: [] };
       rows.set(key, x);
     }
     return x;
@@ -90,6 +114,33 @@ export async function staffReport(m: string) {
     const w = row(seller, staff);
     w.returned += x.amount + x.bonusBack + x.giftBack;
   }
-  const list = [...rows.values()].map((w) => ({ ...w, hours: Math.round(w.hours * 10) / 10, net: w.sold - w.returned })).sort((a, b) => b.net - a.net);
-  return { range: r, rows: list };
+  // Кому в этом месяце что-то выплатили или начислили вручную — тоже в списке, даже без смен
+  for (const p of pays) {
+    const w = rows.get(p.key) ?? row(p.name, null);
+    w.pays.push({ id: p.id, kind: p.kind, amount: p.amount, note: p.note, at: p.createdAt.toISOString() });
+    if (p.kind === "PAYOUT") w.paid += p.amount;
+    else if (p.kind === "BONUS") w.bonus += p.amount;
+    else if (p.kind === "FINE") w.fine += p.amount;
+  }
+  const common = settings.finance.staffPercent;
+  const list = [...rows.values()]
+    .map((w) => {
+      const rate = rates.find((x) => x.key === w.key);
+      const hours = Math.round(w.hours * 10) / 10;
+      const net = w.sold - w.returned;
+      const percent = rate?.percent ?? common;
+      const shiftPay = w.shifts * (rate?.perShift ?? 0);
+      const hourPay = Math.round(hours * (rate?.perHour ?? 0));
+      const percentPay = Math.round((Math.max(0, net) * percent) / 100);
+      const accrued = shiftPay + hourPay + percentPay + w.bonus - w.fine;
+      return { ...w, hours, net, perShift: rate?.perShift ?? 0, perHour: rate?.perHour ?? 0, percent, ownPercent: rate?.percent != null, shiftPay, hourPay, percentPay, accrued, due: accrued - w.paid };
+    })
+    .sort((a, b) => b.net - a.net || b.accrued - a.accrued);
+  return { range: r, rows: list, commonPercent: common };
+}
+
+/** Зарплата одного сотрудника за месяц — для приложения кассы. null — в этом месяце ничего не было */
+export async function staffPayFor(name: string, m: string) {
+  const rep = await staffReport(m);
+  return { range: rep.range, row: rep.rows.find((x) => x.key === staffKey(name)) ?? null };
 }

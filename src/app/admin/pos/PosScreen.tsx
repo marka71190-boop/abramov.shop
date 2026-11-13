@@ -94,6 +94,11 @@ export async function PosScreen({ me, admin, readonly = false, returnNumber = ""
             Ревизия →
           </Link>
         )}
+        {!admin && !readonly && settings.finance.staffPayVisible && (
+          <Link href="/kassa/pay" className="small">
+            Моя зарплата →
+          </Link>
+        )}
         {admin && (
           <span className="row small" style={{ gap: 16 }}>
             <Link href="/admin/pos/approvals">Ждут подтверждения →</Link>

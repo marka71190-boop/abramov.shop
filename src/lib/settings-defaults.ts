@@ -86,6 +86,7 @@ export interface SiteSettings {
     reportHour: number; // во сколько (по Москве) присылать сводку
     cashierMaxDiscount: number; // %, какую скидку на чек может дать кассир
     staffPercent: number; // %, процент сотруднику с продаж в кассе (отчёт «Продажи сотрудников»); 0 — не считать
+    staffPayVisible: boolean; // кассир видит свою зарплату в приложении кассы
   };
   foreign: {
     enabled: boolean; // заказы из-за рубежа
@@ -190,6 +191,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     reportHour: 21,
     cashierMaxDiscount: 10,
     staffPercent: 0,
+    staffPayVisible: true,
   },
   foreign: {
     enabled: true,

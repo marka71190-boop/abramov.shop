@@ -127,11 +127,15 @@ export function SupplierTable({ rows, tab, sure }: { rows: Row[]; tab: string; s
       }
     });
 
+  // Итог последнего действия показываем и когда список опустел (заполнили всё, что было)
   if (!rows.length)
     return (
-      <p className="muted" style={{ margin: 0 }}>
-        {tab === "found" ? "Здесь появятся товары, которые нашлись у поставщика. Нажмите «Искать на fortu.ru»." : "Пусто."}
-      </p>
+      <div className="stack" style={{ gap: 10 }}>
+        {msg.ok && <div className="form-ok">{msg.ok}</div>}
+        <p className="muted" style={{ margin: 0 }}>
+          {tab === "found" ? "Здесь появятся товары, которые нашлись у поставщика. Нажмите «Искать на fortu.ru»." : "Пусто."}
+        </p>
+      </div>
     );
 
   return (
