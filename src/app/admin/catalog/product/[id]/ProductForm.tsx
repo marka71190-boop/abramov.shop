@@ -16,6 +16,7 @@ interface Variant {
   stock: number;
   isActive: boolean;
   description: string;
+  supplierCode: string;
 }
 interface Image {
   url: string;
@@ -51,7 +52,7 @@ export interface ProductData {
   originCountry?: string | null;
   sortOrder: number;
   previewToken: string;
-  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean; description: string }[];
+  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean; description: string; supplierCode: string | null }[];
   images: { url: string; alt: string; variantId: string | null }[];
 }
 
@@ -261,8 +262,8 @@ export function ProductForm({
   const [slugTouched, setSlugTouched] = useState(!!product);
   const [limited, setLimited] = useState(product?.isLimited ?? false);
   const [variants, setVariants] = useState<Variant[]>(
-    product?.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive, description: v.description })) ?? [
-      { key: newKey(), name: "Основной", sku: "", price: "", stock: 0, isActive: true, description: "" },
+    product?.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive, description: v.description, supplierCode: v.supplierCode ?? "" })) ?? [
+      { key: newKey(), name: "Основной", sku: "", price: "", stock: 0, isActive: true, description: "", supplierCode: "" },
     ],
   );
   const [images, setImages] = useState<Image[]>(product?.images.map((im) => ({ url: im.url, alt: im.alt, variantKey: im.variantId })) ?? []);
@@ -502,6 +503,7 @@ export function ProductForm({
               <tr>
                 <th>Название</th>
                 <th>Артикул</th>
+                <th title="Код товара у поставщика — по нему составляется заказ">Код поставщика</th>
                 <th>Цена, ₽ (если другая)</th>
                 <th>Остаток</th>
                 <th>В продаже</th>
@@ -516,6 +518,9 @@ export function ProductForm({
                   </td>
                   <td>
                     <input className="input" value={v.sku} onChange={(e) => setV(i, { sku: e.target.value })} />
+                  </td>
+                  <td>
+                    <input className="input" value={v.supplierCode} maxLength={32} placeholder="—" onChange={(e) => setV(i, { supplierCode: e.target.value })} aria-label={`Код поставщика: ${v.name || i + 1}`} />
                   </td>
                   <td>
                     <input className="input" type="number" min={1} step="0.01" value={v.price} onChange={(e) => setV(i, { price: e.target.value })} />
@@ -546,7 +551,7 @@ export function ProductForm({
                 // Своё описание варианта — только когда вариантов несколько: у единственного оно совпадает с описанием товара
                 variants.length > 1 && (
                   <tr key={`${v.key}:desc`}>
-                    <td colSpan={6} style={{ paddingTop: 0, borderTop: 0 }}>
+                    <td colSpan={7} style={{ paddingTop: 0, borderTop: 0 }}>
                       <details open={!!v.description}>
                         <summary className="small">Описание варианта{v.description ? "" : " — пусто, покупатель видит описание товара"}</summary>
                         <textarea
@@ -567,7 +572,7 @@ export function ProductForm({
           </table>
         </div>
         <div>
-          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { key: newKey(), name: "", sku: "", price: "", stock: 0, isActive: true, description: "" }])}>
+          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { key: newKey(), name: "", sku: "", price: "", stock: 0, isActive: true, description: "", supplierCode: "" }])}>
             + Вариант
           </button>
         </div>

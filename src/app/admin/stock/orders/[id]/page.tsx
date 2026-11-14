@@ -19,7 +19,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
   const stocks = ids.length ? await db.select({ id: s.productVariant.id, stock: s.productVariant.stock }).from(s.productVariant).where(inArray(s.productVariant.id, ids)) : [];
   const items = o.items
     .sort((a, b) => a.name.localeCompare(b.name, "ru"))
-    .map((i) => ({ id: i.id, name: i.name, sku: i.sku, qty: i.qty, unitCost: i.unitCost, receivedQty: i.receivedQty, stock: stocks.find((x) => x.id === i.variantId)?.stock ?? null }));
+    .map((i) => ({ id: i.id, name: i.name, sku: i.sku, supplierCode: i.supplierCode, qty: i.qty, unitCost: i.unitCost, receivedQty: i.receivedQty, stock: stocks.find((x) => x.id === i.variantId)?.stock ?? null }));
   const st = SO_STATUS[o.status];
   return (
     <>

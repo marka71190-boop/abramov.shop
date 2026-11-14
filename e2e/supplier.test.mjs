@@ -69,6 +69,47 @@ test("по поставщику: поиск находит товар по на�
   assert.deepEqual(p.errors, []);
 });
 
+test("заказ в Фортуну: коды поставщика из «Что докупить» → текст и Excel с кодами; вписанный код запоминается у товара", async () => {
+  const p = await page(b, { viewport: { width: 1200, height: 900 } });
+  await loginOwner(p);
+  const [mel] = await q("select v.id, v.supplier_code from product_variant v join product p on p.id = v.product_id where p.slug = $1", [E2E.products[0].slug]);
+  const [kiy] = await q("select v.id from product_variant v join product p on p.id = v.product_id where p.slug = $1", [E2E.products[1].slug]);
+  assert.equal(mel.supplier_code, "00777", "код Фортуны запомнился у товара при заполнении");
+  await q("update product_variant set supplier_code = null where id = $1", [kiy.id]);
+
+  await p.goto(`${B}/admin/stock/reorder`);
+  await p.click("button:has-text('Все товары')");
+  const row = (name) => p.locator("tr", { hasText: name });
+  await row(E2E.products[0].name).getByLabel("Сколько заказать").fill("5");
+  await row(E2E.products[1].name).getByLabel("Сколько заказать").fill("2");
+  assert.match(await row(E2E.products[0].name).innerText(), /код 00777/);
+  await p.locator("input[list=so-suppliers]").fill("Фортуна");
+
+  await p.waitForSelector("text=Без кода Фортуны: 1 поз.");
+  await p.click("button:has-text('Создать заказ')");
+  await p.waitForURL("**/admin/stock/orders/**");
+
+  // Кию код не нашёлся — вписываем в заказе, он запоминается у товара
+  await p.getByLabel(`Код поставщика: ${E2E.products[1].name}`).fill("12345");
+  await p.click("button:has-text('Сохранить')");
+  await p.waitForSelector("text=Сохранено");
+  assert.equal((await q("select supplier_code from product_variant where id = $1", [kiy.id]))[0].supplier_code, "12345");
+  const text = await p.locator(".so-text").innerText();
+  assert.match(text, /1\. код 00777 — Мел тестовый E2E — 5 шт/);
+  assert.match(text, /2\. код 12345 — Кий тестовый E2E — 2 шт/);
+
+  const url = p.url();
+  const file = await p.context().request.get(`${url}/xlsx`);
+  assert.equal(file.status(), 200);
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.body());
+  const rows = [];
+  wb.worksheets[0].eachRow((r) => rows.push(r.values.slice(1).map((v) => (v == null ? "" : String(v)))));
+  assert.ok(rows.some((r) => r[1] === "00777" && r[3] === "5"), "в Excel код текстом с ведущими нулями и количество");
+  assert.deepEqual(p.errors, []);
+});
+
 test("новый товар с Фортуны: две карточки поставщика → один товар с вариантами, у каждого своё описание, цена и фото", async () => {
   const p = await page(b, { viewport: { width: 1200, height: 900 } });
   await loginOwner(p);
@@ -91,6 +132,7 @@ test("новый товар с Фортуны: две карточки пост�
   assert.doesNotMatch(prod.description, /Мягкая|Жёсткая/, "жёсткость у вариантов разная — в общем описании её нет");
   const vars = await q("select id, name, price, description, sku from product_variant where product_id = $1 order by sort_order", [prod.id]);
   assert.deepEqual(vars.map((v) => [v.name, v.price]), [["Soft", null], ["Hard", 170000]]);
+  assert.deepEqual((await q("select supplier_code from product_variant where product_id = $1 order by sort_order", [prod.id])).map((x) => x.supplier_code), ["20001", "20002"], "у каждого варианта свой код Фортуны");
   assert.match(vars[0].description, /Мягкая/);
   assert.match(vars[1].description, /Жёсткая/);
   const photos = await q("select variant_id from product_image where product_id = $1", [prod.id]);

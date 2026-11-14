@@ -7,6 +7,7 @@ interface Item {
   id: string;
   name: string;
   sku: string | null;
+  supplierCode: string | null;
   qty: number;
   unitCost: number | null;
   receivedQty: number | null;
@@ -19,7 +20,7 @@ const toKop = (v: string) => (v.trim() ? Math.round(Number(v.replace(",", ".").r
 
 export function OrderCard({ id, status, supplier, note, items, text, canEdit }: { id: string; status: string; supplier: string; note: string | null; items: Item[]; text: string; canEdit: boolean }) {
   const router = useRouter();
-  const [rows, setRows] = useState(items.map((i) => ({ ...i, q: String(i.receivedQty ?? i.qty), c: rubStr(i.unitCost) })));
+  const [rows, setRows] = useState(items.map((i) => ({ ...i, q: String(i.receivedQty ?? i.qty), c: rubStr(i.unitCost), k: i.supplierCode ?? "" })));
   const [sup, setSup] = useState(supplier);
   const [nt, setNt] = useState(note ?? "");
   const [res, setRes] = useState<SoResult>({});
@@ -38,7 +39,7 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
       const unitCost = toKop(r.c);
       if (!Number.isFinite(qty) || qty < 0) throw new Error(`«${r.name}»: проверьте количество`);
       if (unitCost != null && !(unitCost >= 0)) throw new Error(`«${r.name}»: проверьте цену`);
-      out.push({ id: r.id, qty, unitCost });
+      out.push({ id: r.id, qty, unitCost, supplierCode: r.k.trim() || null });
     }
     return out;
   };
@@ -54,6 +55,8 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
       }
     });
   };
+  const noCode = rows.filter((r) => !r.k.trim()).length;
+  const anyCode = rows.length - noCode > 0;
   const total = rows.reduce((a, r) => a + (Math.trunc(Number(r.q)) || 0) * (toKop(r.c) ?? 0), 0);
 
   return (
@@ -75,6 +78,7 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
         <table className="table">
           <thead>
             <tr>
+              <th>Код поставщика</th>
               <th>Товар</th>
               <th style={{ textAlign: "right" }}>Сейчас на складе</th>
               <th style={{ textAlign: "right" }}>{receiving ? "Пришло, шт" : status === "RECEIVED" ? "Пришло, шт" : "Заказано, шт"}</th>
@@ -84,6 +88,13 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.id}>
+                <td>
+                  {draft && canEdit ? (
+                    <input className="input bulk-input" style={{ width: 100 }} value={r.k} placeholder="—" maxLength={32} onChange={(e) => upd(i, { k: e.target.value })} aria-label={`Код поставщика: ${r.name}`} />
+                  ) : (
+                    <b>{r.k || "—"}</b>
+                  )}
+                </td>
                 <td>
                   {r.name}
                   {r.sku && <div className="muted small">{r.sku}</div>}
@@ -112,7 +123,12 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
         </table>
       </div>
       {total > 0 && <p style={{ margin: 0 }}>Сумма по закупке: <b>{fmt(total)}</b></p>}
-      {draft && canEdit && <p className="muted small" style={{ margin: 0 }}>0 шт — строка уберётся из заказа.</p>}
+      {draft && canEdit && (
+        <p className="muted small" style={{ margin: 0 }}>
+          0 шт — строка уберётся из заказа. Код поставщика запомнится у товара — в следующий раз подставится сам.
+          {noCode > 0 && anyCode && <span className="is-loss"> Без кода: {noCode} поз. — впишите и нажмите «Сохранить».</span>}
+        </p>
+      )}
 
       {res.ok && <div className="form-ok">{res.ok}</div>}
       {res.error && <div className="form-error">{res.error}</div>}
@@ -148,6 +164,10 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
       <div className="panel stack" style={{ gap: 8, padding: 16 }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <strong>Текст для поставщика</strong>
+          <span className="row" style={{ gap: 6 }}>
+          <a className="btn btn--line btn--sm" href={`/admin/stock/orders/${id}/xlsx`}>
+            Excel
+          </a>
           <button
             type="button"
             className="btn btn--line btn--sm"
@@ -161,6 +181,7 @@ export function OrderCard({ id, status, supplier, note, items, text, canEdit }: 
           >
             {copied ? "Скопировано ✓" : "Скопировать"}
           </button>
+          </span>
         </div>
         <pre className="so-text">{text}</pre>
       </div>

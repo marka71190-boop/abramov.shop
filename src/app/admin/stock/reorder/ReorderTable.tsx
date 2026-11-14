@@ -16,7 +16,10 @@ export interface Row {
   suggest: number;
   cost: number | null;
   supplier: string | null;
+  supplierCode: string | null;
 }
+
+const FORTUNA = "Фортуна";
 
 const fmt = (kop: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(kop / 100) + " ₽";
 const toKop = (v: string) => Math.round(Number(v.replace(",", ".").replace(/\s/g, "")) * 100);
@@ -40,18 +43,27 @@ export function ReorderTable({ rows, suppliers, lead, cover, window, canEdit }: 
   const chosen = rows.filter((r) => picked.has(r.variantId) && qtyOf(r) > 0);
   const sum = chosen.reduce((a, r) => a + qtyOf(r) * (r.cost ?? 0), 0);
 
-  // Отметили товары одного поставщика — подставляем его
-  const pickSupplier = () => {
+  // Отметили товары одного поставщика — он подсказкой в поле; пусто при создании — берём его
+  const guessed = (() => {
     const s = [...new Set(chosen.map((r) => r.supplier).filter(Boolean))];
-    if (s.length === 1 && !supplier) setSupplier(s[0]!);
+    return s.length === 1 ? s[0]! : null;
+  })();
+  const who = supplier.trim() || guessed || "";
+  // Заказ в «Фортуну»: всё, что нужно докупить и у чего есть их код
+  const fortuna = rows.filter((r) => r.supplierCode && r.suggest > 0);
+  const pickFortuna = () => {
+    setPicked(new Set(fortuna.map((r) => r.variantId)));
+    setSupplier(FORTUNA);
+    setAll(false);
   };
+  const noCode = chosen.filter((r) => !r.supplierCode).length;
 
   function create() {
     setRes({});
-    if (!supplier.trim()) return setRes({ error: "Укажите поставщика" });
+    if (!who) return setRes({ error: "Укажите поставщика" });
     if (!chosen.length) return setRes({ error: "Отметьте товары и количество" });
     start(async () => {
-      const r = await newSupplierOrder({ supplier: supplier.trim(), note: note.trim() || undefined, lines: chosen.map((r) => ({ variantId: r.variantId, qty: qtyOf(r), unitCost: r.cost })) });
+      const r = await newSupplierOrder({ supplier: who, note: note.trim() || undefined, lines: chosen.map((r) => ({ variantId: r.variantId, qty: qtyOf(r), unitCost: r.cost })) });
       if (r?.error) setRes(r);
     });
   }
@@ -110,7 +122,10 @@ export function ReorderTable({ rows, suppliers, lead, cover, window, canEdit }: 
                   )}
                   <td>
                     <Link href={`/admin/catalog/product/${r.productId}`}>{r.name}</Link>
-                    <div className="muted small">{[r.sku, r.supplier, r.cost != null ? `закупка ${fmt(r.cost)}` : null].filter(Boolean).join(" · ")}</div>
+                    <div className="muted small">
+                      {r.supplierCode && <b style={{ color: "var(--c-text)" }}>код {r.supplierCode} · </b>}
+                      {[r.sku, r.supplier, r.cost != null ? `закупка ${fmt(r.cost)}` : null].filter(Boolean).join(" · ")}
+                    </div>
                   </td>
                   <td style={{ textAlign: "right" }}>{r.stock}</td>
                   <td style={{ textAlign: "right" }}>{r.sold || "—"}</td>
@@ -151,11 +166,18 @@ export function ReorderTable({ rows, suppliers, lead, cover, window, canEdit }: 
 
       {canEdit && (
         <div className="panel stack" style={{ gap: 12, padding: 16 }}>
-          <strong>Заказ поставщику</strong>
+          <div className="row" style={{ gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <strong>Заказ поставщику</strong>
+            {fortuna.length > 0 && (
+              <button type="button" className="btn btn--line btn--sm" onClick={pickFortuna}>
+                Заказ в Фортуну · {fortuna.length} поз.
+              </button>
+            )}
+          </div>
           <div className="pos-grid">
             <label className="field" style={{ margin: 0 }}>
               Поставщик
-              <input className="input" list="so-suppliers" value={supplier} onChange={(e) => setSupplier(e.target.value)} onFocus={pickSupplier} placeholder="Например: Longoni" maxLength={120} />
+              <input className="input" list="so-suppliers" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder={guessed ?? "Например: Longoni"} maxLength={120} />
               <datalist id="so-suppliers">
                 {suppliers.map((s) => (
                   <option key={s} value={s} />
@@ -174,6 +196,9 @@ export function ReorderTable({ rows, suppliers, lead, cover, window, canEdit }: 
             {sum > 0 && <span className="small muted">≈ {fmt(sum)} по закупочным ценам</span>}
             {res.error && <span className="form-error small">{res.error}</span>}
           </div>
+          {who.toLowerCase() === FORTUNA.toLowerCase() && noCode > 0 && (
+            <span className="small is-loss">Без кода Фортуны: {noCode} поз. — код можно вписать в заказе перед отправкой.</span>
+          )}
         </div>
       )}
 

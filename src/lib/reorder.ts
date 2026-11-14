@@ -22,8 +22,12 @@ export interface ReorderRow {
   suggest: number; // сколько заказать
   cost: number | null;
   supplier: string | null; // у кого заказывали в последний раз
+  supplierCode: string | null; // код у поставщика («Фортуна»: «01851»)
   visibility: string;
 }
+
+/** Поставщик, у которого есть коды товаров с сайта (fortu.ru) */
+export const FORTUNA = "Фортуна";
 
 export async function reorderReport(): Promise<{ rows: ReorderRow[]; lead: number; cover: number; window: number }> {
   const st = (await getSettings()).stock;
@@ -41,11 +45,12 @@ export async function reorderReport(): Promise<{ rows: ReorderRow[]; lead: numbe
     on_order: number;
     cost: number | null;
     supplier: string | null;
+    supplier_code: string | null;
     visibility: string;
   }>(sql`
     select v.id as variant_id, p.id as product_id,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
-      coalesce(v.sku, p.sku) as sku, v.stock + coalesce((select sum(cs.qty) from club_stock cs where cs.variant_id = v.id), 0)::int as stock, v.cost_price as cost, p.visibility::text as visibility,
+      coalesce(v.sku, p.sku) as sku, v.supplier_code, v.stock + coalesce((select sum(cs.qty) from club_stock cs where cs.variant_id = v.id), 0)::int as stock, v.cost_price as cost, p.visibility::text as visibility,
       coalesce((select sum(i.quantity) from order_item i join "order" o on o.id = i.order_id
                 where i.variant_id = v.id and o.status in ('PAID','ASSEMBLING','SHIPPED','DELIVERED') and o.paid_at >= ${since}), 0)::int
       + coalesce((select sum(i.quantity) from pos_sale_item i join pos_sale ps on ps.id = i.sale_id
@@ -74,7 +79,8 @@ export async function reorderReport(): Promise<{ rows: ReorderRow[]; lead: numbe
       onOrder,
       suggest: sold > 0 ? Math.max(0, need - Math.max(0, stock) - onOrder) : 0,
       cost: x.cost == null ? null : Number(x.cost),
-      supplier: x.supplier,
+      supplier: x.supplier ?? (x.supplier_code ? FORTUNA : null),
+      supplierCode: x.supplier_code,
       visibility: x.visibility,
     };
   });
@@ -101,8 +107,8 @@ export interface OrderLine {
 
 async function describe(lines: OrderLine[]) {
   const ids = lines.map((l) => l.variantId);
-  const rows = await db.execute<{ id: string; product_id: string; name: string; sku: string | null }>(sql`
-    select v.id, p.id as product_id,
+  const rows = await db.execute<{ id: string; product_id: string; name: string; sku: string | null; supplier_code: string | null }>(sql`
+    select v.id, p.id as product_id, v.supplier_code,
       case when (select count(*) from product_variant v2 where v2.product_id = p.id and v2.is_active) > 1 then p.name || ' · ' || v.name else p.name end as name,
       coalesce(v.sku, p.sku) as sku
     from product_variant v join product p on p.id = v.product_id where v.id in (${sql.join(
@@ -112,7 +118,7 @@ async function describe(lines: OrderLine[]) {
   return lines.map((l) => {
     const v = rows.rows.find((r) => r.id === l.variantId);
     if (!v) throw new SupplierError("Товар не найден — обновите страницу");
-    return { ...l, productId: v.product_id, name: v.name, sku: v.sku };
+    return { ...l, productId: v.product_id, name: v.name, sku: v.sku, supplierCode: v.supplier_code };
   });
 }
 
@@ -121,20 +127,28 @@ export async function createSupplierOrder(userId: string, p: { supplier: string;
   const items = await describe(p.lines);
   return db.transaction(async (tx) => {
     const [o] = await tx.insert(s.supplierOrder).values({ number: orderNumber(), supplier: p.supplier, note: p.note, createdById: userId }).returning();
-    await tx.insert(s.supplierOrderItem).values(items.map((i) => ({ orderId: o.id, variantId: i.variantId, productId: i.productId, name: i.name, sku: i.sku, qty: i.qty, unitCost: i.unitCost })));
+    await tx.insert(s.supplierOrderItem).values(items.map((i) => ({ orderId: o.id, variantId: i.variantId, productId: i.productId, name: i.name, sku: i.sku, supplierCode: i.supplierCode, qty: i.qty, unitCost: i.unitCost })));
     return o;
   });
 }
 
-/** Черновик: поменять количество и цены, убрать строки */
-export async function updateDraft(id: string, p: { supplier: string; note: string | null; items: { id: string; qty: number; unitCost: number | null }[] }) {
+/** Черновик: поменять количество, цены и коды поставщика, убрать строки. Вписанный код запоминается у товара */
+export async function updateDraft(id: string, p: { supplier: string; note: string | null; items: { id: string; qty: number; unitCost: number | null; supplierCode?: string | null }[] }) {
   const o = await db.query.supplierOrder.findFirst({ where: eq(s.supplierOrder.id, id) });
   if (!o || o.status !== "DRAFT") throw new SupplierError("Менять можно только черновик");
   await db.transaction(async (tx) => {
     await tx.update(s.supplierOrder).set({ supplier: p.supplier, note: p.note }).where(eq(s.supplierOrder.id, id));
     for (const it of p.items) {
       if (it.qty <= 0) await tx.delete(s.supplierOrderItem).where(and(eq(s.supplierOrderItem.id, it.id), eq(s.supplierOrderItem.orderId, id)));
-      else await tx.update(s.supplierOrderItem).set({ qty: it.qty, unitCost: it.unitCost }).where(and(eq(s.supplierOrderItem.id, it.id), eq(s.supplierOrderItem.orderId, id)));
+      else {
+        const code = it.supplierCode === undefined ? undefined : it.supplierCode?.trim() || null;
+        const [row] = await tx
+          .update(s.supplierOrderItem)
+          .set({ qty: it.qty, unitCost: it.unitCost, ...(code !== undefined ? { supplierCode: code } : {}) })
+          .where(and(eq(s.supplierOrderItem.id, it.id), eq(s.supplierOrderItem.orderId, id)))
+          .returning({ variantId: s.supplierOrderItem.variantId });
+        if (code && row?.variantId) await tx.update(s.productVariant).set({ supplierCode: code }).where(eq(s.productVariant.id, row.variantId));
+      }
     }
   });
 }
@@ -181,10 +195,16 @@ export async function receiveOrder(userId: string, id: string, got: { id: string
   return lines.reduce((a, l) => a + l.qty, 0);
 }
 
-/** Текст для поставщика (в мессенджер или письмо) — без цен закупки, если их не указали */
-export function supplierText(o: { number: string; supplier: string; note: string | null }, items: { name: string; sku: string | null; qty: number; unitCost: number | null }[]) {
+/**
+ * Текст для поставщика (в мессенджер или письмо) — без цен закупки, если их не указали.
+ * Есть код поставщика — он первым в строке: поставщик ищет товар по своему коду, а не по нашему названию.
+ */
+export function supplierText(o: { number: string; supplier: string; note: string | null }, items: { name: string; sku: string | null; supplierCode?: string | null; qty: number; unitCost: number | null }[]) {
   const fmt = (k: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(k / 100) + " ₽";
-  const lines = items.map((i, n) => `${n + 1}. ${i.name}${i.sku ? ` (арт. ${i.sku})` : ""} — ${i.qty} шт${i.unitCost != null ? ` × ${fmt(i.unitCost)}` : ""}`);
+  const sorted = [...items].sort((a, b) => (a.supplierCode ? 0 : 1) - (b.supplierCode ? 0 : 1) || (a.supplierCode ?? "").localeCompare(b.supplierCode ?? "") || a.name.localeCompare(b.name, "ru"));
+  const lines = sorted.map(
+    (i, n) => `${n + 1}. ${i.supplierCode ? `код ${i.supplierCode} — ` : ""}${i.name}${!i.supplierCode && i.sku ? ` (наш арт. ${i.sku})` : ""} — ${i.qty} шт${i.unitCost != null ? ` × ${fmt(i.unitCost)}` : ""}`,
+  );
   const total = items.every((i) => i.unitCost != null) ? items.reduce((a, i) => a + i.qty * (i.unitCost ?? 0), 0) : null;
   return [`Здравствуйте! Заказ ${o.number} от Abramov Shop:`, "", ...lines, ...(total ? ["", `Итого: ${fmt(total)}`] : []), ...(o.note ? ["", o.note] : []), "", "Спасибо!"].join("\n");
 }

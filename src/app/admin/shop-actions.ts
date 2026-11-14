@@ -288,6 +288,7 @@ const VariantIn = z.object({
   stock: z.coerce.number().int().min(0, "Остаток не может быть отрицательным"),
   isActive: z.boolean(),
   description: z.string().max(6000).optional().default(""),
+  supplierCode: z.string().trim().max(32).optional().default(""),
 });
 const ImageIn = z.object({
   url: z.string().min(1).max(500),
@@ -453,6 +454,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
           stock: v.stock,
           isActive: v.isActive,
           description: v.description.trim(),
+          supplierCode: v.supplierCode || null,
           sortOrder: i,
         };
         if (v.id) {

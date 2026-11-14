@@ -32,7 +32,16 @@ export async function newSupplierOrder(raw: unknown): Promise<SoResult> {
   redirect(`/admin/stock/orders/${id}`);
 }
 
-const Items = z.array(z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(0).max(100_000), unitCost: cost })).max(300);
+const Items = z
+  .array(
+    z.object({
+      id: z.string().min(1).max(64),
+      qty: z.number().int().min(0).max(100_000),
+      unitCost: cost,
+      supplierCode: z.string().trim().max(32).regex(/^[\p{L}\d\-_./ ]*$/u, "Код поставщика — буквы и цифры").nullable().optional(),
+    }),
+  )
+  .max(300);
 
 export async function saveDraft(id: string, raw: unknown): Promise<SoResult> {
   const me = await requireAdmin();

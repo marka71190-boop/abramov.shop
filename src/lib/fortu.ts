@@ -378,6 +378,11 @@ export async function applyCards(productIds: string[], overwrite: boolean, userI
     }
     if (plan.weightGrams) patch.weightGrams = plan.weightGrams;
     if (Object.keys(patch).length) await db.update(s.product).set(patch).where(eq(s.product.id, p.id));
+    // Код поставщика — для заказа ему. Только товару с одним вариантом: у вариантов коды разные
+    if (c.code) {
+      const vs = await db.select({ id: s.productVariant.id, code: s.productVariant.supplierCode }).from(s.productVariant).where(and(eq(s.productVariant.productId, p.id), eq(s.productVariant.isActive, true)));
+      if (vs.length === 1 && !vs[0].code) await db.update(s.productVariant).set({ supplierCode: c.code }).where(eq(s.productVariant.id, vs[0].id));
+    }
     if (!withPhotos.has(p.id) && c.url) {
       // Карточку нашли до того, как стали брать фото, — перечитываем её
       let images = c.images;
@@ -448,7 +453,7 @@ export async function createProductFromFortu(items: GrabbedItem[], name: string,
     const vPlan = multi ? planFor({ ...row, name: `${name} ${vName}` }, cat ?? null, it.specs, attrs, new Map()) : null;
     const [v] = await db
       .insert(s.productVariant)
-      .values({ productId: p.id, name: vName, description: vPlan?.description ?? "", sku: multi ? `${sku}-${i + 1}` : null, price: multi && it.rrp && it.rrp !== price ? it.rrp : null, stock: 0, isActive: true, sortOrder: i })
+      .values({ productId: p.id, name: vName, description: vPlan?.description ?? "", supplierCode: it.code, sku: multi ? `${sku}-${i + 1}` : null, price: multi && it.rrp && it.rrp !== price ? it.rrp : null, stock: 0, isActive: true, sortOrder: i })
       .returning({ id: s.productVariant.id });
     const photos = it.photos.filter((u) => /^\/media\/[\w-]+$/.test(u));
     if (photos.length) await db.insert(s.productImage).values(photos.map((url) => ({ productId: p.id, variantId: multi ? v.id : null, url, alt: multi ? `${name} — ${vName}` : name, sortOrder: order++ })));
