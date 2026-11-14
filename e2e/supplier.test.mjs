@@ -94,6 +94,7 @@ test("заказ в Фортуну: коды поставщика из «Что 
   await p.click("button:has-text('Сохранить')");
   await p.waitForSelector("text=Сохранено");
   assert.equal((await q("select supplier_code from product_variant where id = $1", [kiy.id]))[0].supplier_code, "12345");
+  await p.waitForSelector(".so-text:has-text('код 12345')"); // текст обновляется после сохранения
   const text = await p.locator(".so-text").innerText();
   assert.match(text, /1\. код 00777 — Мел тестовый E2E — 5 шт/);
   assert.match(text, /2\. код 12345 — Кий тестовый E2E — 2 шт/);
@@ -114,11 +115,17 @@ test("новый товар с Фортуны: две карточки пост�
   const p = await page(b, { viewport: { width: 1200, height: 900 } });
   await loginOwner(p);
   await q("delete from product where name like 'Наклейка для кия Тест Black%'");
+  // Новинки: первая проверка запоминает, вторая показывает то, что появилось
+  await q("delete from setting where key in ('fortu-known', 'fortu-news')");
+  await q(`insert into setting (key, value) values ('fortu-known', '["/product/mel_e2e", "/product/kiy_e2e"]'::jsonb)`);
   await p.goto(`${B}/admin/catalog/supplier/new`);
-  await p.getByLabel("Что искать у поставщика").fill("Тест Black");
-  await p.click("button:has-text('Найти')");
-  await p.getByLabel("Наклейка для кия Тест Black ø14мм Soft 1шт.").check();
-  await p.getByLabel("Наклейка для кия Тест Black ø14мм Hard 1шт.").check();
+  await p.click("summary:has-text('Новинки у Фортуны')"); // новинок пока нет — блок свёрнут
+  await p.click("button:has-text('Проверить сейчас')");
+  await p.waitForSelector("text=Новинок: 2");
+  await p.waitForSelector("text=Новинки у Фортуны · 2");
+  // Отмечаем обе новинки прямо из списка
+  await p.getByLabel("Наклейка для кия Тест Black ø14мм Soft 1шт.").first().check();
+  await p.getByLabel("Наклейка для кия Тест Black ø14мм Hard 1шт.").first().check();
   // Общая часть названий — товар, различие — варианты
   assert.equal(await p.getByLabel("Название товара").inputValue(), "Наклейка для кия Тест Black ø14мм");
   assert.equal(await p.getByLabel("Название варианта: Наклейка для кия Тест Black ø14мм Soft 1шт.").inputValue(), "Soft");
@@ -154,5 +161,8 @@ test("новый товар с Фортуны: две карточки пост�
   await p.locator(".variant", { hasText: "Hard" }).click();
   assert.match(await p.locator(".pp__desc", { hasText: "Описание" }).innerText(), /своё описание/);
   await q("update product set visibility = 'DRAFT' where id = $1", [prod.id]);
+  // Завели обе новинки — из списка «Новинки у Фортуны» они ушли
+  await p.goto(`${B}/admin/catalog/supplier/new`);
+  await p.waitForSelector("text=Новых товаров с прошлой проверки нет", { state: "attached" });
   assert.deepEqual(p.errors, []);
 });

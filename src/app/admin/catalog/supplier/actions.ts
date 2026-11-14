@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import { audit } from "@/lib/audit";
-import { applyCards, cardByRef, createProductFromFortu, grabPhotos, matchBatch, matchByRef, searchFortu, type GrabbedItem } from "@/lib/fortu";
+import { applyCards, cardByRef, checkFortuNews, dismissFortuNew, createProductFromFortu, grabPhotos, matchBatch, matchByRef, searchFortu, type GrabbedItem } from "@/lib/fortu";
 import { requireAdmin } from "@/lib/viewer";
 
 type Res = { ok?: string; error?: string };
@@ -138,4 +138,25 @@ export async function supplierCreateAction(raw: unknown): Promise<{ id?: string;
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Не получилось создать товар" };
   }
+}
+
+/** Новинки у поставщика — проверить сейчас, не дожидаясь вторника */
+export async function checkNewsAction(): Promise<Res> {
+  await requireAdmin();
+  try {
+    const r = await checkFortuNews(false);
+    revalidatePath("/admin/catalog/supplier/new");
+    if (r.first) return { ok: `Запомнили, что есть у поставщика сейчас (${r.total} товаров). Новинки покажем со следующей проверки.` };
+    return { ok: r.fresh ? `Новинок: ${r.fresh}` : "Новинок с прошлой проверки нет" };
+  } catch (e) {
+    return fail(e, "Поставщик не отвечает");
+  }
+}
+
+/** Новинка не нужна — убрать из списка */
+export async function dismissNewAction(path: string): Promise<Res> {
+  await requireAdmin();
+  await dismissFortuNew(String(path).slice(0, 300));
+  revalidatePath("/admin/catalog/supplier/new");
+  return { ok: "Убрали" };
 }

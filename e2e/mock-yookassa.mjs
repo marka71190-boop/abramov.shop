@@ -49,6 +49,11 @@ http
         if (path === "/product/tip_soft") return html(200, tip("Soft", "20001", "1 500"));
         if (path === "/product/tip_hard") return html(200, tip("Hard", "20002", "1 700"));
         if (path === "/search/Тест Black") return html(200, `<div class="products-found">${tile("/product/tip_soft", "Наклейка для кия Тест Black ø14мм Soft 1шт.")}${tile("/product/tip_hard", "Наклейка для кия Тест Black ø14мм Hard 1шт.")}</div>`);
+        // Карта сайта: что есть у поставщика (для «Новинок»)
+        if (path === "/sitemap.xml") {
+          res.writeHead(200, { "Content-Type": "application/xml" });
+          return res.end(`<urlset>${["mel_e2e", "kiy_e2e", "tip_soft", "tip_hard"].map((x) => `<url><loc>http://fortu.ru/product/${x}</loc></url>`).join("")}<url><loc>http://fortu.ru/o_kompanii/</loc></url></urlset>`);
+        }
         if (path === "/search/12345") return html(302, "", { Location: "http://fortu.ru/product/kiy_e2e" });
         if (path === "/search/Мел тестовый E2E") return html(200, `<div class="products-found">${tile("/product/mel_other", "Мел другой Blue 12шт.")}${tile("/product/mel_e2e", "Мел тестовый E2E 1шт.")}</div>`);
         if (path.startsWith("/search/")) return html(200, "<div>По данному запросу ничего не найдено...</div>");

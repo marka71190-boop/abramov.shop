@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { asc } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { fortuNews } from "@/lib/fortu";
 import { requireAdmin } from "@/lib/viewer";
 import { NewFromSupplier } from "./NewFromSupplier";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 /** Новый товар в два шага: нашли у поставщика → сайт сам создал черновик с фото, характеристиками и описанием */
 export default async function NewFromSupplierPage() {
   await requireAdmin();
+  const news = await fortuNews();
   const categories = await db.select({ id: s.category.id, name: s.category.name }).from(s.category).orderBy(asc(s.category.sortOrder), asc(s.category.name));
   return (
     <>
@@ -23,7 +25,7 @@ export default async function NewFromSupplierPage() {
         остаток и опубликовать. Несколько похожих карточек (жёсткость, диаметр, цвет) можно собрать в один товар с вариантами — у каждого варианта будет своё
         описание, цена и фото.
       </p>
-      <NewFromSupplier categories={categories} />
+      <NewFromSupplier categories={categories} news={news.map((n) => ({ path: n.path, title: n.title }))} />
     </>
   );
 }

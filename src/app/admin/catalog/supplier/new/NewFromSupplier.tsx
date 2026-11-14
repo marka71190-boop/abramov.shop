@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { GrabbedItem } from "@/lib/fortu";
 import { splitTitles } from "@/lib/fortu-parse";
 import { rub } from "@/lib/format";
-import { supplierCreateAction, supplierGrabAction, supplierSearchAction } from "../actions";
+import { useRouter } from "next/navigation";
+import { checkNewsAction, dismissNewAction, supplierCreateAction, supplierGrabAction, supplierSearchAction } from "../actions";
 
 interface Found {
   path: string;
@@ -17,7 +18,9 @@ interface Created {
   variants: number;
 }
 
-export function NewFromSupplier({ categories }: { categories: { id: string; name: string }[] }) {
+export function NewFromSupplier({ categories, news }: { categories: { id: string; name: string }[]; news: Found[] }) {
+  const router = useRouter();
+  const [newsMsg, setNewsMsg] = useState("");
   const [q, setQ] = useState("");
   const [list, setList] = useState<Found[] | null>(null);
   const [picked, setPicked] = useState<Found[]>([]);
@@ -120,6 +123,51 @@ export function NewFromSupplier({ categories }: { categories: { id: string; name
           <span className="small">Товары пока скрыты от покупателей. Проверьте цену, впишите остаток и опубликуйте.</span>
         </div>
       )}
+
+      <details className="panel" open={news.length > 0}>
+        <summary>
+          <b>Новинки у Фортуны{news.length ? ` · ${news.length}` : ""}</b> <span className="muted small">— проверяем по вторникам, список приходит в Telegram</span>
+        </summary>
+        <div className="stack" style={{ gap: 6, marginTop: 10 }}>
+          {news.length === 0 && <span className="muted small">Новых товаров с прошлой проверки нет.</span>}
+          {news.map((f) => (
+            <div key={f.path} className="row" style={{ gap: 10, alignItems: "center" }}>
+              <label className="check" style={{ margin: 0, flex: 1 }}>
+                <input type="checkbox" checked={has(f.path)} onChange={() => toggle(f)} />
+                <span>{f.title}</span>
+              </label>
+              <button
+                type="button"
+                className="linklike small"
+                onClick={async () => {
+                  await dismissNewAction(f.path);
+                  router.refresh();
+                }}
+                aria-label={`Не нужна: ${f.title}`}
+              >
+                не нужна
+              </button>
+            </div>
+          ))}
+          <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn--line btn--sm"
+              disabled={!!busy}
+              onClick={async () => {
+                setBusy("Проверяем карту сайта поставщика…");
+                const r = await checkNewsAction();
+                setBusy("");
+                setNewsMsg(r.ok ?? r.error ?? "");
+                router.refresh();
+              }}
+            >
+              Проверить сейчас
+            </button>
+            {newsMsg && <span className="small">{newsMsg}</span>}
+          </div>
+        </div>
+      </details>
 
       <div className="panel stack" style={{ gap: 10 }}>
         <b>1. Найдите товар у поставщика</b>

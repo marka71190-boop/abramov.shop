@@ -461,5 +461,92 @@ export async function createProductFromFortu(items: GrabbedItem[], name: string,
   const first = items[0];
   await save({ productId: p.id, status: "APPLIED", url: first.path, code: first.code, title: first.title, score: 100, specs: common, images: first.images, rrp: first.rrp, note: multi ? `Варианты из ${items.length} карточек поставщика` : null, fetchedAt: new Date() });
   await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([p.id])).catch(() => {});
+  // Завели — из «Новинок» убираем все карточки товара (у вариантов их несколько)
+  const news = (await getSetting<FortuNew[]>(NEWS)) ?? [];
+  if (news.some((x) => items.some((it) => it.path === x.path))) await putSetting(NEWS, news.filter((x) => !items.some((it) => it.path === x.path)));
   return { id: p.id, price };
+}
+
+// ---------- Новинки у поставщика ----------
+
+const KNOWN = "fortu-known"; // все карточки поставщика, которые мы уже видели
+const NEWS = "fortu-news"; // новинки: ещё не заведены у нас и не скрыты
+const WEEKLY = "fortu-news-week";
+
+export interface FortuNew {
+  path: string;
+  title: string;
+  at: string;
+}
+
+async function getSetting<T>(key: string): Promise<T | null> {
+  const r = await db.query.setting.findFirst({ where: eq(s.setting.key, key) });
+  return (r?.value as T) ?? null;
+}
+const putSetting = (key: string, value: unknown) =>
+  db.insert(s.setting).values({ key, value }).onConflictDoUpdate({ target: s.setting.key, set: { value, updatedAt: new Date() } });
+
+/** Новинки, которые ещё не завели: убираем те, что уже есть у нас (по карточке поставщика) */
+export async function fortuNews(): Promise<FortuNew[]> {
+  const list = (await getSetting<FortuNew[]>(NEWS)) ?? [];
+  if (!list.length) return [];
+  const taken = new Set((await db.select({ url: s.supplierCard.url }).from(s.supplierCard).where(inArray(s.supplierCard.url, list.map((x) => x.path)))).map((x) => x.url));
+  return list.filter((x) => !taken.has(x.path));
+}
+
+/** Убрать новинку из списка — «не нужна» */
+export async function dismissFortuNew(path: string) {
+  const list = (await getSetting<FortuNew[]>(NEWS)) ?? [];
+  await putSetting(NEWS, list.filter((x) => x.path !== path));
+}
+
+/**
+ * Проверить новинки по карте сайта поставщика: какие карточки появились с прошлой проверки.
+ * Первая проверка только запоминает, что есть сейчас, — иначе «новинками» окажутся все 4 000 товаров.
+ * Возвращает, сколько новых нашли. notify — прислать список в Telegram и на телефон.
+ */
+export async function checkFortuNews(notify = true) {
+  const r = await ask("/sitemap.xml");
+  if (r.status !== 200) throw new Error("Карта сайта поставщика не открылась");
+  const paths = [...new Set([...r.text.matchAll(/<loc>\s*https?:\/\/(?:www\.)?fortu\.ru(\/product\/[^<\s]+)\s*<\/loc>/g)].map((m) => m[1]))];
+  if (paths.length < 1) throw new Error("В карте сайта поставщика нет товаров — возможно, сайт поменялся");
+  const known = await getSetting<string[]>(KNOWN);
+  await putSetting(KNOWN, paths);
+  if (!known) return { fresh: 0, first: true, total: paths.length };
+  const seen = new Set(known);
+  const added = paths.filter((p) => !seen.has(p)).slice(0, 60);
+  if (!added.length) return { fresh: 0, first: false, total: paths.length };
+  // Названия — с карточек (первые 30; остальные покажем адресом)
+  const fresh: FortuNew[] = [];
+  for (const [i, p] of added.entries()) {
+    const card = i < 30 ? await loadCard(p).catch(() => null) : null;
+    fresh.push({ path: p, title: card?.title ?? decodeURIComponent(p.replace("/product/", "")).replace(/_/g, " "), at: new Date().toISOString() });
+  }
+  const old = (await getSetting<FortuNew[]>(NEWS)) ?? [];
+  await putSetting(NEWS, [...fresh, ...old.filter((x) => !fresh.some((f) => f.path === x.path))].slice(0, 200));
+  if (notify) {
+    const { esc, notifyAdmins } = await import("@/lib/telegram");
+    const { SITE } = await import("@/lib/site");
+    await notifyAdmins(
+      `🆕 Новинки у Фортуны: <b>${fresh.length}</b>\n${fresh.slice(0, 15).map((x) => `• ${esc(x.title)}`).join("\n")}${fresh.length > 15 ? `\n…и ещё ${fresh.length - 15}` : ""}`,
+      { text: "Завести на сайт", url: `${SITE.url}/admin/catalog/supplier/new` },
+    ).catch(() => {});
+  }
+  return { fresh: fresh.length, first: false, total: paths.length };
+}
+
+/** Раз в неделю — по вторникам в 11:00 по Москве. Проверка — раз в 10 минут, отправка — один раз в день */
+export async function weeklyFortuNews() {
+  const now = new Date();
+  const part = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Moscow", ...o }).format(now);
+  if (part({ weekday: "short" }) !== "Tue" || Number(part({ hour: "numeric", hourCycle: "h23" })) !== 11) return;
+  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Moscow" }).format(now);
+  // Отметка до проверки: два экземпляра сайта не проверят дважды
+  const r = await db.execute(sql`
+    insert into setting (key, value, updated_at) values (${WEEKLY}, ${JSON.stringify({ day })}::jsonb, now())
+    on conflict (key) do update set value = excluded.value, updated_at = now()
+    where setting.value ->> 'day' is distinct from ${day}
+    returning key`);
+  if (!r.rows.length) return;
+  await checkFortuNews(true);
 }
