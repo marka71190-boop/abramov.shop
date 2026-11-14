@@ -47,6 +47,7 @@ export default async function SupplierPage({ searchParams }: { searchParams: Pro
       score: s.supplierCard.score,
       specs: s.supplierCard.specs,
       note: s.supplierCard.note,
+      hasPhotos: sql<boolean>`exists (select 1 from product_image i where i.product_id = ${s.product.id})`,
     })
     .from(s.supplierCard)
     .innerJoin(s.product, eq(s.product.id, s.supplierCard.productId))
@@ -73,6 +74,7 @@ export default async function SupplierPage({ searchParams }: { searchParams: Pro
       description: plan?.description ?? "",
       hasDescription: plan?.hasDescription ?? false,
       weight: plan?.weightGrams ?? null,
+      photos: withPlan && !r.hasPhotos && !!r.url,
     };
   });
 
@@ -84,7 +86,8 @@ export default async function SupplierPage({ searchParams }: { searchParams: Pro
       <h1>Заполнение по поставщику</h1>
       <p className="muted" style={{ margin: 0 }}>
         Сайт находит ваши товары на fortu.ru по названию, берёт оттуда характеристики и сам пишет описание — своими словами, по этим характеристикам. Заполняется
-        только пустое: то, что вы уже вписали, не меняется. Тексты и фотографии поставщика не копируются — на них нужно его письменное разрешение.
+        только пустое: то, что вы уже вписали, не меняется. Фотографии поставщика добавляются товарам, у которых нет своих фото; тексты описаний не копируются.
+        Товара ещё нет на сайте? <Link href="/admin/catalog/supplier/new">Создайте его прямо с fortu.ru →</Link>
       </p>
       <div className="stats">
         <div className="stat">

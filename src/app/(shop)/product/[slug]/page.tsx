@@ -42,7 +42,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const price = variant ? (variant.price ?? p.price) : prices.length ? Math.min(...prices) : p.price;
   const priceText = `${variant || new Set(prices).size <= 1 ? "" : "от "}${Math.round(price / 100).toLocaleString("ru-RU")} ₽`;
   const title = variant && p.variants.length > 1 ? `${p.name} — ${variant.name}` : p.name;
-  const description = snippet(p.description, `${p.name} в Abramov Shop. Доставка СДЭК по всей России, бонусы с каждой покупки.`);
+  const description = snippet(variant?.description.trim() || p.description, `${p.name} в Abramov Shop. Доставка СДЭК по всей России, бонусы с каждой покупки.`);
   const image = shareImage(photo?.url);
   return {
     title,
@@ -76,7 +76,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const settings = await getSettings();
   const dims = await imageDims(p.images.map((i) => i.url));
   const gallery = p.images.map((i) => ({ url: i.url, alt: i.alt || p.name, variantId: i.variantId, w: dims.get(i.url)?.w ?? null, h: dims.get(i.url)?.h ?? null }));
-  const variants = p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock }));
+  const variants = p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price ?? p.price, stock: v.stock, description: v.description }));
   // Вариант из ссылки (?v=…), иначе первый в наличии
   const initialVariant = variants.find((v) => v.id === wanted) ?? variants.find((v) => v.stock > 0) ?? variants[0];
   const [questions, myQuestions] = await Promise.all([publicQuestions(p.id), viewer ? myPendingQuestions(viewer.id, p.id) : Promise.resolve([])]);
@@ -145,6 +145,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           images={gallery}
           variants={variants}
           initialVariantId={initialVariant?.id ?? null}
+          description={p.description}
           basePrice={p.price}
           oldPrice={p.oldPrice}
           maxPerItem={settings.checkout.maxQtyPerItem}
@@ -224,14 +225,6 @@ export default async function ProductPage({ params, searchParams }: Props) {
                       </div>
                     ))}
                   </dl>
-                </div>
-              )}
-              {p.description && (
-                <div className="pp__desc">
-                  <div className="label">Описание</div>
-                  <p className="muted" style={{ whiteSpace: "pre-line", margin: "10px 0 0" }}>
-                    {p.description}
-                  </p>
                 </div>
               )}
             </>

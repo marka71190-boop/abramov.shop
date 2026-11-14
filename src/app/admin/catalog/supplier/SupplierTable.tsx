@@ -16,6 +16,8 @@ export interface Row {
   description: string;
   hasDescription: boolean;
   weight: number | null;
+  /** У товара нет фото — возьмём у поставщика */
+  photos: boolean;
 }
 
 /** Поиск у поставщика порциями: страница сама зовёт следующую, пока не кончатся товары или не нажмут «Стоп» */
@@ -113,8 +115,22 @@ export function SupplierTable({ rows, tab, sure }: { rows: Row[]; tab: string; s
   const [ref, setRef] = useState("");
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
   const [pending, start] = useTransition();
+  const [done, setDone] = useState(0);
   const canApply = tab === "found" || tab === "applied";
   const chosen = rows.filter((r) => on[r.id]);
+  // Порциями по три товара: фото скачиваются с сайта поставщика, это небыстро
+  async function fill() {
+    const ids = chosen.map((r) => r.id);
+    const sum = { products: 0, attrs: 0, texts: 0, photos: 0 };
+    setDone(0);
+    for (let i = 0; i < ids.length; i += 3) {
+      const r = await applyAction({ ids: ids.slice(i, i + 3), overwrite });
+      if (r.error || !r.n) return { error: `${r.error ?? "Не получилось"}${sum.products ? ` (успели заполнить: ${sum.products})` : ""}` };
+      for (const k of ["products", "attrs", "texts", "photos"] as const) sum[k] += r.n[k];
+      setDone(Math.min(ids.length, i + 3));
+    }
+    return { ok: `Заполнено товаров: ${sum.products} · характеристик: ${sum.attrs} · описаний: ${sum.texts} · фото: ${sum.photos}` };
+  }
   const act = (fn: () => Promise<{ ok?: string; error?: string }>) =>
     start(async () => {
       const r = await fn();
@@ -227,7 +243,8 @@ export function SupplierTable({ rows, tab, sure }: { rows: Row[]; tab: string; s
                         <div className="muted">Описание: мало данных</div>
                       )}
                       {r.weight && <div>Вес для доставки: {r.weight} г</div>}
-                      {!r.attrs.length && !r.description && !r.weight && tab === "found" && <div className="muted">Заполнять нечего</div>}
+                      {r.photos && <div>Фото: возьмём у поставщика</div>}
+                      {!r.attrs.length && !r.description && !r.weight && !r.photos && tab === "found" && <div className="muted">Заполнять нечего</div>}
                     </td>
                   )}
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
@@ -256,8 +273,8 @@ export function SupplierTable({ rows, tab, sure }: { rows: Row[]; tab: string; s
             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
             <span>Заменить описание, даже если оно уже написано</span>
           </label>
-          <button type="button" className="btn btn--gold btn--sm" disabled={pending || !chosen.length} onClick={() => act(() => applyAction({ ids: chosen.map((r) => r.id), overwrite }))}>
-            {pending ? "Заполняем…" : `Заполнить отмеченные${chosen.length ? ` · ${chosen.length}` : ""}`}
+          <button type="button" className="btn btn--gold btn--sm" disabled={pending || !chosen.length} onClick={() => act(fill)}>
+            {pending ? `Заполняем… ${done} из ${chosen.length}` : `Заполнить отмеченные${chosen.length ? ` · ${chosen.length}` : ""}`}
           </button>
         </div>
       )}

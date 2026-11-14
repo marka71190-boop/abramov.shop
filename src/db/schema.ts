@@ -342,6 +342,7 @@ export const productVariant = pgTable("product_variant", {
     .notNull()
     .references(() => product.id, { onDelete: "cascade" }),
   name: text("name").notNull(), // «Чёрный, M»
+  description: text("description").default("").notNull(), // своё описание варианта; пусто — показываем описание товара
   sku: text("sku").unique(),
   oldSku: text("old_sku"), // прежний артикул — старые этикетки и файлы Excel по нему тоже находятся
   // Штрихкод EAN-13: свой магазинный (200…) — сайт выдаёт сам, или заводской с упаковки. Сканер ищет и по нему, и по артикулу
@@ -397,6 +398,7 @@ export const supplierCard = pgTable("supplier_card", {
   title: text("title"),
   score: integer("score").default(0).notNull(), // насколько название совпало с нашим, 0–100
   specs: jsonb("specs").$type<{ name: string; value: string }[]>().default([]).notNull(),
+  images: jsonb("images").$type<string[]>().default([]).notNull(), // адреса фото у поставщика (с его разрешения)
   rrp: integer("rrp"), // рекомендованная розничная цена, копейки
   note: text("note"), // почему не нашли или что пошло не так
   fetchedAt: ts("fetched_at"),

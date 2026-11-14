@@ -491,6 +491,13 @@
       "when": 1794577312982,
       "tag": "0069_staff_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1794647947391,
+      "tag": "0070_variant_description",
+      "breakpoints": true
     }
   ]
 }

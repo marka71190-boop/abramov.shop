@@ -287,6 +287,7 @@ const VariantIn = z.object({
   price: z.string().optional().default(""),
   stock: z.coerce.number().int().min(0, "Остаток не может быть отрицательным"),
   isActive: z.boolean(),
+  description: z.string().max(6000).optional().default(""),
 });
 const ImageIn = z.object({
   url: z.string().min(1).max(500),
@@ -451,6 +452,7 @@ export async function saveProduct(_: ActionState, form: FormData): Promise<Actio
           price: v.price.trim() ? rubToKop(v.price) : null,
           stock: v.stock,
           isActive: v.isActive,
+          description: v.description.trim(),
           sortOrder: i,
         };
         if (v.id) {

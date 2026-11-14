@@ -21,6 +21,8 @@ interface Variant {
   name: string;
   price: number;
   stock: number;
+  /** Своё описание варианта; пусто — показываем общее описание товара */
+  description?: string;
 }
 
 /** Фото: сначала фото выбранного варианта, потом общие. Если у варианта своих нет — все фото товара. */
@@ -123,6 +125,7 @@ export function ProductView({
   buyFallback,
   extra,
   body,
+  description = "",
   track,
 }: {
   track: { id: string; name: string };
@@ -138,6 +141,8 @@ export function ProductView({
   buyFallback: React.ReactNode | null;
   extra: React.ReactNode;
   body: React.ReactNode;
+  /** Общее описание товара: показывается, если у выбранного варианта нет своего */
+  description?: string;
 }) {
   const [vid, setVid] = useState<string | null>(initialVariantId);
   const buyRef = useRef<HTMLDivElement>(null);
@@ -222,6 +227,14 @@ export function ProductView({
         </div>
         {extra}
         {body}
+        {(v?.description?.trim() || description) && (
+          <div className="pp__desc">
+            <div className="label">Описание</div>
+            <p className="muted" style={{ whiteSpace: "pre-line", margin: "10px 0 0" }}>
+              {v?.description?.trim() || description}
+            </p>
+          </div>
+        )}
       </div>
       {canBuy && v && <BuyBar show={sticky} name={track.name} variant={multi ? v.name : null} price={v.price} variantId={v.id} stock={v.stock} maxPerItem={maxPerItem} track={track} multi={multi} />}
     </div>

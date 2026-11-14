@@ -27,7 +27,9 @@ http
       if (req.url.startsWith("/fortu/")) {
         const html = (code, text, headers = {}) => (res.writeHead(code, { "Content-Type": "text/html; charset=utf-8", ...headers }), res.end(text));
         const card = (title, code, rrp, specs) =>
-          `<html><body><div class="product-name">\n<h1>${title}</h1></div>Код товара: <span class="product_code_by_font">${code}</span>` +
+          `<html><body><a href="/product-image/aa/${code}/main.jpg" data-old-href="x" class="pirobox_gal1 zoom-image" title="${title}"><img src="/x.jpg"/></a>` +
+          `<ul><li><a href="/product-image/aa/${code}/two.jpg" class="pirobox_gal1" title="фото 2"><img src="/y.jpg"/></a></li></ul>` +
+          `<div class="product-name">\n<h1>${title}</h1></div>Код товара: <span class="product_code_by_font">${code}</span>` +
           `<h3>Рекомендованная розничная цена: <div style="display:inline;">${rrp}</div> <span class="rub">&#8381;</span></h3><div class="key-propertys">` +
           specs.map(([n, v]) => `<div class="key-propertys-row"><span class="key-propertys-name">${n}</span>\n<span class="key-propertys-value">${v}</span></div>`).join("") +
           `</div><h2 class="p_h2">Подробное описание</h2><div class="clear_styles">ЧУЖОЙ ТЕКСТ ПОСТАВЩИКА — копировать нельзя</div></body></html>`;
@@ -37,6 +39,16 @@ http
           return html(200, card("Мел тестовый E2E 1шт.", "00777", "550", [["Бренд", "Taom (Финляндия)"], ["Страна производства", "Финляндия"], ["Цвет", "Green (зеленый)"], ["Вес брутто", "45 г"], ["Упаковка", "коробка картонная"], ["Особенность", "не пачкает сукно"], ["Форма", "круглая"]]));
         if (path === "/product/kiy_e2e")
           return html(200, card("Кий Fortuna Тест 2PC Пирамида", "12345", "30 000", [["Длина", "160 см"], ["Вес кия", "700 г"], ["Кол-во частей", "2РС (2-х составной)"], ["Материал шафта", "канадский клен"], ["Тип игры", "пирамида"]]));
+        // Фото товара: маленькая настоящая картинка
+        if (path.startsWith("/product-image/")) {
+          res.writeHead(200, { "Content-Type": "image/png" });
+          return res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAIAAAADnC86AAAAMElEQVR4nO3NQQkAAAgEsAtmTjMZyxKCn8H+y3S9iFgsFovFYrFYLBaLxWKxWHxnAavAAxcOI1nQAAAAAElFTkSuQmCC", "base64"));
+        }
+        // Одна модель в двух жёсткостях — у поставщика это две карточки
+        const tip = (h, code, rrp) => card(`Наклейка для кия Тест Black ø14мм ${h} 1шт.`, code, rrp, [["Диаметр", "14 мм"], ["Жесткость", h === "Soft" ? "S (soft) - мягкая" : "H (hard) - жесткая"], ["Количество слоев", "8"], ["Бренд", "Тест (Япония)"], ["Страна производства", "Япония"]]);
+        if (path === "/product/tip_soft") return html(200, tip("Soft", "20001", "1 500"));
+        if (path === "/product/tip_hard") return html(200, tip("Hard", "20002", "1 700"));
+        if (path === "/search/Тест Black") return html(200, `<div class="products-found">${tile("/product/tip_soft", "Наклейка для кия Тест Black ø14мм Soft 1шт.")}${tile("/product/tip_hard", "Наклейка для кия Тест Black ø14мм Hard 1шт.")}</div>`);
         if (path === "/search/12345") return html(302, "", { Location: "http://fortu.ru/product/kiy_e2e" });
         if (path === "/search/Мел тестовый E2E") return html(200, `<div class="products-found">${tile("/product/mel_other", "Мел другой Blue 12шт.")}${tile("/product/mel_e2e", "Мел тестовый E2E 1шт.")}</div>`);
         if (path.startsWith("/search/")) return html(200, "<div>По данному запросу ничего не найдено...</div>");

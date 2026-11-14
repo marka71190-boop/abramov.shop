@@ -2,7 +2,8 @@
  * Заполнение карточек по сайту поставщика «Фортуна» (fortu.ru).
  * 1) Находим товар у поставщика по названию; 2) берём характеристики «имя — значение»;
  * 3) заполняем наши характеристики и пишем описание своим генератором (src/lib/describe.ts).
- * Ничего не перезаписываем: только пустые характеристики и пустое описание. Тексты и фото поставщика не берём.
+ * Ничего не перезаписываем: только пустые характеристики и пустое описание; фото — если у товара нет своих.
+ * Фото берём с разрешения поставщика, тексты описаний не копируем.
  * Запросы — по одному, с паузой: сайт поставщика не нагружаем.
  */
 import "server-only";
@@ -31,6 +32,7 @@ interface Res {
   status: number;
   location: string | null;
   text: string;
+  body: Buffer;
 }
 
 function once(url: string, body?: string): Promise<Res> {
@@ -46,7 +48,7 @@ function once(url: string, body?: string): Promise<Res> {
         timeout: 20_000,
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; AbramovShop/1.0)",
-          Accept: "text/html,application/json",
+          Accept: "text/html,application/json,image/*",
           ...(body ? { "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body), "X-Requested-With": "XMLHttpRequest" } : {}),
         },
       },
@@ -55,10 +57,13 @@ function once(url: string, body?: string): Promise<Res> {
         let size = 0;
         res.on("data", (c: Buffer) => {
           size += c.length;
-          if (size > 3_000_000) req.destroy(new Error("слишком большой ответ"));
+          if (size > 20_000_000) req.destroy(new Error("слишком большой ответ"));
           else chunks.push(c);
         });
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, location: res.headers.location ?? null, text: Buffer.concat(chunks).toString("utf8") }));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks);
+          resolve({ status: res.statusCode ?? 0, location: res.headers.location ?? null, body, text: /image\//.test(String(res.headers["content-type"] ?? "")) ? "" : body.toString("utf8") });
+        });
         res.on("error", reject);
       },
     );
@@ -136,6 +141,59 @@ export async function loadCard(path: string) {
   return parseFortuProduct(r.text);
 }
 
+/** Скачать фото поставщика и сохранить у нас (WebP, до 1600 px). Не скачалось — пропускаем, остальные берём */
+export async function grabPhotos(paths: string[], userId: string, max = 6) {
+  const { saveImageBuffer } = await import("@/lib/media-upload");
+  const out: string[] = [];
+  for (const p of paths.slice(0, max)) {
+    if (!/^\/product-image\/[^?#]+\.(jpe?g|png|webp)$/i.test(p)) continue;
+    try {
+      const r = await ask(p);
+      if (r.status === 200 && r.body.length > 60) out.push(await saveImageBuffer(r.body, userId));
+    } catch {}
+  }
+  return out;
+}
+
+/** Поиск у поставщика по словам: до трёх страниц выдачи */
+export async function searchFortu(q: string) {
+  const query = q.trim().slice(0, 80);
+  if (query.length < 2) return [];
+  const r = await ask(`/search/${encodeURIComponent(query)}`);
+  if (r.status >= 300 && r.status < 400 && r.location) {
+    const p = pathOf(r.location);
+    const card = p ? await loadCard(p) : null;
+    return p && card ? [{ path: p, title: card.title }] : [];
+  }
+  const list = parseFortuList(r.text);
+  if (list.length >= 15) {
+    for (let page = 1; page <= 2; page++) {
+      const more = await ask("/search.php", { what: "page", page: String(page), search_str: query }).catch(() => null);
+      let html = "";
+      try {
+        html = more ? String((JSON.parse(more.text) as { success?: string }).success ?? "") : "";
+      } catch {}
+      const extra = parseFortuList(html).filter((c) => !list.some((x) => x.path === c.path));
+      list.push(...extra);
+      if (extra.length < 15) break;
+    }
+  }
+  return list;
+}
+
+/** Карточка поставщика по ссылке или коду — для создания нового товара */
+export async function cardByRef(raw: string) {
+  const ref = parseFortuRef(raw);
+  if (!ref) return null;
+  let path = "path" in ref ? ref.path : null;
+  if (!path && "code" in ref) {
+    const r = await ask(`/search/${encodeURIComponent(ref.code)}`);
+    path = r.location ? pathOf(r.location) : (parseFortuList(r.text)[0]?.path ?? null);
+  }
+  const card = path ? await loadCard(path) : null;
+  return path && card ? { path, ...card } : null;
+}
+
 type Card = typeof s.supplierCard.$inferInsert;
 const save = (c: Card) =>
   db
@@ -163,7 +221,7 @@ export async function matchProduct(productId: string, name: string) {
     const exact = top.title ? top.score : similarity(name, card.title);
     const score = twins > 1 ? Math.min(exact, SURE - 8) : exact;
     const note = twins > 1 ? `У поставщика ${twins} похожих — проверьте, что это тот цвет и размер` : null;
-    await save({ productId, status: "FOUND", url: top.path, code: card.code, title: card.title, score, specs: card.specs, rrp: card.rrp, note, fetchedAt: new Date() });
+    await save({ productId, status: "FOUND", url: top.path, code: card.code, title: card.title, score, specs: card.specs, images: card.images, rrp: card.rrp, note, fetchedAt: new Date() });
     return "FOUND" as const;
   } catch (e) {
     // Сеть: не записываем «не нашли» — попробуем в следующий раз
@@ -183,7 +241,7 @@ export async function matchByRef(productId: string, raw: string) {
   const card = path ? await loadCard(path) : null;
   if (!path || !card) throw new Error("У поставщика такой товар не нашёлся — проверьте ссылку или код");
   // Выбрал человек — значит, верно
-  await save({ productId, status: "FOUND", url: path, code: card.code, title: card.title, score: 100, specs: card.specs, rrp: card.rrp, note: null, fetchedAt: new Date() });
+  await save({ productId, status: "FOUND", url: path, code: card.code, title: card.title, score: 100, specs: card.specs, images: card.images, rrp: card.rrp, note: null, fetchedAt: new Date() });
 }
 
 /** Сколько товаров ещё не искали */
@@ -278,10 +336,23 @@ export function planFor(p: ProductRow, cat: { name: string; slug: string } | nul
   };
 }
 
-/** Заполнить карточки. overwrite — заменить и уже написанное описание */
-export async function applyCards(productIds: string[], overwrite: boolean) {
+async function writeAttrs(productId: string, list: Plan["attrs"], attrs: Attr[]) {
+  for (const a of list) {
+    // Новое значение открытого списка — в справочник, чтобы работал фильтр
+    const attr = attrs.find((x) => x.id === a.attrId)!;
+    if (attr.type === "select" && !attr.options.some((o) => o.toLowerCase() === a.value.toLowerCase())) {
+      attr.options = [...attr.options, a.value];
+      await db.update(s.attribute).set({ options: attr.options }).where(eq(s.attribute.id, attr.id));
+    }
+    await db.insert(s.productAttribute).values({ productId, attributeId: a.attrId, value: a.value }).onConflictDoNothing();
+  }
+  return list.length;
+}
+
+/** Заполнить карточки. overwrite — заменить и уже написанное описание. Фото — только товарам без своих фото */
+export async function applyCards(productIds: string[], overwrite: boolean, userId: string) {
   const ids = productIds.slice(0, 500);
-  if (!ids.length) return { products: 0, attrs: 0, texts: 0 };
+  if (!ids.length) return { products: 0, attrs: 0, texts: 0, photos: 0 };
   const [cards, products, cats, attrs] = await Promise.all([
     db.select().from(s.supplierCard).where(and(inArray(s.supplierCard.productId, ids), inArray(s.supplierCard.status, ["FOUND", "APPLIED"]))),
     db.select({ id: s.product.id, name: s.product.name, description: s.product.description, categoryId: s.product.categoryId, weightGrams: s.product.weightGrams }).from(s.product).where(inArray(s.product.id, ids)),
@@ -293,20 +364,13 @@ export async function applyCards(productIds: string[], overwrite: boolean) {
   let n = 0;
   let nAttrs = 0;
   let nTexts = 0;
+  let nPhotos = 0;
+  const withPhotos = new Set((await db.selectDistinct({ id: s.productImage.productId }).from(s.productImage).where(inArray(s.productImage.productId, ids))).map((x) => x.id));
   for (const c of cards) {
     const p = products.find((x) => x.id === c.productId);
     if (!p) continue;
     const plan = planFor(p, cats.find((x) => x.id === p.categoryId) ?? null, c.specs, attrs, vals.get(p.id) ?? new Map());
-    for (const a of plan.attrs) {
-      // Новое значение открытого списка — в справочник, чтобы работал фильтр
-      const attr = attrs.find((x) => x.id === a.attrId)!;
-      if (attr.type === "select" && !attr.options.some((o) => o.toLowerCase() === a.value.toLowerCase())) {
-        attr.options = [...attr.options, a.value];
-        await db.update(s.attribute).set({ options: attr.options }).where(eq(s.attribute.id, attr.id));
-      }
-      await db.insert(s.productAttribute).values({ productId: p.id, attributeId: a.attrId, value: a.value }).onConflictDoNothing();
-      nAttrs++;
-    }
+    nAttrs += await writeAttrs(p.id, plan.attrs, attrs);
     const patch: Partial<typeof s.product.$inferInsert> = {};
     if (plan.description && (!plan.hasDescription || overwrite)) {
       patch.description = plan.description;
@@ -314,8 +378,83 @@ export async function applyCards(productIds: string[], overwrite: boolean) {
     }
     if (plan.weightGrams) patch.weightGrams = plan.weightGrams;
     if (Object.keys(patch).length) await db.update(s.product).set(patch).where(eq(s.product.id, p.id));
+    if (!withPhotos.has(p.id) && c.url) {
+      // Карточку нашли до того, как стали брать фото, — перечитываем её
+      let images = c.images;
+      if (!images.length) {
+        images = (await loadCard(c.url).catch(() => null))?.images ?? [];
+        if (images.length) await db.update(s.supplierCard).set({ images }).where(eq(s.supplierCard.productId, p.id));
+      }
+      const urls = await grabPhotos(images, userId);
+      if (urls.length) await db.insert(s.productImage).values(urls.map((url, i) => ({ productId: p.id, url, alt: p.name, sortOrder: i })));
+      nPhotos += urls.length;
+    }
     await db.update(s.supplierCard).set({ status: "APPLIED", updatedAt: new Date() }).where(eq(s.supplierCard.productId, p.id));
     n++;
   }
-  return { products: n, attrs: nAttrs, texts: nTexts };
+  return { products: n, attrs: nAttrs, texts: nTexts, photos: nPhotos };
+}
+
+// ---------- Новый товар прямо с сайта поставщика ----------
+
+export interface GrabbedItem {
+  path: string;
+  title: string;
+  code: string | null;
+  rrp: number | null;
+  specs: Spec[];
+  images: string[];
+  /** Уже скачанные к нам фото: /media/… */
+  photos: string[];
+  /** Название варианта (когда несколько карточек поставщика — один наш товар) */
+  variant?: string;
+}
+
+async function freeSlug(name: string) {
+  const { slugify } = await import("@/lib/slug");
+  const base = slugify(name).slice(0, 80) || "tovar";
+  for (let i = 0; i < 50; i++) {
+    const slug = i ? `${base}-${i + 1}` : base;
+    if (!(await db.query.product.findFirst({ where: eq(s.product.slug, slug), columns: { id: true } }))) return slug;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+/**
+ * Создать черновик товара из карточек поставщика: название, характеристики, описание, фото, цена (рекомендованная).
+ * Одна карточка — товар с одним вариантом. Несколько — один товар с вариантами: у каждого своё описание, цена и фото;
+ * общее описание и характеристики — из того, что у всех карточек совпадает.
+ */
+export async function createProductFromFortu(items: GrabbedItem[], name: string, categoryId: string | null) {
+  if (!items.length) throw new Error("Выберите товар у поставщика");
+  const [cat, attrs] = await Promise.all([categoryId ? db.query.category.findFirst({ where: eq(s.category.id, categoryId), columns: { name: true, slug: true } }) : null, listAttributes()]);
+  const multi = items.length > 1;
+  const common = multi ? items[0].specs.filter((x) => items.every((it) => it.specs.some((y) => y.name === x.name && y.value === x.value))) : items[0].specs;
+  const row = { id: "", name, description: "", categoryId, weightGrams: 300 };
+  const plan = planFor(row, cat ?? null, common, attrs, new Map());
+  const prices = items.map((it) => it.rrp).filter((x): x is number => !!x && x > 0);
+  const price = prices.length ? Math.min(...prices) : 0;
+  const { nextSku } = await import("@/lib/sku");
+  const sku = await nextSku(categoryId);
+  const [p] = await db
+    .insert(s.product)
+    .values({ name, slug: await freeSlug(name), categoryId, description: plan.description, price, sku, visibility: "DRAFT", weightGrams: plan.weightGrams ?? shippingGrams(items[0].specs) ?? 300 })
+    .returning({ id: s.product.id });
+  await writeAttrs(p.id, plan.attrs, attrs);
+  let order = 0;
+  for (const [i, it] of items.entries()) {
+    const vName = multi ? (it.variant?.trim() || it.title).slice(0, 120) : "Основной";
+    // Описание варианта — по его собственной карточке: там и жёсткость, и диаметр, и цвет
+    const vPlan = multi ? planFor({ ...row, name: `${name} ${vName}` }, cat ?? null, it.specs, attrs, new Map()) : null;
+    const [v] = await db
+      .insert(s.productVariant)
+      .values({ productId: p.id, name: vName, description: vPlan?.description ?? "", sku: multi ? `${sku}-${i + 1}` : null, price: multi && it.rrp && it.rrp !== price ? it.rrp : null, stock: 0, isActive: true, sortOrder: i })
+      .returning({ id: s.productVariant.id });
+    const photos = it.photos.filter((u) => /^\/media\/[\w-]+$/.test(u));
+    if (photos.length) await db.insert(s.productImage).values(photos.map((url) => ({ productId: p.id, variantId: multi ? v.id : null, url, alt: multi ? `${name} — ${vName}` : name, sortOrder: order++ })));
+  }
+  const first = items[0];
+  await save({ productId: p.id, status: "APPLIED", url: first.path, code: first.code, title: first.title, score: 100, specs: common, images: first.images, rrp: first.rrp, note: multi ? `Варианты из ${items.length} карточек поставщика` : null, fetchedAt: new Date() });
+  await import("@/lib/shop-barcodes").then((m) => m.syncSkuToBarcode([p.id])).catch(() => {});
+  return { id: p.id, price };
 }

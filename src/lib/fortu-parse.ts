@@ -1,7 +1,7 @@
 /**
  * Разбор страниц поставщика «Фортуна» (fortu.ru) и сопоставление с нашими товарами.
- * Берём только факты: название, код, характеристики «имя — значение», рекомендованную цену.
- * Тексты описаний и фотографии не трогаем — на них у поставщика авторское право.
+ * Берём название, код, характеристики «имя — значение», рекомендованную цену и фотографии
+ * (поставщик разрешил их использовать). Тексты описаний не копируем — описание пишем сами.
  * Без server-only: чистые функции, проверяются тестами.
  */
 
@@ -15,6 +15,8 @@ export interface FortuProduct {
   code: string | null;
   rrp: number | null; // копейки
   specs: Spec[];
+  /** Адреса фото в полном размере (поставщик разрешил их использовать) */
+  images: string[];
 }
 
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", laquo: "«", raquo: "»", ndash: "–", mdash: "—", plusmn: "±", reg: "®", trade: "™", deg: "°", sup2: "²", times: "×", oslash: "ø", Oslash: "Ø", ldquo: "“", rdquo: "”", hellip: "…" };
@@ -46,7 +48,10 @@ export function parseFortuProduct(html: string): FortuProduct | null {
     const value = plain(m[2]).slice(0, 200);
     if (name && value && !specs.some((x) => x.name === name)) specs.push({ name, value });
   }
-  return { title, code: code ? code.slice(0, 32) : null, rrp: Number.isFinite(rrpNum) && rrpNum > 0 ? Math.round(rrpNum * 100) : null, specs };
+  const images: string[] = [];
+  const im = /<a href="(\/product-image\/[^"?#]+\.(?:jpe?g|png|webp))"[^>]*class="pirobox_gal1/gi;
+  for (let m = im.exec(html); m && images.length < 12; m = im.exec(html)) if (!images.includes(m[1])) images.push(m[1]);
+  return { images, title, code: code ? code.slice(0, 32) : null, rrp: Number.isFinite(rrpNum) && rrpNum > 0 ? Math.round(rrpNum * 100) : null, specs };
 }
 
 /** Список товаров из выдачи поиска (страница или кусок из search.php) */
@@ -116,6 +121,23 @@ export function similarity(ours: string, theirs: string) {
   const hardB = [...b].filter((t) => HARD.has(t));
   const clash = numsA.some((t) => !b.has(t)) || (hardA.length && hardB.length && !hardA.some((t) => b.has(t))) ? 0.5 : 1;
   return Math.round((100 * hit * clash) / (all + extra));
+}
+
+/**
+ * Общая часть названий и то, чем они различаются — для товара с вариантами:
+ * «Наклейка Kamui Black ø13мм Soft 1шт.» и «…ø14мм Hard 1шт.» → «Наклейка Kamui Black», [«ø13мм Soft», «ø14мм Hard»].
+ */
+export function splitTitles(titles: string[]) {
+  const words = titles.map((t) => t.trim().split(/\s+/));
+  if (words.length < 2) return { common: titles[0]?.trim() ?? "", parts: [""] };
+  let head = 0;
+  while (words.every((w) => w.length > head + 1 && w[head] === words[0][head])) head++;
+  let tail = 0;
+  while (words.every((w) => w.length - tail - 1 > head && w[w.length - 1 - tail] === words[0][words[0].length - 1 - tail])) tail++;
+  // Хвост вида «1шт.» одинаков у всех — в название варианта не нужен
+  const parts = words.map((w) => w.slice(head, w.length - tail).join(" "));
+  const common = words[0].slice(0, head).join(" ").replace(/\s+(для|с|и|в|на)$/i, "");
+  return { common: common || titles[0].trim(), parts };
 }
 
 /** Что спрашивать у поиска поставщика: от точного к общему. Поиск там — по куску названия подряд */

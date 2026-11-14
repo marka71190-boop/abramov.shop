@@ -48,7 +48,7 @@ export async function duplicateProduct(id: string) {
     for (const v of variants) {
       const [nv] = await tx
         .insert(s.productVariant)
-        .values({ productId: p.id, name: v.name, sku: variants.length > 1 ? `${sku}-${v.sortOrder + 1}` : null, price: v.price, stock: src.isUnique ? 1 : 0, isActive: v.isActive, sortOrder: v.sortOrder })
+        .values({ productId: p.id, name: v.name, description: v.description, sku: variants.length > 1 ? `${sku}-${v.sortOrder + 1}` : null, price: v.price, stock: src.isUnique ? 1 : 0, isActive: v.isActive, sortOrder: v.sortOrder })
         .returning({ id: s.productVariant.id });
       vmap.set(v.id, nv.id);
     }

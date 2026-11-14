@@ -15,6 +15,7 @@ interface Variant {
   price: string;
   stock: number;
   isActive: boolean;
+  description: string;
 }
 interface Image {
   url: string;
@@ -50,7 +51,7 @@ export interface ProductData {
   originCountry?: string | null;
   sortOrder: number;
   previewToken: string;
-  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean }[];
+  variants: { id: string; name: string; sku: string | null; price: number | null; stock: number; isActive: boolean; description: string }[];
   images: { url: string; alt: string; variantId: string | null }[];
 }
 
@@ -260,8 +261,8 @@ export function ProductForm({
   const [slugTouched, setSlugTouched] = useState(!!product);
   const [limited, setLimited] = useState(product?.isLimited ?? false);
   const [variants, setVariants] = useState<Variant[]>(
-    product?.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive })) ?? [
-      { key: newKey(), name: "Основной", sku: "", price: "", stock: 0, isActive: true },
+    product?.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, sku: v.sku ?? "", price: rubStr(v.price), stock: v.stock, isActive: v.isActive, description: v.description })) ?? [
+      { key: newKey(), name: "Основной", sku: "", price: "", stock: 0, isActive: true, description: "" },
     ],
   );
   const [images, setImages] = useState<Image[]>(product?.images.map((im) => ({ url: im.url, alt: im.alt, variantKey: im.variantId })) ?? []);
@@ -508,7 +509,7 @@ export function ProductForm({
               </tr>
             </thead>
             <tbody>
-              {variants.map((v, i) => (
+              {variants.flatMap((v, i) => [
                 <tr key={v.key}>
                   <td>
                     <input className="input" value={v.name} onChange={(e) => setV(i, { name: e.target.value })} required />
@@ -541,13 +542,32 @@ export function ProductForm({
                       Убрать
                     </button>
                   </td>
-                </tr>
-              ))}
+                </tr>,
+                // Своё описание варианта — только когда вариантов несколько: у единственного оно совпадает с описанием товара
+                variants.length > 1 && (
+                  <tr key={`${v.key}:desc`}>
+                    <td colSpan={6} style={{ paddingTop: 0, borderTop: 0 }}>
+                      <details open={!!v.description}>
+                        <summary className="small">Описание варианта{v.description ? "" : " — пусто, покупатель видит описание товара"}</summary>
+                        <textarea
+                          className="textarea"
+                          value={v.description}
+                          onChange={(e) => setV(i, { description: e.target.value })}
+                          maxLength={6000}
+                          style={{ minHeight: 110, paddingTop: 12, marginTop: 6 }}
+                          placeholder="Чем этот вариант отличается: жёсткость, цвет, размер…"
+                          aria-label={`Описание варианта: ${v.name || i + 1}`}
+                        />
+                      </details>
+                    </td>
+                  </tr>
+                ),
+              ])}
             </tbody>
           </table>
         </div>
         <div>
-          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { key: newKey(), name: "", sku: "", price: "", stock: 0, isActive: true }])}>
+          <button type="button" className="btn btn--line btn--sm" onClick={() => setVariants((vs) => [...vs, { key: newKey(), name: "", sku: "", price: "", stock: 0, isActive: true, description: "" }])}>
             + Вариант
           </button>
         </div>

@@ -52,6 +52,9 @@ export default async function CatalogAdmin() {
           >
             Характеристики
           </Link>
+          <Link className="btn btn--gold btn--sm" href="/admin/catalog/supplier/new">
+            + Товар с Фортуны
+          </Link>
           <Link className="btn btn--line btn--sm" href="/admin/catalog/supplier">
             Заполнить по поставщику
           </Link>
