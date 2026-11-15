@@ -7,6 +7,7 @@ import { goal } from "@/lib/track";
 import { rub } from "@/lib/format";
 import { ecommerce } from "@/lib/track";
 import { Lightbox } from "./Lightbox";
+import { shortVariantNames } from "@/lib/variant-label";
 import { sized, srcSetFor } from "@/lib/img";
 
 export interface GalleryImage {
@@ -151,6 +152,7 @@ export function ProductView({
   const shown = useMemo(() => photosFor(images, vid, hasVariantPhotos), [images, vid, hasVariantPhotos]);
   const v = variants.find((x) => x.id === vid) ?? variants[0];
   const multi = variants.length > 1;
+  const labels = shortVariantNames(variants.map((x) => x.name));
 
   // Метрика: просмотр товара (и смена варианта)
   useEffect(() => {
@@ -191,10 +193,10 @@ export function ProductView({
         {multi && (
           <div className="stack" style={{ gap: 10 }}>
             <div className="label">
-              Вариант: <span style={{ color: "var(--c-text)" }}>{v?.name}</span>
+              Вариант: <span style={{ color: "var(--c-text)" }}>{v ? labels[variants.indexOf(v)] : ""}</span>
             </div>
             <div className="variants" role="radiogroup" aria-label="Вариант">
-              {variants.map((x) => {
+              {variants.map((x, xi) => {
                 const thumb = images.find((i) => i.variantId === x.id);
                 return (
                   <button
@@ -208,7 +210,7 @@ export function ProductView({
                     data-out={x.stock <= 0 || undefined}
                   >
                     {thumb && <img src={sized(thumb.url, 160)} alt="" />}
-                    <span>{x.name}</span>
+                    <span>{labels[xi]}</span>
                   </button>
                 );
               })}

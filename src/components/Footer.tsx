@@ -57,7 +57,6 @@ export function Footer({ pages, telegram, email, cue = false }: Props) {
       </div>
       <div className="container footer__bottom">
         <span>© {new Date().getFullYear()} Abramov Shop</span>
-        <span>Оплата через ЮKassa · Доставка СДЭК</span>
       </div>
     </footer>
   );

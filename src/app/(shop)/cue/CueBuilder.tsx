@@ -112,7 +112,7 @@ export function CueBuilder({ config, initial, admin = false }: { config: CueConf
               <span>{rub(r.price)}</span>
             </div>
             <p className="small muted" style={{ margin: 0 }}>
-              Изготовим за {config.leadDays} дн. после оплаты, затем отправим СДЭК. Оплата — 100% онлайн при оформлении.
+              Изготовим за {config.leadDays} дн. после оплаты, затем отправим. Оплата — 100% онлайн при оформлении.
             </p>
             <button type="button" className="btn btn--gold btn--block" onClick={add}>
               {added ? "Добавлено ✓ Добавить ещё" : "В корзину"}

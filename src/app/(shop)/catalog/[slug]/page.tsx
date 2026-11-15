@@ -21,7 +21,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   });
   if (!cat || !isPublic(cat)) return { robots: { index: false } };
   const filtered = Object.keys(sp).some((k) => k !== "preview");
-  const description = snippet(cat.description, `${cat.name} в Abramov Shop: доставка СДЭК по всей России, бонусы с каждой покупки.`);
+  const description = snippet(cat.description, `${cat.name} в Abramov Shop: доставка по всей России, бонусы с каждой покупки.`);
   const image = shareImage(cat.image);
   return {
     title: cat.name,

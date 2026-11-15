@@ -42,7 +42,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const price = variant ? (variant.price ?? p.price) : prices.length ? Math.min(...prices) : p.price;
   const priceText = `${variant || new Set(prices).size <= 1 ? "" : "от "}${Math.round(price / 100).toLocaleString("ru-RU")} ₽`;
   const title = variant && p.variants.length > 1 ? `${p.name} — ${variant.name}` : p.name;
-  const description = snippet(variant?.description.trim() || p.description, `${p.name} в Abramov Shop. Доставка СДЭК по всей России, бонусы с каждой покупки.`);
+  const description = snippet(variant?.description.trim() || p.description, `${p.name} в Abramov Shop. Доставка по всей России, бонусы с каждой покупки.`);
   const image = shareImage(photo?.url);
   return {
     title,

@@ -163,7 +163,7 @@ export function GiftBuyForm(p: Props) {
               </button>
             </div>
             <p className="muted small" style={{ margin: 0 }}>
-              Оплата через ЮKassa, чек придёт на почту. Сертификат действует {p.validityDays > 0 ? `${p.validityDays} дней с покупки` : "бессрочно"}, им можно
+              Оплата онлайн, чек придёт на почту. Сертификат действует {p.validityDays > 0 ? `${p.validityDays} дней с покупки` : "бессрочно"}, им можно
               оплатить заказ целиком или частично, остаток сохраняется.
             </p>
           </>

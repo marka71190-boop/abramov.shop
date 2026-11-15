@@ -100,7 +100,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <div className="hero-note">
           <div className="h3">Спасибо, оплата прошла</div>
           <p className="muted" style={{ margin: 0 }}>
-            {o.deliveryType === "PICKUP" ? "Соберём заказ и пришлём письмо, когда можно забирать в клубе." : "Мы соберём заказ и отправим трек-номер СДЭК."} Бонусы ({num(o.bonusAccrued / 100)}) начислятся после получения.
+            {o.deliveryType === "PICKUP" ? "Соберём заказ и пришлём письмо, когда можно забирать в клубе." : "Мы соберём заказ и пришлём трек-номер."} Бонусы ({num(o.bonusAccrued / 100)}) начислятся после получения.
           </p>
         </div>
       )}
@@ -238,7 +238,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                     {o.shippedAt && <span className="muted small"> · {fmtDateTime(o.shippedAt)}</span>}
                   </li>
                 ) : (
-                  <li className="is-next muted">{o.deliveryType === "PICKUP" ? "Привезём в клуб и сообщим, когда можно забирать" : "Отправим СДЭК и пришлём трек-номер"}</li>
+                  <li className="is-next muted">{o.deliveryType === "PICKUP" ? "Привезём в клуб и сообщим, когда можно забирать" : "Отправим и пришлём трек-номер"}</li>
                 )}
               </ol>
             </div>

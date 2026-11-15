@@ -11,9 +11,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const filtered = Object.keys(sp).length > 0;
   return {
     title: q ? `Поиск: ${q.slice(0, 60)}` : "Каталог",
-    description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка СДЭК по всей России, бонусы с каждой покупки.",
+    description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка по всей России, бонусы с каждой покупки.",
     alternates: { canonical: "/catalog" },
-    openGraph: og({ url: "/catalog", title: "Каталог — Abramov Shop", description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка СДЭК по всей России." }),
+    openGraph: og({ url: "/catalog", title: "Каталог — Abramov Shop", description: "Всё для бильярда: кии, мел, перчатки, аксессуары. Доставка по всей России." }),
     // Страницы поиска и фильтров не нужны в выдаче — индексируется только сам каталог
     robots: filtered ? { index: false, follow: true } : undefined,
   };

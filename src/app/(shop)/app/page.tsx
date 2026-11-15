@@ -6,7 +6,7 @@ import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = {
   title: "Приложение Abramov Shop",
-  description: "Установите Abramov Shop на телефон: статус заказа и трек-номер СДЭК приходят уведомлением, каталог открывается в одно касание.",
+  description: "Установите Abramov Shop на телефон: статус заказа и трек-номер приходят уведомлением, каталог открывается в одно касание.",
   alternates: { canonical: "/app" },
 };
 
@@ -44,13 +44,13 @@ export default async function AppPage() {
             <img src="/icons/icon-192.png" alt="" width={28} height={28} />
             <div>
               <b>Заказ A-1024 оплачен</b>
-              <span>Соберём и пришлём трек-номер СДЭК.</span>
+              <span>Соберём и пришлём трек-номер.</span>
             </div>
           </div>
           <div className="app-note">
             <img src="/icons/icon-192.png" alt="" width={28} height={28} />
             <div>
-              <b>Заказ A-1024 передан в СДЭК</b>
+              <b>Заказ A-1024 передан в доставку</b>
               <span>Трек-номер 1234567890, в пути ~3 дн.</span>
             </div>
           </div>

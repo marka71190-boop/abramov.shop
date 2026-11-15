@@ -29,7 +29,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </h2>
           <div className="auth__perks">
             <div>Уровень Silver сразу после регистрации</div>
-            <div>История заказов и трек СДЭК в одном месте</div>
+            <div>История заказов и трек-номер в одном месте</div>
             <div>Реферальный код для друзей</div>
           </div>
         </div>

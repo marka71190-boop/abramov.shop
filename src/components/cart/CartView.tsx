@@ -102,7 +102,7 @@ export function CartView({ signedIn, maxPerItem }: { signedIn: boolean; maxPerIt
           </div>
         ))}
         <div className="summary__row muted">
-          <span>Доставка СДЭК</span>
+          <span>Доставка</span>
           <span>при оформлении</span>
         </div>
         <div className="summary__total">

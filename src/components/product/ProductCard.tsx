@@ -6,6 +6,7 @@ import type { RatingInfo } from "@/lib/reviews";
 import { FavoriteButton } from "./FavoriteButton";
 import { Stars } from "./Stars";
 import { sized, srcSetFor } from "@/lib/img";
+import { shortVariantNames, variantsCount } from "@/lib/variant-label";
 
 interface CardVariant {
   id: string;
@@ -28,7 +29,7 @@ interface CardProduct {
   isUnique?: boolean;
 }
 
-const MAX_CHIPS = 6;
+const MAX_CHIPS = 5;
 
 /** eager — карточка в первом ряду: фото грузим сразу, без отложенной загрузки */
 export function ProductCard({ p, rating, favorite, eager }: { p: CardProduct; rating?: RatingInfo; favorite: boolean; eager?: boolean }) {
@@ -41,6 +42,10 @@ export function ProductCard({ p, rating, favorite, eager }: { p: CardProduct; ra
   const shown = hover?.image ?? p.image?.url ?? null;
   const href = (v?: CardVariant) => `/product/${p.slug}${v ? `?v=${v.id}` : ""}`;
   const inStock = variants.filter((v) => v.stock > 0).length;
+  // «Биток … бордовый» → «Бордовый»: в карточке место только для различия
+  const labels = shortVariantNames(variants.map((v) => v.name));
+  // Есть фото вариантов — показываем их квадратиками без подписи (цвет видно и так)
+  const swatches = variants.some((v) => v.image);
 
   return (
     <div className="pcard-wrap">
@@ -71,19 +76,23 @@ export function ProductCard({ p, rating, favorite, eager }: { p: CardProduct; ra
             {p.oldPrice && p.oldPrice > min ? <span className="old-price">{rub(p.oldPrice)}</span> : null}
           </div>
           {multi && (
-            <div className="pcard__variants" onMouseLeave={() => setHover(null)}>
-              {variants.slice(0, MAX_CHIPS).map((v) => (
+            <div className="pcard__vcount muted small">{variantsCount(variants.length)}</div>
+          )}
+          {multi && (
+            <div className={`pcard__variants${swatches ? " pcard__variants--swatch" : ""}`} onMouseLeave={() => setHover(null)}>
+              {variants.slice(0, MAX_CHIPS).map((v, i) => (
                 <Link
                   key={v.id}
                   href={href(v)}
                   className="vchip"
                   data-out={v.stock <= 0 || undefined}
-                  title={v.stock <= 0 ? `${v.name} — нет в наличии` : v.name}
+                  title={v.stock <= 0 ? `${labels[i]} — нет в наличии` : labels[i]}
+                  aria-label={labels[i]}
                   onMouseEnter={() => setHover(v)}
                   onFocus={() => setHover(v)}
                 >
                   {v.image && <img src={sized(v.image, 160)} alt="" loading="lazy" />}
-                  <span>{v.name}</span>
+                  {!(swatches && v.image) && <span>{labels[i]}</span>}
                 </Link>
               ))}
               {variants.length > MAX_CHIPS && (

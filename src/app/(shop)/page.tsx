@@ -90,6 +90,9 @@ export default async function HomePage() {
     viewer ? favoriteIds(viewer.id) : Promise.resolve(new Set<string>()),
   ]);
   const { tiers, referralBonus, birthdayBonus } = settings.loyalty;
+  const inStockPhoto = (p: Card) => !!p.image && p.stock > 0;
+  const heroItem = hits.find(inStockPhoto) ?? newOnes.find(inStockPhoto) ?? null;
+  const heroIsHit = !!heroItem && hits.includes(heroItem);
 
   return (
     <>
@@ -113,11 +116,25 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="hero__art">
-            <div className="stripe stripe--gold" aria-hidden />
-            <div className="stripe stripe--silver" aria-hidden />
-            <Logo id="hero" animated title="Логотип Abramov" />
-          </div>
+          {heroItem?.image ? (
+            // Первый экран показывает товар, а не логотип: хит продаж, а если хитов ещё нет — новинку
+            <Link href={`/product/${heroItem.slug}`} className="hero__art hero__art--photo">
+              <img src={sized(heroItem.image.url, 1200)} srcSet={srcSetFor(heroItem.image.url, [640, 1200])} sizes="(max-width: 900px) 100vw, 600px" alt={heroItem.image.alt || heroItem.name} fetchPriority="high" decoding="async" />
+              <div className="hero__cap">
+                <div>
+                  <div className="hero__cap-tag">{heroIsHit ? "Хит продаж" : "Новинка"}</div>
+                  <div className="hero__cap-name">{heroItem.name}</div>
+                </div>
+                <div className="hero__cap-price">{rub(heroItem.price)}</div>
+              </div>
+            </Link>
+          ) : (
+            <div className="hero__art">
+              <div className="stripe stripe--gold" aria-hidden />
+              <div className="stripe stripe--silver" aria-hidden />
+              <Logo id="hero" animated title="Логотип Abramov" />
+            </div>
+          )}
         </div>
         <div className="container features">
           <div className="feature">

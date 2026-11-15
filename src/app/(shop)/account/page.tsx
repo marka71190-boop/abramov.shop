@@ -39,7 +39,7 @@ const STATUS: Record<string, { text: string; color: string }> = {
   AWAITING_PAYMENT: { text: "Ожидает оплаты", color: "var(--c-dim)" },
   PAID: { text: "Оплачен", color: "var(--c-gold)" },
   ASSEMBLING: { text: "Собираем", color: "var(--c-gold)" },
-  SHIPPED: { text: "В пути · СДЭК", color: "var(--c-gold)" },
+  SHIPPED: { text: "В пути", color: "var(--c-gold)" },
   DELIVERED: { text: "Получен", color: "var(--c-success)" },
   CANCELLED: { text: "Отменён", color: "var(--c-danger)" },
   REFUNDED: { text: "Возврат", color: "var(--c-danger)" },
@@ -536,7 +536,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <div>
                 <div>Telegram {user.telegramChatId ? <span className="pill pill--ok" style={{ marginLeft: 6 }}>подключён</span> : null}</div>
                 <div className="muted small">
-                  {user.telegramChatId ? "Бот пришлёт оплату, трек-номер СДЭК и начисление бонусов" : "Подключите — бот пришлёт трек-номер и сообщит, когда посылка приедет"}
+                  {user.telegramChatId ? "Бот пришлёт оплату, трек-номер и начисление бонусов" : "Подключите — бот пришлёт трек-номер и сообщит, когда посылка приедет"}
                 </div>
               </div>
               <div className="row" style={{ gap: 16 }}>

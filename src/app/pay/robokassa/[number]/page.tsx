@@ -79,7 +79,7 @@ export default async function RobokassaPay({ params }: { params: Promise<{ numbe
         </p>
       )}
       <p className="muted" style={{ margin: 0 }}>
-        Сейчас откроется страница Робокассы: там можно оплатить картой, частями, через «Сплит» или картой зарубежного банка.
+        Сейчас откроется страница оплаты: там можно оплатить картой, частями, через «Сплит» или картой зарубежного банка.
       </p>
       <AutoSubmit action={form.action} fields={form.fields} />
       <Link href={`/order/${o.number}`} className="small">

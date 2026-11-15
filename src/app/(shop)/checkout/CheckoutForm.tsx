@@ -449,7 +449,7 @@ export function CheckoutForm({
             <div className="notice notice--muted" style={{ margin: 0 }}>
               {mode === "MANUAL"
                 ? `В эту страну отправим Почтой России. Впишите адрес — после оформления посчитаем доставку и пришлём итоговую сумму и реквизиты для перевода на карту. К заказу добавится сбор за международный заказ ${foreign.transferPercent} %.`
-                : `Доставка СДЭК. Оплата ${[robokassa && `картой через Робокассу (сбор ${foreign.robokassaPercent} %)`, foreign.transferReady && `переводом на карту (сбор ${foreign.transferPercent} %)`].filter(Boolean).join(" или ") || "— уточните в поддержке"}.`}
+                : `Оплата ${[robokassa && `картой (сбор ${foreign.robokassaPercent} %)`, foreign.transferReady && `переводом на карту (сбор ${foreign.transferPercent} %)`].filter(Boolean).join(" или ") || "— уточните в поддержке"}.`}
               {foreign.intro && (
                 <>
                   <br />
@@ -783,7 +783,7 @@ export function CheckoutForm({
                   Картой любого банка
                   <span className="muted small">
                     {" "}
-                    · Робокасса, сбор {foreign.robokassaPercent} %{foreign.usd ? ", оплата в долларах" : ""}
+                    · сбор {foreign.robokassaPercent} %{foreign.usd ? ", оплата в долларах" : ""}
                   </span>
                 </span>
               </label>
@@ -806,7 +806,6 @@ export function CheckoutForm({
                 <input type="radio" name="payMethod" checked={payMethod === "ONLINE"} onChange={() => setPayMethod("ONLINE")} />
                 <span>
                   Картой, СБП, SberPay или частями
-                  <span className="muted small"> · ЮKassa</span>
                 </span>
               </label>
             )}
@@ -833,7 +832,7 @@ export function CheckoutForm({
               : byTransfer
                 ? "Оформить и получить реквизиты"
                 : byRobokassa
-                  ? `Оплатить ${quote ? rub(quote.payable) : ""} через Робокассу`
+                  ? `Оплатить ${quote ? rub(quote.payable) : ""}`
                   : byInvoice
                     ? "Получить счёт на оплату"
                     : testMode ? "Создать заказ (тест)" : quote && quote.payable === 0 ? "Оплатить сертификатом" : `Оплатить ${quote ? rub(quote.payable) : ""}`}
@@ -860,10 +859,10 @@ export function CheckoutForm({
                   : byTransfer
                     ? `Реквизиты для перевода откроются после оформления и придут на почту. Товар зарезервируем на ${foreign.paymentDays} дн.`
                   : byRobokassa
-                    ? "Откроется страница Робокассы — можно платить картой российского или зарубежного банка."
+                    ? "Откроется страница оплаты — можно платить картой российского или зарубежного банка."
                   : quote?.payable === 0
                   ? "Заказ полностью оплачивается сертификатом — платить картой не нужно."
-                  : "Оплата картой, через СБП, SberPay или частями на защищённой странице ЮKassa."}
+                  : "Оплата картой, через СБП, SberPay или частями на защищённой странице оплаты."}
         </p>
         <p className="muted small" style={{ margin: 0, fontSize: 12 }}>
           Нажимая кнопку, вы подтверждаете заказ
