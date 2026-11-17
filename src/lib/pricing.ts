@@ -7,7 +7,7 @@
 import "server-only";
 import { and, asc, count, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { calculate, calculateBest, cdekEnabled, parcelFor } from "@/lib/cdek";
+import { calculate, calculateBest, cdekEnabled, parcelFor, shippingPrice } from "@/lib/cdek";
 import { tierProgress } from "@/lib/loyalty";
 import { checkGiftCode, giftApplicable, type GiftWho } from "@/lib/giftcards";
 import { countryLabel, foreignFeeOf, parseCountries } from "@/lib/countries";
@@ -360,11 +360,11 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
       const parcel = parcelFor(lines.map((l) => ({ ...l, quantity: l.qty })));
       const main = d.type === "PVZ" ? st.tariffPvz : st.tariffCourier;
       try {
-        const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff: main, parcel })
+        const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff: main, parcel, declared: subtotal })
           .then((r) => ({ ...r, tariff: main }))
-          .catch(() => calculateBest({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode!, mode: d.type === "PVZ" ? 4 : 3, parcel }));
+          .catch(() => calculateBest({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode!, mode: d.type === "PVZ" ? 4 : 3, parcel, declared: subtotal }));
         const days = q.periodMin === q.periodMax ? `${q.periodMax}` : `${q.periodMin}–${q.periodMax}`;
-        shipping = { cost: q.cost + st.markup * 100, days, tariff: q.tariff, free: false, estimate: false, carrierCost: q.cost };
+        shipping = { cost: shippingPrice(q.cost, st.markupPercent, st.markup), days, tariff: q.tariff, free: false, estimate: false, carrierCost: q.cost };
       } catch (e) {
         console.error("[cdek] calculate:", e);
         shippingError = "СДЭК не смог рассчитать доставку в этот город. Попробуйте другой способ или напишите в поддержку";
@@ -389,9 +389,10 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
       if (!d.cityCode) shippingError = "Выберите город";
       else {
         try {
-          const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff, parcel: parcelFor(lines.map((l) => ({ ...l, quantity: l.qty }))) });
+          // Объявленная стоимость = цена товаров: на неё СДЭК страхует посылку при отправке
+          const q = await calculate({ fromCityCode: st.fromCityCode, toCityCode: d.cityCode, tariff, parcel: parcelFor(lines.map((l) => ({ ...l, quantity: l.qty }))), declared: subtotal });
           const days = q.periodMin === q.periodMax ? `${q.periodMax}` : `${q.periodMin}–${q.periodMax}`;
-          shipping = { cost: free ? 0 : q.cost + st.markup * 100, days, tariff, free, estimate: false, carrierCost: q.cost };
+          shipping = { cost: free ? 0 : shippingPrice(q.cost, st.markupPercent, st.markup), days, tariff, free, estimate: false, carrierCost: q.cost };
         } catch (e) {
           console.error("[cdek] calculate:", e);
           shippingError = "СДЭК не смог рассчитать доставку в этот город. Попробуйте другой способ или напишите в поддержку";

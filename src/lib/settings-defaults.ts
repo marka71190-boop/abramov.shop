@@ -30,7 +30,8 @@ export interface SiteSettings {
     shipmentPoint: string; // ПВЗ, где сдаём посылки (KSD47)
     tariffPvz: number; // 136 — посылка склад-склад
     tariffCourier: number; // 137 — посылка склад-дверь
-    markup: number; // ₽ к цене СДЭК (упаковка)
+    markupPercent: number; // %, наценка на доставку: (тариф + страховка) × (1 + %)
+    markup: number; // ₽ сверху после процента (упаковка); 0 — нет
     freeFrom: number; // ₽, с какой суммы доставка бесплатная; 0 — никогда
     flatPvz: number; // ₽, если СДЭК ещё не подключён
     flatCourier: number;
@@ -136,6 +137,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     shipmentPoint: "KSD47",
     tariffPvz: 136,
     tariffCourier: 137,
+    markupPercent: 35,
     markup: 0,
     freeFrom: 0,
     flatPvz: 350,

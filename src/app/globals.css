@@ -3142,14 +3142,13 @@ body:has(.print-root) {
   font-size: 12px;
   padding-top: 12px;
 }
-/* Листовка — половина А4 (148 мм): на одном листе помещаются две, разрезать по пунктиру */
+/* Листовка — половина А4 (148 мм): на одном листе помещаются две, разрезать по пунктиру.
+   Высота — не жёсткая: если текст не влез (узкий экран телефона, печать с полями), листовка вырастет, а не обрежет текст */
 .sheet--insert {
   font-size: 12.5px;
   gap: 10px;
   min-height: 148.5mm;
-  height: 148.5mm;
   padding: 9mm 12mm 8mm;
-  overflow: hidden;
 }
 .insert__head {
   justify-content: flex-start;
@@ -3253,13 +3252,31 @@ body:has(.print-root) {
     min-height: 148.5mm;
     border-bottom: 1px dashed #999;
   }
-}
-@media screen and (max-width: 860px) {
+  /* Принтер или телефон добавил свои поля — лист подстраивается под ширину, а не вылезает за край */
   .sheet {
     width: auto;
+    max-width: 210mm;
+  }
+}
+@media screen and (max-width: 860px) {
+  .sheet,
+  .sheet--insert {
+    width: auto;
     min-height: 0;
+    height: auto;
     margin: 0 8px 16px;
     padding: 16px;
+  }
+  .insert__cols {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .insert__qr {
+    align-items: flex-start;
+  }
+  .insert__qr > div:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }
 

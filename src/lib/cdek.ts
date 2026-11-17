@@ -140,27 +140,52 @@ export function parcelFor(items: { weightGrams: number; lengthCm: number; widthC
 }
 
 export interface CdekQuote {
-  cost: number; // копейки
+  cost: number; // копейки: тариф + страховка — сколько доставка стоит магазину
+  tariffCost?: number; // копейки: только тариф
+  insurance?: number; // копейки: страховка по объявленной стоимости
   periodMin: number;
   periodMax: number;
 }
 
+/**
+ * Цена доставки для покупателя: (тариф + страховка) + наценка в процентах, округляем до рубля вверх,
+ * плюс фиксированная наценка в рублях (упаковка). cost — копейки.
+ */
+export function shippingPrice(cost: number, percent: number, fixedRub = 0) {
+  const withPercent = Math.ceil((cost * (1 + Math.max(0, percent) / 100)) / 100) * 100;
+  return withPercent + Math.max(0, fixedRub) * 100;
+}
+
 const quoteCache = new Map<string, { at: number; quote: CdekQuote }>();
 
-export async function calculate(p: { fromCityCode: number; toCityCode: number; tariff: number; parcel: Parcel }): Promise<CdekQuote> {
+/**
+ * declared — объявленная стоимость посылки, копейки: при отправке СДЭК страхует товары на их цену
+ * и берёт за это плату, поэтому страховку считаем сразу (услуга INSURANCE).
+ */
+export async function calculate(p: { fromCityCode: number; toCityCode: number; tariff: number; parcel: Parcel; declared?: number }): Promise<CdekQuote> {
   const key = JSON.stringify(p);
   const hit = quoteCache.get(key);
   if (hit && Date.now() - hit.at < 600_000) return hit.quote;
-  const data = await api<{ total_sum: number; period_min: number; period_max: number }>("/calculator/tariff", {
+  const declaredRub = p.declared && p.declared > 0 ? Math.ceil(p.declared / 100) : 0;
+  const data = await api<{ delivery_sum?: number; total_sum: number; period_min: number; period_max: number; services?: { code: string; sum: number }[] }>("/calculator/tariff", {
     method: "POST",
     body: {
       tariff_code: p.tariff,
       from_location: { code: p.fromCityCode },
       to_location: { code: p.toCityCode },
       packages: [p.parcel],
+      ...(declaredRub ? { services: [{ code: "INSURANCE", parameter: String(declaredRub) }] } : {}),
     },
   });
-  const quote = { cost: Math.ceil(data.total_sum) * 100, periodMin: data.period_min, periodMax: data.period_max };
+  const insurance = Math.round((data.services ?? []).filter((x) => x.code === "INSURANCE").reduce((a, x) => a + (Number(x.sum) || 0), 0) * 100);
+  const total = Math.ceil(data.total_sum * 100);
+  const quote = {
+    cost: Math.ceil(total / 100) * 100,
+    tariffCost: data.delivery_sum != null ? Math.round(data.delivery_sum * 100) : total - insurance,
+    insurance,
+    periodMin: data.period_min,
+    periodMax: data.period_max,
+  };
   quoteCache.set(key, { at: Date.now(), quote });
   if (quoteCache.size > 2000) quoteCache.clear();
   return quote;
@@ -170,7 +195,7 @@ export async function calculate(p: { fromCityCode: number; toCityCode: number; t
  * Самый дешёвый тариф СДЭК для направления — когда основной тариф туда не работает (заказы за рубеж).
  * mode: 4 — склад-склад (пункт выдачи), 3 — склад-дверь (курьер).
  */
-export async function calculateBest(p: { fromCityCode: number; toCityCode: number; mode: 3 | 4; parcel: Parcel }): Promise<CdekQuote & { tariff: number }> {
+export async function calculateBest(p: { fromCityCode: number; toCityCode: number; mode: 3 | 4; parcel: Parcel; declared?: number }): Promise<CdekQuote & { tariff: number }> {
   const key = "best:" + JSON.stringify(p);
   const hit = quoteCache.get(key) as { at: number; quote: CdekQuote & { tariff: number } } | undefined;
   if (hit && Date.now() - hit.at < 600_000) return hit.quote;
@@ -180,7 +205,13 @@ export async function calculateBest(p: { fromCityCode: number; toCityCode: numbe
   );
   const best = (data.tariff_codes ?? []).filter((x) => x.delivery_mode === p.mode).sort((a, b) => a.delivery_sum - b.delivery_sum)[0];
   if (!best) throw new Error("СДЭК: нет тарифа для этого направления");
-  const quote = { cost: Math.ceil(best.delivery_sum) * 100, periodMin: best.period_min, periodMax: best.period_max, tariff: best.tariff_code };
+  // Список тарифов страховку не считает — пересчитываем выбранный тариф со страховкой
+  const full = p.declared
+    ? await calculate({ fromCityCode: p.fromCityCode, toCityCode: p.toCityCode, tariff: best.tariff_code, parcel: p.parcel, declared: p.declared }).catch(() => null)
+    : null;
+  const quote = full
+    ? { ...full, tariff: best.tariff_code }
+    : { cost: Math.ceil(best.delivery_sum) * 100, tariffCost: Math.ceil(best.delivery_sum) * 100, insurance: 0, periodMin: best.period_min, periodMax: best.period_max, tariff: best.tariff_code };
   quoteCache.set(key, { at: Date.now(), quote });
   return quote;
 }

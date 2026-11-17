@@ -43,7 +43,12 @@ export function ShopSettingsForm({ s }: { s: SiteSettings }) {
           <input className="input" name="tariffCourier" type="number" defaultValue={d.tariffCourier} />
         </label>
         <label className="field">
-          Наценка к цене СДЭК, ₽ (упаковка)
+          Наценка на доставку, %
+          <input className="input" name="markupPercent" type="number" min={0} max={300} step="0.1" defaultValue={d.markupPercent} />
+          <span className="muted small">Покупатель платит: (тариф СДЭК + страховка) + этот процент. Например, 400 ₽ + 10 ₽ страховки + 35 % = 554 ₽.</span>
+        </label>
+        <label className="field">
+          Плюс к доставке, ₽ (упаковка; 0 — нет)
           <input className="input" name="markup" type="number" min={0} defaultValue={d.markup} />
         </label>
         <label className="field">
