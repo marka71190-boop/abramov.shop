@@ -1,6 +1,6 @@
 import "server-only";
-import { isIP } from "node:net";
 import { headers } from "next/headers";
+import { clientIpFrom } from "@/lib/client-ip";
 
 /** IP и браузер посетителя — для журнала согласий и журнала действий. */
 export async function getRequestMeta() {
@@ -17,12 +17,7 @@ const PROXY_COUNT = Math.max(1, Math.trunc(Number(process.env.TRUSTED_PROXY_COUN
  * первым из наших прокси: N-й с конца.
  */
 function clientIp(h: Headers) {
-  const list = (h.get("x-forwarded-for") ?? "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-  const ip = list.length ? list[Math.max(0, list.length - PROXY_COUNT)] : h.get("x-real-ip")?.trim();
-  return ip && isIP(ip) ? ip : null;
+  return clientIpFrom(h.get("x-forwarded-for"), h.get("x-real-ip"), PROXY_COUNT);
 }
 
 export function metaFromHeaders(h: Headers) {

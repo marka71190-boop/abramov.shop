@@ -35,8 +35,8 @@ RUN mkdir -p /app/certs \
      || echo "ВНИМАНИЕ: сертификат Timeweb не скачался — подключение к базе по домену с TLS не заработает")
 ENV NODE_EXTRA_CA_CERTS=/app/certs/timeweb-root.crt
 
-# Папка кэша Next.js должна быть доступна на запись пользователю node
-RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
+# Next.js пишет кэш в .next/cache и .next/server (иконки, robots.txt) — папка должна быть доступна на запись пользователю node
+RUN mkdir -p /app/.next/cache /app/.next/server/route-cache && chown -R node:node /app/.next
 
 USER node
 EXPOSE 3000

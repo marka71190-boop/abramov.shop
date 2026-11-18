@@ -505,6 +505,13 @@
       "when": 1794652212467,
       "tag": "0071_supplier_code",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795037430424,
+      "tag": "0072_login_device",
+      "breakpoints": true
     }
   ]
 }

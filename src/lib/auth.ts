@@ -102,12 +102,21 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30, // 30 дней
     updateAge: 60 * 60 * 24,
   },
+  // IP для лимитов — только из заголовка, который ставит наш proxy.ts (подделать нельзя: присланный браузером перезаписывается)
+  advanced: { ipAddress: { ipAddressHeaders: ["x-client-ip"] } },
   rateLimit: {
     enabled: true,
     window: 60,
     max: 30,
     // Повторное письмо с подтверждением — не чаще 3 раз в 10 минут
     customRules: {
+      // Подбор пароля: 10 попыток входа за 10 минут с одного адреса
+      "/sign-in/email": { window: 600, max: 10 },
+      "/sign-in/username": { window: 600, max: 10 },
+      "/sign-up/email": { window: 600, max: 5 },
+      "/request-password-reset": { window: 600, max: 3 },
+      "/forget-password": { window: 600, max: 3 },
+      "/reset-password": { window: 600, max: 10 },
       "/send-verification-email": { window: 600, max: 3 },
       // Код для входа: не больше 5 писем и 10 попыток ввода за 10 минут с одного адреса
       "/email-otp/send-verification-otp": { window: 600, max: 5 },
@@ -115,6 +124,16 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
+    // Вход сотрудника с нового устройства — письмо ему и сообщение владельцу (src/lib/login-alerts.ts)
+    session: {
+      create: {
+        after: async (session) => {
+          void import("@/lib/login-alerts")
+            .then((m) => m.onSessionCreated(session))
+            .catch((e) => console.error("[login-alert]", e instanceof Error ? e.message : e));
+        },
+      },
+    },
     user: {
       update: {
         // Почту подтвердили входом по коду — приветственные бонусы (повторно не начисляются)

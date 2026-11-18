@@ -121,6 +121,22 @@ export const session = pgTable(
   (t) => [index("session_user_idx").on(t.userId)],
 );
 
+/** Устройства, с которых сотрудник уже входил: вход с нового — письмо ему и сообщение владельцу */
+export const loginDevice = pgTable(
+  "login_device",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // отпечаток браузера и системы (без номеров версий)
+    label: text("label").notNull(), // «Chrome · Windows»
+    ip: text("ip"),
+    firstAt: createdAt(),
+    lastAt: ts("last_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 export const account = pgTable(
   "account",
   {
