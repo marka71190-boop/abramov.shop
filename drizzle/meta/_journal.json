@@ -512,6 +512,13 @@
       "when": 1795037430424,
       "tag": "0072_login_device",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795703969334,
+      "tag": "0073_close_wholesale",
+      "breakpoints": true
     }
   ]
 }

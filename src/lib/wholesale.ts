@@ -12,6 +12,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema as s } from "@/db";
+import { getSettings } from "@/lib/settings";
 import type { UserRow } from "@/lib/viewer";
 
 export type Org = typeof s.organization.$inferSelect;
@@ -39,6 +40,8 @@ export const orgOf = cache(async (userId: string | null | undefined): Promise<Or
 /** Одобренная организация покупателя — только ей доступны оптовые цены */
 export async function approvedOrg(user: Pick<UserRow, "id" | "organizationId"> | null | undefined) {
   if (!user?.organizationId) return null;
+  // Опт закрыт — оптовых цен нет ни у кого, даже у одобренных организаций
+  if (!(await getSettings()).b2b.enabled) return null;
   const org = await orgOf(user.id);
   return org?.status === "APPROVED" ? org : null;
 }

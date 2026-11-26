@@ -195,3 +195,14 @@ test("подбор кия: в меню и в каталоге; в подборе
   assert.doesNotMatch(html, /Мел тестовый E2E/);
   assert.deepEqual(p.errors, []);
 });
+
+test("опт закрыт: вместо заявки — телефон, WhatsApp и Telegram", async () => {
+  const p = await page(b);
+  await p.goto(`${B}/opt`);
+  await p.getByRole("heading", { name: "Оптовые продажи закрыты" }).waitFor();
+  assert.equal(await p.getByText("Название организации").count(), 0, "формы заявки быть не должно");
+  assert.equal(await p.getByRole("link", { name: "Позвонить" }).getAttribute("href"), "tel:+79952651077");
+  assert.equal(await p.getByRole("link", { name: "Написать в WhatsApp" }).getAttribute("href"), "https://wa.me/79952651077");
+  assert.equal(await p.getByRole("link", { name: /Telegram @abramov_shop1/ }).getAttribute("href"), "https://t.me/abramov_shop1");
+  await p.close();
+});
