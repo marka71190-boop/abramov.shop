@@ -22,8 +22,6 @@ export default async function OptPage() {
   const b = settings.b2b;
   const org = me ? await orgOf(me.id) : null;
 
-  if (!b.enabled) return <Closed phone={settings.supportPhone} telegram={settings.supportTelegram} />;
-
   return (
     <section className="container page-pad stack" style={{ gap: 28 }}>
       <div className="section-head" style={{ marginBottom: 0 }}>
@@ -41,6 +39,8 @@ export default async function OptPage() {
 
       {org?.status === "APPROVED" ? (
         <Catalog />
+      ) : !b.enabled ? (
+        <div className="panel">Приём заявок временно закрыт. Напишите нам — <Link href="/#support">поддержка</Link>.</div>
       ) : (
         <>
           <div className="opt-perks">
@@ -120,40 +120,4 @@ async function Catalog() {
   const { items, categories } = await wholesaleCatalog();
   if (!items.length) return <div className="panel muted">Оптовый каталог наполняется — скоро здесь появятся товары.</div>;
   return <WholesaleList items={items} categories={categories} />;
-}
-
-/** Опт закрыт: вместо заявки и каталога — как с нами связаться */
-function Closed({ phone, telegram }: { phone: string; telegram: string }) {
-  const digits = phone.replace(/\D/g, "");
-  const pretty = digits.length === 11 ? `+${digits[0]} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}` : phone;
-  return (
-    <section className="container page-pad stack" style={{ gap: 28 }}>
-      <div className="section-head" style={{ marginBottom: 0 }}>
-        <div className="eyebrow">Для клубов и бизнеса</div>
-        <h1 className="h2">Оптовые продажи закрыты</h1>
-        <p>Оптовые продажи через сайт сейчас не ведутся. По вопросам опта свяжитесь с нами напрямую.</p>
-      </div>
-      <div className="panel stack">
-        <div>
-          <div className="muted small">Телефон и WhatsApp</div>
-          <a href={`tel:+${digits}`} className="h3" style={{ textDecoration: "none" }}>
-            {pretty}
-          </a>
-        </div>
-        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-          <a href={`tel:+${digits}`} className="btn btn--gold">
-            Позвонить
-          </a>
-          <a href={`https://wa.me/${digits}`} className="btn btn--line" target="_blank" rel="noopener noreferrer">
-            Написать в WhatsApp
-          </a>
-          {telegram && (
-            <a href={`https://t.me/${telegram}`} className="btn btn--line" target="_blank" rel="noopener noreferrer">
-              Telegram @{telegram}
-            </a>
-          )}
-        </div>
-      </div>
-    </section>
-  );
 }

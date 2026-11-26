@@ -519,6 +519,13 @@
       "when": 1795703969334,
       "tag": "0073_close_wholesale",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795704558605,
+      "tag": "0074_reopen_wholesale",
+      "breakpoints": true
     }
   ]
 }

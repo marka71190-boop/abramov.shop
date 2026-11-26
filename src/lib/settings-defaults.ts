@@ -12,7 +12,6 @@ export interface SiteSettings {
   pdPause: boolean;
   pdPauseMessage: string;
   supportTelegram: string; // без @
-  supportPhone: string; // телефон для звонков и WhatsApp, +7XXXXXXXXXX
   supportEmail: string;
   loyalty: {
     tiers: Record<TierKey, { percent: number; threshold: number }>; // threshold — ₽ покупок
@@ -116,7 +115,6 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   pdPause: false,
   pdPauseMessage: "Приём заказов и регистрация временно приостановлены. Каталог открыт — скоро снова начнём принимать заказы.",
   supportTelegram: "abramov_shop1",
-  supportPhone: "+79952651077",
   supportEmail: "shop@abramov.shop",
   loyalty: {
     tiers: {
@@ -173,7 +171,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     intro: "Замена наклейки, ремонт и реставрация киёв в мастерской Abramov. Принесите кий в любой наш клуб или пришлите СДЭК — вернём как новый.",
   },
   b2b: {
-    enabled: false,
+    enabled: true,
     intro: "Оптовые цены для бильярдных клубов, магазинов и тренеров. Оставьте заявку — проверим организацию и откроем оптовый каталог.",
     invoiceDays: 5,
     minOrder: 0,
