@@ -103,8 +103,30 @@ test("бонусная карта: QR в кабинете, касса наход
   assert.match(await k.locator(".pos-customer").textContent(), /по карте/);
   await k.click(".pos-total button.btn--gold");
   await k.waitForSelector(".pos-pay__ok", { timeout: 15_000 });
-  const [sale] = await q("select customer_id, bonus_accrued from pos_sale order by created_at desc limit 1");
+  const [sale] = await q("select customer_id, bonus_accrued, total from pos_sale order by created_at desc limit 1");
   assert.equal(sale.customer_id, id);
+  assert.ok(sale.bonus_accrued > 0, "без списания бонусы начисляются");
+  assert.equal(sale.bonus_accrued % 100, 0, "начисление — целыми бонусами (округление вниз)");
+
+  // Копишь или тратишь: списали бонусы — за этот чек новые не начисляются
+  await q(`update "user" set bonus_balance = 1000 where id = $1`, [id]);
+  await k.reload();
+  await k.waitForLoadState("networkidle");
+  await k.locator("h1").click(); // касса готова ловить сканер
+  await k.waitForTimeout(500);
+  await wedgeScan(k, v.barcode);
+  await k.waitForSelector(".pos-lines li");
+  await wedgeScan(k, cardToken(id));
+  await k.locator(".pos-customer b", { hasText: "Владелец" }).waitFor();
+  await k.locator("label", { hasText: "Списать" }).locator("input[type=checkbox]").check();
+  await k.waitForSelector("text=тогда за этот чек бонусы не начислятся");
+  assert.doesNotMatch(await k.locator(".pos-total").textContent(), /\+\d+ бонусов/, "в итоге не обещаем начисление");
+  await k.click(".pos-total button.btn--gold");
+  await k.waitForSelector(".pos-pay__ok", { timeout: 15_000 });
+  const [paid] = await q("select bonus_spent, bonus_accrued from pos_sale order by created_at desc limit 1");
+  assert.ok(paid.bonus_spent > 0, "бонусы списаны");
+  assert.equal(paid.bonus_spent % 100, 0, "списание — целыми бонусами");
+  assert.equal(paid.bonus_accrued, 0, "за чек с бонусами новые не начисляются");
   assert.deepEqual(k.errors, []);
   assert.deepEqual(me.errors, []);
 });

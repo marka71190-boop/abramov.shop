@@ -665,7 +665,7 @@ export function CheckoutForm({
                   ? "С этим промокодом бонусы списать нельзя"
                   : user.bonus === 0
                     ? "Бонусы начисляются после получения заказа"
-                    : "Бонусами можно оплатить часть заказа — лимит в правилах программы"}
+                    : "Бонусы либо копят, либо тратят: если списать их сейчас, за этот заказ новые не начислятся"}
               </span>
             </span>
           </label>
@@ -774,6 +774,7 @@ export function CheckoutForm({
             +{num(quote.accrue / 100)} бонусов после получения · {quote.tierPercent}%
           </div>
         )}
+        {!!quote?.bonus.spent && <div className="muted small">Заказ оплачен бонусами — за него бонусы не начисляются</div>}
         {abroad && mode === "CDEK" && !!quote?.payable && (
           <div className="pay-method" role="radiogroup" aria-label="Способ оплаты">
             {robokassa && (

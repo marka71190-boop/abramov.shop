@@ -203,7 +203,7 @@ export default async function PrintOrders({ searchParams }: Props) {
                           За этот заказ начислим <b>{num(o.bonusAccrued / 100)}</b> бонусов после получения.{" "}
                         </>
                       ) : null}
-                      1 бонус = 1 ₽, ими можно оплатить до {settings.loyalty.maxSpendPercent}% следующего заказа.
+                      1 бонус = 1 ₽, ими можно оплатить до {settings.loyalty.maxSpendPercent}% следующего заказа (за такой заказ новые бонусы не начисляются).
                       {settings.loyalty.reviewBonus > 0 && (
                         <>
                           {" "}

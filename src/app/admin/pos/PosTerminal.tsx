@@ -92,7 +92,8 @@ export function PosTerminal({
   let giftUse = gift ? Math.min(gift.balance, afterBonus) : 0;
   if (gift && method !== "CASH" && afterBonus - giftUse > 0 && afterBonus - giftUse < 100) giftUse = Math.max(0, afterBonus - 100);
   const total = afterBonus - giftUse;
-  const accrue = customer ? floorRub((total * customer.tierPercent) / 100) / 100 : 0;
+  // Либо копят, либо тратят: со списанием бонусов новые не начисляются
+  const accrue = customer && bonusSpent === 0 ? floorRub((total * customer.tierPercent) / 100) / 100 : 0;
   const discTooBig = maxDiscountPct != null && disc > Math.round((subtotal * maxDiscountPct) / 100);
   const needPin = discTooBig && !!approvers;
   const change = given.trim() ? toKop(given) - total : null;
@@ -423,7 +424,10 @@ export function PosTerminal({
             </div>
             <label className={`check ${bonusMax ? "" : "check--off"}`} style={{ margin: 0 }}>
               <input type="checkbox" checked={useBonus && bonusMax > 0} disabled={!bonusMax} onChange={(e) => setUseBonus(e.target.checked)} />
-              <span>{bonusMax ? `Списать ${bonusMax / 100} бонусов (до ${customer.maxSpendPercent} % покупки)` : "Списать бонусы нельзя: мало на счёте или маленький чек"}</span>
+              <span>
+                {bonusMax ? `Списать ${bonusMax / 100} бонусов (до ${customer.maxSpendPercent} % покупки)` : "Списать бонусы нельзя: мало на счёте или маленький чек"}
+                {bonusMax > 0 && <span className="muted small"> — тогда за этот чек бонусы не начислятся</span>}
+              </span>
             </label>
           </>
         ) : (

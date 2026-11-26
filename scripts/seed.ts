@@ -56,6 +56,9 @@ import {
   OFFER_FOREIGN_PAY_OLD,
   OFFER_FOREIGN_PAY_NEW,
   OFFER_FOREIGN_EDITION,
+  OFFER_BONUS_ANCHOR,
+  OFFER_BONUS_LINES,
+  OFFER_BONUS_EDITION,
 } from "../src/content/legal";
 import { DEFAULT_SETTINGS } from "../src/lib/settings-defaults";
 import { countryCodeByRuName, guessCustoms } from "../src/lib/customs";
@@ -208,6 +211,14 @@ async function main() {
       .set({ body: sql`replace(replace(${s.page.body}, ${OFFER_FOREIGN_PAY_OLD}, ${OFFER_FOREIGN_PAY_NEW}), ${OFFER_FOREIGN_EDITION[0]}, ${OFFER_FOREIGN_EDITION[1]})` })
       .where(eq(s.page.slug, "offer"));
   }
+
+  // Бонусы «копишь или тратишь» — дописываем в опубликованную оферту один раз
+  const bonusRule = await db
+    .update(s.page)
+    .set({ body: sql`replace(replace(${s.page.body}, ${OFFER_BONUS_ANCHOR}, ${OFFER_BONUS_ANCHOR + OFFER_BONUS_LINES}), ${OFFER_BONUS_EDITION[0]}, ${OFFER_BONUS_EDITION[1]})` })
+    .where(and(eq(s.page.slug, "offer"), like(s.page.body, `%${OFFER_BONUS_ANCHOR}%`), sql`${s.page.body} not like '%либо накапливаются, либо тратятся%'`))
+    .returning({ id: s.page.id });
+  if (bonusRule.length) console.log("[seed] оферта: добавлено правило «бонусы копишь или тратишь»");
 
   const categories = [
     { slug: "chalk", name: "Мел", visibility: "PUBLISHED" as const, sortOrder: 1, image: "/images/kamui-2.jpg" },

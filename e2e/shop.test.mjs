@@ -47,6 +47,27 @@ test("покупка: товар в корзину → оформление → 
   assert.deepEqual(p.errors, []);
 });
 
+test("бонусы: либо копишь, либо тратишь — со списанием бонусов за заказ новые не начисляются", async () => {
+  await q(`update "user" set bonus_balance = 1000 where email = $1`, ["buyer@e2e.test"]);
+  const p = await page(b);
+  const r = await p.context().request.post(`${B}/api/auth/sign-in/email`, { data: { email: "buyer@e2e.test", password: "buyer-pass-123" }, headers: { Origin: B } });
+  assert.ok(r.ok(), `вход покупателя: ${r.status()}`);
+  await p.goto(`${B}/product/${E2E.products[0].slug}`);
+  await p.locator("button:has-text('В корзину')").first().click();
+  await p.waitForTimeout(800);
+  await p.goto(`${B}/checkout`);
+  await p.locator("button[role=radio]:has-text('Самовывоз из клуба')").click();
+  await p.locator(`button[role=radio]:has-text('${E2E.club.name}')`).click();
+  // Без списания — обещаем бонусы за заказ
+  await p.waitForSelector("text=/\\+\\d+ бонусов после получения/");
+  const box = p.locator("label.check", { hasText: "Списать бонусы" }).locator("input[type=checkbox]");
+  await p.waitForFunction((el) => !el.disabled, await box.elementHandle(), { timeout: 15_000 });
+  await box.check();
+  await p.waitForSelector("text=Заказ оплачен бонусами — за него бонусы не начисляются");
+  assert.equal(await p.locator("text=/\\+\\d+ бонусов после получения/").count(), 0, "со списанием начисление не обещаем");
+  assert.deepEqual(p.errors, []);
+});
+
 test("«Основной» вариант не показывается покупателю, если у товара есть настоящие варианты", async () => {
   const [{ id: pid }] = await q(
     "insert into product (id, name, slug, price, visibility, weight_grams, preview_token, category_id) values (gen_random_uuid()::text, 'Наклейки E2E', 'naklejki-e2e', 70000, 'PUBLISHED', 50, 'e2e-naklejki-token', (select id from category where slug = 'e2e')) returning id",

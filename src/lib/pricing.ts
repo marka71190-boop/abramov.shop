@@ -406,7 +406,8 @@ export async function computeQuote(input: QuoteInput, user: UserRow | null, who?
 
   const tier = tierProgress(Math.floor((user?.totalSpent ?? 0) / 100), settings.loyalty).current;
   const tierPercent = settings.loyalty.tiers[tier].percent;
-  const accrue = user ? Math.floor((Math.max(0, goods - wholesaleSum) * tierPercent) / 100 / 100) * 100 : 0;
+  // Бонусы либо копят, либо тратят: заказ, оплаченный бонусами, бонусов не приносит. Округление — всегда вниз, до целого бонуса
+  const accrue = user && bonusSpent === 0 ? Math.floor((Math.max(0, goods - wholesaleSum) * tierPercent) / 100 / 100) * 100 : 0;
 
   // ---- Сбор за заказ из-за рубежа: процент от товаров и доставки, отдельной строкой в чеке
   let foreign: Quote["foreign"] = null;

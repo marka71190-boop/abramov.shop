@@ -192,7 +192,8 @@ export async function createSale(sellerId: string, input: NewSale, limits: SaleL
   const total = afterBonus - giftAmount;
   const method: string = total === 0 && giftAmount > 0 ? "GIFT" : input.method;
   if (total <= 0 && method !== "CASH" && method !== "GIFT") throw new PosError("Сумма к оплате — больше 0 ₽");
-  const bonusAccrued = customer ? floorRub((total * customer.tierPercent) / 100) : 0;
+  // Бонусы либо копят, либо тратят: чек, оплаченный бонусами, бонусов не приносит (как на сайте). Округление вниз
+  const bonusAccrued = customer && bonusSpent === 0 ? floorRub((total * customer.tierPercent) / 100) : 0;
   const cost = lines.reduce((a, l) => a + (l.v.cost ?? 0) * l.qty, 0);
   const paidNow = method === "CASH" || method === "GIFT";
   const loc = await saleLocation(input.clubId);
